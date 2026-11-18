@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pro AI Math & Calc Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@500;700&family=Noto+Sans+Devanagari:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box; margin: 0; padding: 0;
+      font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', 'Hind Siliguri', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: #03050a; color: #f8fafc; min-height: 100vh;
+      padding-bottom: 40px; overflow-x: hidden; position: relative;
+    }
+
+    /* AMBIENT ANIMATED BACKGROUND ORBS */
+    .bg-orb-1, .bg-orb-2 {
+      position: fixed; border-radius: 50%; filter: blur(90px); z-index: -1; opacity: 0.45;
+      animation: floatOrb 9s ease-in-out infinite alternate;
+    }
+    .bg-orb-1 { width: 260px; height: 260px; background: #2563eb; top: -60px; left: -60px; }
+    .bg-orb-2 { width: 280px; height: 280px; background: #9333ea; bottom: -80px; right: -60px; animation-delay: 3s; }
+    @keyframes floatOrb {
+      from { transform: translate(0, 0) scale(1); }
+      to { transform: translate(25px, 30px) scale(1.12); }
+    }
+
+    /* GLASS TOP BAR + LANGUAGE SWITCHER */
+    .topbar {
+      background: rgba(9, 13, 24, 0.82); backdrop-filter: blur(18px);
+      padding: 11px 14px; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08); position: sticky; top: 0; z-index: 90;
+    }
+    .back-btn {
+      background: rgba(30, 41, 59, 0.8); color: #fff; border: 1px solid rgba(255,255,255,0.12);
+      padding: 7px 12px; border-radius: 12px; font-weight: 700; font-size: 0.8rem; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .back-btn:active { transform: scale(0.93); }
+    .brand-title {
+      font-size: 1rem; font-weight: 800;
+      background: linear-gradient(90deg, #38bdf8, #a855f7, #f472b6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* 3-LANGUAGE PILL SWITCHER */
+    .lang-switch {
+      display: flex; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 20px; padding: 2px; gap: 2px;
+    }
+    .lang-btn {
+      background: none; border: none; color: #94a3b8; font-size: 0.68rem; font-weight: 800;
+      padding: 4px 8px; border-radius: 16px; cursor: pointer; transition: all 0.25s;
+    }
+    .lang-btn.active {
+      background: linear-gradient(135deg, #2563eb, #9333ea); color: #fff;
+      box-shadow: 0 2px 10px rgba(147, 51, 234, 0.5);
+    }
+
+    /* SLIDING MODE PILLS */
+    .mode-strip {
+      display: flex; gap: 8px; overflow-x: auto; padding: 12px 14px; scrollbar-width: none;
+    }
+    .mode-strip::-webkit-scrollbar { display: none; }
+    .mode-tab {
+      background: rgba(17, 24, 39, 0.75); color: #94a3b8; border: 1px solid rgba(255,255,255,0.08);
+      padding: 9px 15px; border-radius: 22px; font-size: 0.78rem; font-weight: 700;
+      white-space: nowrap; cursor: pointer; transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .mode-tab.active {
+      background: linear-gradient(135deg, #2563eb, #7c3aed, #db2777); color: #fff;
+      border-color: rgba(255,255,255,0.35); transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
+    }
+
+    .container { max-width: 490px; margin: 0 auto; padding: 4px 14px; }
+    .panel { display: none; animation: panelEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+    .panel.active { display: block; }
+    @keyframes panelEnter {
+      from { opacity: 0; transform: translateY(14px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ANIMATED GLOWING BORDER CARD */
+    .glow-card {
+      position: relative; background: rgba(13, 19, 34, 0.85); backdrop-filter: blur(18px);
+      border-radius: 24px; padding: 16px; margin-bottom: 14px;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .rule-banner {
+      background: linear-gradient(90deg, rgba(37,99,235,0.18), rgba(168,85,247,0.18));
+      border: 1px solid rgba(96, 165, 250, 0.3); border-radius: 14px;
+      padding: 9px 12px; font-size: 0.74rem; color: #bfdbfe; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px; font-weight: 600; line-height: 1.35;
+    }
+
+    /* QUESTION INPUT BOX */
+    .q-input-wrap {
+      background: #060912; border: 1.5px solid #263147; border-radius: 18px;
+      padding: 11px 12px; transition: all 0.25s;
+    }
+    .q-input-wrap:focus-within {
+      border-color: #a855f7;
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+    }
+    textarea#qTextIn {
+      width: 100%; background: none; border: none; color: #fff; font-size: 0.92rem;
+      resize: none; outline: none; line-height: 1.45;
+    }
+    .q-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 8px; padding-top: 9px; border-top: 1px solid #162033; gap: 8px;
+    }
+    .cam-chip {
+      background: rgba(56, 189, 248, 0.14); color: #38bdf8; border: 1px solid rgba(56,189,248,0.35);
+      padding: 8px 13px; border-radius: 13px; font-size: 0.76rem; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 5px; transition: transform 0.15s;
+    }
+    .cam-chip:active { transform: scale(0.94); }
+
+    /* SHIMMER GLOW ACTION BUTTON */
+    .solve-btn {
+      position: relative; overflow: hidden;
+      background: linear-gradient(135deg, #2563eb, #9333ea, #ec4899); color: #fff;
+      border: none; padding: 9px 18px; border-radius: 13px; font-size: 0.8rem;
+      font-weight: 800; cursor: pointer; box-shadow: 0 4px 18px rgba(168, 85, 247, 0.5);
+      transition: transform 0.15s;
+    }
+    .solve-btn:active { transform: scale(0.94); }
+    .solve-btn::after {
+      content: ''; position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+      animation: shimmer 2.8s infinite;
+    }
+    @keyframes shimmer {
+      100% { left: 160%; }
+    }
+
+    .sample-row {
+      display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; scrollbar-width: none;
+    }
+    .sample-row::-webkit-scrollbar { display: none; }
+    .s-chip {
+      background: rgba(30, 41, 59, 0.8); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);
+      padding: 5px 11px; border-radius: 14px; font-size: 0.7rem; font-weight: 600;
+      white-space: nowrap; cursor: pointer;
+    }
+
+    /* CROPPER */
+    .crop-box {
+      display: none; margin-top: 12px; background: #000; border-radius: 16px; padding: 10px;
+      border: 1px solid #334155;
+    }
+    .crop-inner { max-height: 220px; overflow: hidden; border-radius: 10px; }
+    .crop-inner img { max-width: 100%; display: block; }
+
+    /* STEP-BY-STEP SOLUTION BOARD */
+    .step-card {
+      display: none; background: linear-gradient(180deg, rgba(15,23,42,0.95), rgba(6,9,18,0.98));
+      border: 1px solid rgba(52, 211, 153, 0.45); border-radius: 22px;
+      padding: 16px; margin-top: 14px; box-shadow: 0 0 28px rgba(16, 185, 129, 0.18);
+      animation: popSpring 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    @keyframes popSpring {
+      from { opacity: 0; transform: scale(0.92); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .topic-tag {
+      display: inline-block; background: rgba(16, 185, 129, 0.18); color: #34d399;
+      font-size: 0.7rem; font-weight: 800; padding: 4px 11px; border-radius: 20px; margin-bottom: 8px;
+    }
+    .formula-box {
+      background: rgba(56, 189, 248, 0.12); border-left: 3px solid #38bdf8;
+      padding: 8px 11px; border-radius: 9px; font-size: 0.82rem; color: #7dd3fc;
+      margin-bottom: 10px; font-weight: 700;
+    }
+    .step-list { list-style: none; display: flex; flex-direction: column; gap: 7px; font-size: 0.85rem; color: #e2e8f0; }
+    .step-list li {
+      background: rgba(255,255,255,0.04); padding: 8px 11px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .final-ans-banner {
+      margin-top: 12px; background: linear-gradient(135deg, rgba(5,150,105,0.28), rgba(16,185,129,0.16));
+      border: 1px solid #10b981; border-radius: 13px; padding: 11px 12px;
+      font-size: 1.05rem; font-weight: 800; color: #34d399; text-align: center;
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.25);
+    }
+
+    /* SCIENTIFIC CALCULATOR */
+    .calc-display {
+      background: #060912; border: 1px solid #1e293b; border-radius: 20px; padding: 14px;
+      margin-bottom: 10px; text-align: right;
+    }
+    .tape-box {
+      max-height: 70px; overflow-y: auto; text-align: left; border-bottom: 1px solid #1e293b;
+      padding-bottom: 6px; margin-bottom: 8px; font-size: 0.73rem; color: #64748b;
+    }
+    .tape-item { padding: 2px 0; cursor: pointer; display: flex; justify-content: space-between; }
+    #exprInput { width: 100%; background: none; border: none; color: #94a3b8; font-size: 1.05rem; text-align: right; outline: none; }
+    #resOut { font-size: 2.15rem; font-weight: 800; color: #fff; word-break: break-all; }
+
+    .sci-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 8px; }
+    .sci-btn {
+      background: #111827; color: #7dd3fc; border: 1px solid #1e293b; padding: 9px 2px;
+      border-radius: 11px; font-size: 0.76rem; font-weight: 700; cursor: pointer;
+    }
+    .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .key {
+      background: #182234; color: #f8fafc; border: 1px solid rgba(255,255,255,0.05);
+      padding: 15px 0; border-radius: 15px; font-size: 1.15rem; font-weight: 800;
+      cursor: pointer; transition: transform 0.1s;
+    }
+    .key:active { transform: scale(0.91); }
+    .key.op { background: linear-gradient(135deg, #2563eb, #4f46e5); }
+    .key.ac { background: linear-gradient(135deg, #dc2626, #e11d48); }
+    .key.eq { background: linear-gradient(135deg, #059669, #10b981); }
+
+    /* UNIT & EXAM FORMS */
+    .unit-chips { display: flex; gap: 7px; overflow-x: auto; margin-bottom: 12px; scrollbar-width: none; }
+    .unit-chips::-webkit-scrollbar { display: none; }
+    .u-chip {
+      background: #1e293b; border: 1px solid #334155; color: #cbd5e1; padding: 6px 12px;
+      border-radius: 18px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; cursor: pointer;
+    }
+    .u-chip.active { background: #2563eb; color: #fff; }
+    .inp-group { background: #060912; border: 1px solid #2d3748; border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; }
+    .inp-group select, .inp-group input, .form-inp {
+      width: 100%; background: none; border: none; color: #fff; outline: none;
+    }
+    .inp-group select { font-size: 0.8rem; color: #60a5fa; font-weight: 700; margin-bottom: 5px; }
+    .inp-group input { font-size: 1.35rem; font-weight: 800; }
+    .form-inp { background: #060912; border: 1px solid #2d3748; padding: 10px 12px; border-radius: 12px; margin: 5px 0 10px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<div class="bg-orb-1"></div>
+<div class="bg-orb-2"></div>
+
+<!-- TOP HEADER WITH 3-LANGUAGE SWITCHER -->
+<div class="topbar">
+  <button class="back-btn" onclick="location.href='index.html'" data-i18n="backBtn">← Home</button>
+  <span class="brand-title" data-i18n="appTitle">AI Math Studio</span>
+  <div class="lang-switch">
+    <button class="lang-btn active" id="btn-en" onclick="setLanguage('en')">EN</button>
+    <button class="lang-btn" id="btn-hi" onclick="setLanguage('hi')">हिन्दी</button>
+    <button class="lang-btn" id="btn-bn" onclick="setLanguage('bn')">বাংলা</button>
+  </div>
+</div>
+
+<!-- SLIDING TABS -->
+<div class="mode-strip">
+  <button class="mode-tab active" onclick="switchMode('solver', this)" data-i18n="tabSolver">✨ AI Step Solver</button>
+  <button class="mode-tab" onclick="switchMode('calc', this)" data-i18n="tabCalc">🧮 Scientific Calc</button>
+  <button class="mode-tab" onclick="switchMode('unit', this)" data-i18n="tabUnit">🔄 Unit Converter</button>
+  <button class="mode-tab" onclick="switchMode('exam', this)" data-i18n="tabExam">🎓 Exam Age & CGPA</button>
+</div>
+
+<div class="container">
+
+  <!-- ==================== TAB 1: UNIFIED AI STEP-BY-STEP SOLVER ==================== -->
+  <div class="panel active" id="panel-solver">
+    <div class="glow-card">
+      <div class="rule-banner">
+        <span>📌</span>
+        <span data-i18n="ruleText">Rule: Enter or crop only 1 question at a time for 100% accurate step-by-step results.</span>
+      </div>
+
+      <div class="q-input-wrap">
+        <textarea id="qTextIn" rows="3" placeholder="Type your math question here... (e.g. 2x + 5 = 15)"></textarea>
+        <div class="q-toolbar">
+          <button class="cam-chip" onclick="document.getElementById('qImgIn').click()">
+            <span>📸</span><span data-i18n="photoBtn">Photo / Crop</span>
+          </button>
+          <button class="solve-btn" onclick="solveSingleQuestion()" data-i18n="solveBtn">✨ Solve Steps</button>
+        </div>
+      </div>
+
+      <input type="file" id="qImgIn" accept="image/*" style="display:none;" />
+
+      <!-- QUICK SAMPLE CHIPS -->
+      <div class="sample-row">
+        <span class="s-chip" onclick="trySample('2x + 5 = 15')">2x + 5 = 15</span>
+        <span class="s-chip" onclick="trySample('Area of circle with radius 7 cm')">Circle Area (r=7)</span>
+        <span class="s-chip" onclick="trySample('Hypotenuse of right triangle AB = 3 cm, BC = 4 cm')">Triangle (3, 4)</span>
+        <span class="s-chip" onclick="trySample('sin 30 + cos 60')">sin 30° + cos 60°</span>
+      </div>
+
+      <!-- CROPPER -->
+      <div class="crop-box" id="cropBox">
+        <div style="font-size:0.73rem; color:#38bdf8; font-weight:700; margin-bottom:6px;" data-i18n="cropHint">✂️ Drag corners to select only 1 question:</div>
+        <div class="crop-inner"><img id="qCropImg" /></div>
+        <button class="solve-btn" id="ocrBtn" style="width:100%; margin-top:8px;" onclick="readCroppedQuestion()" data-i18n="readCropBtn">🔍 Read & Solve Question</button>
+      </div>
+
+      <!-- STEP-BY-STEP SOLUTION CARD -->
+      <div class="step-card" id="solutionCard">
+        <span class="topic-tag" id="solTopic">ALGEBRA</span>
+        <div class="formula-box" id="solFormula">Formula</div>
+        <ul class="step-list" id="solSteps"></ul>
+        <div class="final-ans-banner" id="solFinal">Final Answer</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 2: SCIENTIFIC CALCULATOR ==================== -->
+  <div class="panel" id="panel-calc">
+    <div class="calc-display">
+      <div class="tape-box" id="tapeBox"><div data-i18n="tapeHint">Tap any previous result to reuse</div></div>
+      <input type="text" id="exprInput" placeholder="0" readonly />
+      <div id="resOut">0</div>
+    </div>
+    <div class="sci-row">
+      <button class="sci-btn" onclick="addToken('sin(')">sin</button>
+      <button class="sci-btn" onclick="addToken('cos(')">cos</button>
+      <button class="sci-btn" onclick="addToken('tan(')">tan</button>
+      <button class="sci-btn" onclick="addToken('sqrt(')">√</button>
+      <button class="sci-btn" onclick="addToken('^2')">x²</button>
+      <button class="sci-btn" onclick="addToken('log10(')">log</button>
+      <button class="sci-btn" onclick="addToken('(')">(</button>
+      <button class="sci-btn" onclick="addToken(')')">)</button>
+      <button class="sci-btn" onclick="addToken('pi')">π</button>
+      <button class="sci-btn" onclick="addToken('%')">%</button>
+    </div>
+    <div class="keypad">
+      <button class="key ac" onclick="clearCalc()">AC</button>
+      <button class="key" onclick="backspace()">⌫</button>
+      <button class="key op" onclick="addToken('/')">÷</button>
+      <button class="key op" onclick="addToken('*')">×</button>
+      <button class="key" onclick="addToken('7')">7</button>
+      <button class="key" onclick="addToken('8')">8</button>
+      <button class="key" onclick="addToken('9')">9</button>
+      <button class="key op" onclick="addToken('-')">−</button>
+      <button class="key" onclick="addToken('4')">4</button>
+      <button class="key" onclick="addToken('5')">5</button>
+      <button class="key" onclick="addToken('6')">6</button>
+      <button class="key op" onclick="addToken('+')">+</button>
+      <button class="key" onclick="addToken('1')">1</button>
+      <button class="key" onclick="addToken('2')">2</button>
+      <button class="key" onclick="addToken('3')">3</button>
+      <button class="key eq" style="grid-row: span 2;" onclick="evaluateCalc()">=</button>
+      <button class="key" style="grid-column: span 2;" onclick="addToken('0')">0</button>
+      <button class="key" onclick="addToken('.')">.</button>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 3: UNIT CONVERTER ==================== -->
+  <div class="panel" id="panel-unit">
+    <div class="glow-card">
+      <div class="unit-chips">
+        <button class="u-chip active" onclick="setUnitCat('dist', this)" data-i18n="uDist">📏 Km ↔ Miles</button>
+        <button class="u-chip" onclick="setUnitCat('weight', this)" data-i18n="uWeight">⚖️ Kg ↔ Pounds</button>
+        <button class="u-chip" onclick="setUnitCat('data', this)" data-i18n="uData">💾 KB ↔ MB/GB</button>
+        <button class="u-chip" onclick="setUnitCat('area', this)" data-i18n="uArea">📐 Sq.Ft ↔ Sq.M</button>
+        <button class="u-chip" onclick="setUnitCat('speed', this)" data-i18n="uSpeed">🚀 Km/h ↔ m/s</button>
+      </div>
+      <div class="inp-group">
+        <select id="unitFrom" onchange="convertUnits()"></select>
+        <input type="number" id="valFrom" value="1" oninput="convertUnits()" />
+      </div>
+      <div style="text-align:center; color:#38bdf8; margin:4px 0; font-weight:800;">⇅</div>
+      <div class="inp-group">
+        <select id="unitTo" onchange="convertUnits()"></select>
+        <input type="text" id="valTo" readonly style="color:#34d399;" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TAB 4: EXAM AGE & CGPA ==================== -->
+  <div class="panel" id="panel-exam">
+    <div class="glow-card">
+      <h3 style="font-size:0.95rem; margin-bottom:8px;" data-i18n="ageTitle">📅 Exam Age Eligibility Calculator</h3>
+      <label style="font-size:0.75rem; color:#94a3b8;" data-i18n="dobLbl">Date of Birth:</label>
+      <input type="date" id="dobIn" class="form-inp" value="2003-01-12" />
+      <label style="font-size:0.75rem; color:#94a3b8;" data-i18n="cutLbl">Exam Cutoff Date:</label>
+      <input type="date" id="cutIn" class="form-inp" />
+      <button class="solve-btn" style="width:100%;" onclick="calcExamAge()" data-i18n="calcAgeBtn">Calculate Exact Age</button>
+      <div id="ageOut" class="final-ans-banner" style="display:none; font-size:0.92rem;"></div>
+    </div>
+    <div class="glow-card">
+      <h3 style="font-size:0.95rem; margin-bottom:8px;" data-i18n="cgpaTitle">🎓 CGPA to Percentage Converter</h3>
+      <input type="number" id="cgpaIn" class="form-inp" placeholder="e.g. 8.5" step="0.01" oninput="calcCgpa()" />
+      <div id="cgpaOut" style="color:#38bdf8; font-weight:800; font-size:0.92rem;">Percentage: --%</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /* ==================== MULTILINGUAL DICTIONARY (EN / HI / BN) ==================== */
+  const i18n = {
+    en: {
+      backBtn: "← Home",
+      appTitle: "AI Math Studio",
+      tabSolver: "✨ AI Step Solver",
+      tabCalc: "🧮 Scientific Calc",
+      tabUnit: "🔄 Unit Converter",
+      tabExam: "🎓 Exam Age & CGPA",
+      ruleText: "Rule: Enter or crop only 1 question at a time for 100% accurate step-by-step results.",
+      placeholderQ: "Type your math question here... (e.g. 2x + 5 = 15)",
+      photoBtn: "Photo / Crop",
+      solveBtn: "✨ Solve Steps",
+      cropHint: "✂️ Drag corners to select only 1 question:",
+      readCropBtn: "🔍 Read & Solve Question",
+      tapeHint: "Tap any previous result to reuse",
+      uDist: "📏 Km ↔ Miles",
+      uWeight: "⚖️ Kg ↔ Pounds",
+      uData: "💾 KB ↔ MB/GB",
+      uArea: "📐 Sq.Ft ↔ Sq.M",
+      uSpeed: "🚀 Km/h ↔ m/s",
+      ageTitle: "📅 Exam Age Eligibility Calculator",
+      dobLbl: "Date of Birth:",
+      cutLbl: "Exam Cutoff Date:",
+      calcAgeBtn: "Calculate Exact Age",
+      cgpaTitle: "🎓 CGPA to Percentage Converter",
+      stepWord: "Step",
+      finalAns: "Final Answer",
+      givenEq: "Given Equation",
+      transposing: "Transposing constant term to the right side",
+      givenSides: "Given sides",
+      applyPyth: "Applying Pythagoras Theorem",
+      givenRad: "Given Radius",
+      substVal: "Substituting standard trigonometric values",
+      calcRes: "Evaluating expression",
+      exactAge: "Exact Age",
+      years: "Years", months: "Months", days: "Days"
+    },
+    hi: {
+      backBtn: "← होम",
+      appTitle: "AI गणित स्टूडियो",
+      tabSolver: "✨ स्टेप-बाय-स्टेप हल",
+      tabCalc: "🧮 साइंटिफिक कैलकुलेटर",
+      tabUnit: "🔄 यूनिट कन्वर्टर",
+      tabExam: "🎓 परीक्षा आयु और CGPA",
+      ruleText: "नियम: सटीक चरण-दर-चरण उत्तर के लिए एक बार में केवल 1 ही प्रश्न लिखें या क्रॉप करें।",
+      placeholderQ: "अपना गणित का प्रश्न यहाँ लिखें... (जैसे: 2x + 5 = 15)",
+      photoBtn: "फ़ोटो / क्रॉप",
+      solveBtn: "✨ हल देखें",
+      cropHint: "✂️ केवल 1 प्रश्न चुनने के लिए कोनों को खिसकाएं:",
+      readCropBtn: "🔍 प्रश्न पढ़ें और हल करें",
+      tapeHint: "पुनः उपयोग करने के लिए पिछले उत्तर पर टैप करें",
+      uDist: "📏 किमी ↔ मील",
+      uWeight: "⚖️ किग्रा ↔ पाउंड",
+      uData: "💾 KB ↔ MB/GB",
+      uArea: "📐 वर्ग फुट ↔ वर्ग मी.",
+      uSpeed: "🚀 किमी/घंटा ↔ मी/से",
+      ageTitle: "📅 परीक्षा आयु पात्रता कैलकुलेटर",
+      dobLbl: "जन्म तिथि (Date of Birth):",
+      cutLbl: "परीक्षा कट-ऑफ तिथि:",
+      calcAgeBtn: "सटीक आयु निकालें",
+      cgpaTitle: "🎓 CGPA से प्रतिशत (Percentage)",
+      stepWord: "चरण",
+      finalAns: "अंतिम उत्तर",
+      givenEq: "दिया गया समीकरण",
+      transposing: "अचर पद को दाईं ओर ले जाने पर",
+      givenSides: "दी गई भुजाएँ",
+      applyPyth: "पाइथागोरस प्रमेय लगाने पर",
+      givenRad: "दी गई त्रिज्या",
+      substVal: "त्रिकोणमितीय मान रखने पर",
+      calcRes: "गणना करने पर",
+      exactAge: "सटीक आयु",
+      years: "वर्ष", months: "महीने", days: "दिन"
+    },
+    bn: {
+      backBtn: "← হোম",
+      appTitle: "AI গণিত স্টুডিও",
+      tabSolver: "✨ ধাপে ধাপে সমাধান",
+      tabCalc: "🧮 সায়েন্টিফিক ক্যালকুলেটর",
+      tabUnit: "🔄 ইউনিট কনভার্টার",
+      tabExam: "🎓 পরীক্ষার বয়স ও CGPA",
+      ruleText: "নিয়ম: নির্ভুল ধাপে ধাপে সমাধানের জন্য একবারে কেবল ১টি প্রশ্ন লিখুন বা ক্রপ করুন।",
+      placeholderQ: "আপনার গণিতের প্রশ্নটি এখানে লিখুন... (যেমন: 2x + 5 = 15)",
+      photoBtn: "ফটো / ক্রপ",
+      solveBtn: "✨ সমাধান করুন",
+      cropHint: "✂️ কেবল ১টি প্রশ্ন নির্বাচন করতে কোণাগুলো টানুন:",
+      readCropBtn: "🔍 প্রশ্ন পড়ুন ও সমাধান করুন",
+      tapeHint: "পুনরায় ব্যবহার করতে পূর্ববর্তী ফলাফলে ট্যাপ করুন",
+      uDist: "📏 কিমি ↔ মাইল",
+      uWeight: "⚖️ কেজি ↔ পাউন্ড",
+      uData: "💾 KB ↔ MB/GB",
+      uArea: "📐 বর্গফুট ↔ বর্গমিটার",
+      uSpeed: "🚀 কিমি/ঘণ্টা ↔ মি/সে",
+      ageTitle: "📅 পরীক্ষার বয়স নির্ণায়ক",
+      dobLbl: "জন্ম তারিখ (Date of Birth):",
+      cutLbl: "পরীক্ষার কাট-অফ তারিখ:",
+      calcAgeBtn: "সঠিক বয়স হিসাব করুন",
+      cgpaTitle: "🎓 CGPA থেকে শতাংশ (Percentage)",
+      stepWord: "ধাপ",
+      finalAns: "চূড়ান্ত উত্তর",
+      givenEq: "প্রদত্ত সমীকরণ",
+      transposing: "ধ্রুবক পদটি ডানদিকে নিয়ে পাই",
+      givenSides: "প্রদত্ত বাহুসমূহ",
+      applyPyth: "পিথাগোরাসের উপপাদ্য প্রয়োগ করে পাই",
+      givenRad: "প্রদত্ত ব্যাসার্ধ",
+      substVal: "ত্রিকোণমিতিক মান বসিয়ে পাই",
+      calcRes: "হিসাব করে পাই",
+      exactAge: "সঠিক বয়স",
+      years: "বছর", months: "মাস", days: "দিন"
+    }
+  };
+
+  let curLang = localStorage.getItem("appLang") || "en";
+
+  function setLanguage(lang) {
+    curLang = lang;
+    localStorage.setItem("appLang", lang);
+    document.querySelectorAll(".lang-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("btn-" + lang).classList.add("active");
+
+    const dict = i18n[lang];
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const key = el.getAttribute("data-i18n");
+      if (dict[key]) el.innerText = dict[key];
+    });
+    document.getElementById("qTextIn").placeholder = dict.placeholderQ;
+
+    // Re-render solution if visible
+    if (document.getElementById("solutionCard").style.display === "block") {
+      solveSingleQuestion();
+    }
+  }
+
+  function switchMode(name, btn) {
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    document.getElementById("panel-" + name).classList.add("active");
+    document.querySelectorAll(".mode-tab").forEach(t => t.classList.remove("active"));
+    btn.classList.add("active");
+  }
+
+  function trySample(txt) {
+    document.getElementById("qTextIn").value = txt;
+    solveSingleQuestion();
+  }
+
+  /* ==================== IMAGE CROPPER + OCR ==================== */
+  let qCropper = null;
+  document.getElementById("qImgIn").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = document.getElementById("qCropImg");
+      img.onload = () => {
+        document.getElementById("cropBox").style.display = "block";
+        if (qCropper) qCropper.destroy();
+        qCropper = new Cropper(img, { viewMode: 1, autoCropArea: 0.5 });
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  async function readCroppedQuestion() {
+    if (!qCropper) return;
+    const btn = document.getElementById("ocrBtn");
+    btn.innerText = "⏳ ...";
+    btn.disabled = true;
+    try {
+      const url = qCropper.getCroppedCanvas({ maxWidth: 900 }).toDataURL("image/png");
+      const res = await Tesseract.recognize(url, "eng");
+      let clean = res.data.text.replace(/\n+/g, " ").replace(/^Q\d+[\.\):]\s*/i, "").trim();
+      document.getElementById("qTextIn").value = clean;
+      document.getElementById("cropBox").style.display = "none";
+      solveSingleQuestion();
+    } catch (e) {
+      alert("Could not read image clearly. Please crop tightly around 1 question.");
+    } finally {
+      btn.innerText = i18n[curLang].readCropBtn;
+      btn.disabled = false;
+    }
+  }
+
+  /* ==================== STEP-BY-STEP MULTILINGUAL MATH ENGINE ==================== */
+  function showSolution(topic, formula, steps, finalAns) {
+    const t = i18n[curLang];
+    const card = document.getElementById("solutionCard");
+    card.style.display = "block";
+    document.getElementById("solTopic").innerText = topic;
+    document.getElementById("solFormula").innerText = formula;
+    document.getElementById("solSteps").innerHTML = steps.map((s, i) => `<li><strong>${t.stepWord} ${i+1}:</strong> ${s}</li>`).join("");
+    document.getElementById("solFinal").innerText = `${t.finalAns}: ${finalAns}`;
+  }
+
+  function solveSingleQuestion() {
+    let raw = document.getElementById("qTextIn").value.trim();
+    if (!raw) return;
+    const q = raw.toLowerCase();
+    const t = i18n[curLang];
+
+    // 1. LINEAR EQUATION (2x + 5 = 15)
+    const eqMatch = raw.replace(/\s+/g, "").match(/([+-]?\d*\.?\d*)x([+-]\d+\.?\d*)?=([+-]?\d+\.?\d*)/i);
+    if (eqMatch) {
+      let aStr = eqMatch[1];
+      let a = (aStr === "" || aStr === "+") ? 1 : (aStr === "-" ? -1 : parseFloat(aStr));
+      let b = eqMatch[2] ? parseFloat(eqMatch[2]) : 0;
+      let c = parseFloat(eqMatch[3]);
+      let rhs = c - b;
+      let xVal = +(rhs / a).toFixed(4);
+
+      const steps = [
+        `${t.givenEq}: ${a}x ${b >= 0 ? "+ " + b : "- " + Math.abs(b)} = ${c}`,
+        `${t.transposing}: ${a}x = ${c} ${b >= 0 ? "- " + b : "+ " + Math.abs(b)}`,
+        `${a}x = ${rhs}`,
+        `x = ${rhs} / ${a} = ${xVal}`
+      ];
+      return showSolution("ALGEBRA • LINEAR EQUATION", "Formula: ax + b = c  ⇒  x = (c - b) / a", steps, `x = ${xVal}`);
+    }
+
+    // 2. PYTHAGORAS THEOREM
+    if (q.includes("hypotenuse") || (q.includes("triangle") && q.includes("cm"))) {
+      const nums = raw.match(/\d+(\.\d+)?/g);
+      if (nums && nums.length >= 2) {
+        const p = parseFloat(nums[0]), b = parseFloat(nums[1]);
+        const sqSum = p * p + b * b;
+        const h = +Math.sqrt(sqSum).toFixed(4);
+        const steps = [
+          `${t.givenSides}: AB = ${p} cm, BC = ${b} cm`,
+          `${t.applyPyth}: AC² = AB² + BC²`,
+          `AC² = ${p}² + ${b}² = ${p*p} + ${b*b} = ${sqSum}`,
+          `AC = √${sqSum} = ${h} cm`
+        ];
+        return showSolution("GEOMETRY • PYTHAGORAS", "Formula: AC² = AB² + BC²", steps, `AC = ${h} cm`);
+      }
+    }
+
+    // 3. AREA OF CIRCLE
+    if (q.includes("circle") && q.includes("area")) {
+      const rMatch = q.match(/radius\s*=?\s*(\d+(\.\d+)?)/) || q.match(/r\s*=?\s*(\d+(\.\d+)?)/) || raw.match(/\d+(\.\d+)?/);
+      if (rMatch) {
+        const r = parseFloat(rMatch[1] || rMatch[0]);
+        const area = +((22 / 7) * r * r).toFixed(2);
+        const steps = [
+          `${t.givenRad} (r) = ${r} cm`,
+          `Formula: Area = π × r²  (π = 22/7)`,
+          `Area = (22/7) × ${r} × ${r} = ${(22 * r * r)} / 7 = ${area} cm²`
+        ];
+        return showSolution("MENSURATION • CIRCLE", "Formula: Area = πr²", steps, `${area} cm²`);
+      }
+    }
+
+    // 4. TRIGONOMETRY
+    if (/(sin|cos|tan)/i.test(q)) {
+      const trigMap = {
+        "sin0": ["0", 0], "sin30": ["1/2", 0.5], "sin45": ["1/√2", 0.7071], "sin60": ["√3/2", 0.866], "sin90": ["1", 1],
+        "cos0": ["1", 1], "cos30": ["√3/2", 0.866], "cos45": ["1/√2", 0.7071], "cos60": ["1/2", 0.5], "cos90": ["0", 0],
+        "tan0": ["0", 0], "tan30": ["1/√3", 0.5774], "tan45": ["1", 1], "tan60": ["√3", 1.732], "tan90": ["∞", Infinity]
+      };
+      let exprClean = q.replace(/what is the value of|find|value of|°|deg|\?/gi, "").trim();
+      let step1 = exprClean, evalStr = exprClean;
+
+      Object.keys(trigMap).forEach(k => {
+        const fn = k.slice(0, 3), ang = k.slice(3);
+        const rx = new RegExp(`${fn}\\s*\\(?${ang}\\)?`, "gi");
+        if (rx.test(evalStr)) {
+          step1 = step1.replace(rx, trigMap[k][0]);
+          evalStr = evalStr.replace(rx, trigMap[k][1]);
+        }
+      });
+
+      try {
+        const finalVal = +math.evaluate(evalStr).toFixed(4);
+        const steps = [
+          `${t.givenEq}: ${exprClean}`,
+          `${t.substVal}: ${step1}`,
+          `${t.calcRes}: ${finalVal}`
+        ];
+        return showSolution("TRIGONOMETRY", "Standard Angles (0°, 30°, 45°, 60°, 90°)", steps, `${finalVal}`);
+      } catch (e) {}
+    }
+
+    // 5. PERCENTAGE
+    const pctMatch = q.match(/(\d+(\.\d+)?)\s*%\s*of\s*(\d+(\.\d+)?)/);
+    if (pctMatch) {
+      const p = parseFloat(pctMatch[1]), total = parseFloat(pctMatch[3]);
+      const ans = +((p / 100) * total).toFixed(4);
+      const steps = [
+        `${p}% = ${p} / 100`,
+        `(${p} / 100) × ${total} = ${(p * total)} / 100`,
+        `${t.calcRes}: ${ans}`
+      ];
+      return showSolution("ARITHMETIC • PERCENTAGE", "Formula: (Rate / 100) × Total", steps, `${ans}`);
+    }
+
+    // 6. GENERAL BODMAS
+    try {
+      let mathExpr = raw.replace(/what is|solve|find|value of|=|\?/gi, "")
+                        .replace(/[xX×]/g, "*").replace(/÷/g, "/").trim();
+      const val = +math.evaluate(mathExpr).toFixed(5);
+      if (typeof val === "number" && !isNaN(val)) {
+        const steps = [
+          `${t.givenEq}: ${mathExpr}`,
+          `BODMAS Rule: Brackets → Division → Multiplication → Addition → Subtraction`,
+          `${t.calcRes}: ${val}`
+        ];
+        return showSolution("ARITHMETIC • BODMAS", "Rule: B → O → D → M → A → S", steps, `${val}`);
+      }
+    } catch (e) {}
+  }
+
+  /* ==================== SCIENTIFIC CALCULATOR ==================== */
+  let expr = "";
+  function addToken(tok) {
+    expr += tok;
+    document.getElementById("exprInput").value = expr;
+    try {
+      const preview = math.evaluate(expr);
+      if (typeof preview === "number" && !isNaN(preview)) document.getElementById("resOut").innerText = +preview.toFixed(6);
+    } catch (e) {}
+  }
+  function clearCalc() { expr = ""; document.getElementById("exprInput").value = ""; document.getElementById("resOut").innerText = "0"; }
+  function backspace() { expr = expr.slice(0, -1); document.getElementById("exprInput").value = expr; }
+  function evaluateCalc() {
+    if (!expr) return;
+    try {
+      const val = +Number(math.evaluate(expr)).toFixed(6);
+      document.getElementById("resOut").innerText = val;
+      const tape = document.getElementById("tapeBox");
+      const item = document.createElement("div");
+      item.className = "tape-item";
+      item.innerHTML = `<span>${expr}</span><strong>= ${val}</strong>`;
+      item.onclick = () => { expr = String(val); document.getElementById("exprInput").value = expr; };
+      tape.appendChild(item);
+      tape.scrollTop = tape.scrollHeight;
+      expr = String(val);
+    } catch (e) { document.getElementById("resOut").innerText = "Error"; }
+  }
+
+  /* ==================== UNIT CONVERTER & EXAM AGE ==================== */
+  const unitData = {
+    dist: { Kilometer: 1000, Miles: 1609.344, Meter: 1, Feet: 0.3048, Inch: 0.0254, Centimeter: 0.01 },
+    weight: { Kilogram: 1000, Pounds_lbs: 453.592, Gram: 1, Ounce: 28.3495 },
+    data: { Megabyte_MB: 1024, Kilobyte_KB: 1, Gigabyte_GB: 1048576 },
+    area: { Sq_Feet: 0.092903, Sq_Meter: 1, Acre: 4046.86 },
+    speed: { Km_per_Hour: 0.277778, Meter_per_Sec: 1, Miles_per_Hour: 0.44704 }
+  };
+  let curCat = "dist";
+  function setUnitCat(cat, btn) {
+    curCat = cat;
+    document.querySelectorAll(".u-chip").forEach(c => c.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+    const keys = Object.keys(unitData[cat]);
+    document.getElementById("unitFrom").innerHTML = keys.map(k => `<option value="${k}">${k.replace(/_/g, " ")}</option>`).join("");
+    document.getElementById("unitTo").innerHTML = keys.map((k, i) => `<option value="${k}" ${i===1?"selected":""}>${k.replace(/_/g, " ")}</option>`).join("");
+    convertUnits();
+  }
+  function convertUnits() {
+    const val = parseFloat(document.getElementById("valFrom").value);
+    if (isNaN(val)) { document.getElementById("valTo").value = ""; return; }
+    const base = val * unitData[curCat][document.getElementById("unitFrom").value];
+    document.getElementById("valTo").value = +(base / unitData[curCat][document.getElementById("unitTo").value]).toFixed(5);
+  }
+  setUnitCat("dist", document.querySelector(".u-chip"));
+
+  document.getElementById("cutIn").valueAsDate = new Date();
+  function calcExamAge() {
+    const dob = new Date(document.getElementById("dobIn").value);
+    const cut = new Date(document.getElementById("cutIn").value);
+    if (isNaN(dob) || isNaN(cut) || cut < dob) return;
+    let y = cut.getFullYear() - dob.getFullYear(), m = cut.getMonth() - dob.getMonth(), d = cut.getDate() - dob.getDate();
+    if (d < 0) { m--; d += new Date(cut.getFullYear(), cut.getMonth(), 0).getDate(); }
+    if (m < 0) { y--; m += 12; }
+    const t = i18n[curLang];
+    const box = document.getElementById("ageOut");
+    box.style.display = "block";
+    box.innerText = `${t.exactAge}: ${y} ${t.years}, ${m} ${t.months}, ${d} ${t.days}`;
+  }
+  function calcCgpa() {
+    const c = parseFloat(document.getElementById("cgpaIn").value);
+    document.getElementById("cgpaOut").innerText = isNaN(c) ? "Percentage: --%" : `Percentage (×9.5): ${(c * 9.5).toFixed(2)}%`;
+  }
+
+  // Initialize saved language
+  setLanguage(curLang);
+</script>
+</body>
+</html>
