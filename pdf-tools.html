@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Smart AI PDF Scanner & KB Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@500;700&family=Noto+Sans+Devanagari:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box; margin: 0; padding: 0;
+      font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', 'Hind Siliguri', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: #03050a; color: #f8fafc; min-height: 100vh;
+      padding-bottom: 45px; overflow-x: hidden; position: relative;
+    }
+
+    /* AMBIENT GLOW ORBS */
+    .bg-orb-1, .bg-orb-2 {
+      position: fixed; border-radius: 50%; filter: blur(90px); z-index: -1; opacity: 0.42;
+      animation: floatOrb 9s ease-in-out infinite alternate;
+    }
+    .bg-orb-1 { width: 250px; height: 250px; background: #e11d48; top: -50px; left: -50px; }
+    .bg-orb-2 { width: 270px; height: 270px; background: #4f46e5; bottom: -70px; right: -60px; animation-delay: 2.5s; }
+    @keyframes floatOrb {
+      from { transform: translate(0, 0) scale(1); }
+      to { transform: translate(22px, 28px) scale(1.1); }
+    }
+
+    /* TOP BAR */
+    .topbar {
+      background: rgba(9, 13, 24, 0.85); backdrop-filter: blur(18px);
+      padding: 11px 14px; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08); position: sticky; top: 0; z-index: 90;
+    }
+    .back-btn {
+      background: rgba(30, 41, 59, 0.85); color: #fff; border: 1px solid rgba(255,255,255,0.12);
+      padding: 7px 12px; border-radius: 12px; font-weight: 700; font-size: 0.8rem; cursor: pointer;
+    }
+    .brand-title {
+      font-size: 0.96rem; font-weight: 800;
+      background: linear-gradient(90deg, #fb7185, #c084fc, #60a5fa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .lang-switch {
+      display: flex; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 20px; padding: 2px; gap: 2px;
+    }
+    .lang-btn {
+      background: none; border: none; color: #94a3b8; font-size: 0.68rem; font-weight: 800;
+      padding: 4px 8px; border-radius: 16px; cursor: pointer; transition: 0.25s;
+    }
+    .lang-btn.active {
+      background: linear-gradient(135deg, #e11d48, #7c3aed); color: #fff;
+      box-shadow: 0 2px 10px rgba(225, 29, 72, 0.5);
+    }
+
+    .container { max-width: 490px; margin: 0 auto; padding: 14px; }
+
+    .glow-card {
+      background: rgba(13, 19, 34, 0.85); backdrop-filter: blur(18px);
+      border-radius: 22px; padding: 16px; margin-bottom: 14px;
+      border: 1px solid rgba(244, 63, 94, 0.25);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+    }
+
+    /* DUAL ACTION HERO (SMART CAMERA + GALLERY) */
+    .source-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .src-box {
+      border: 1.8px dashed #f43f5e; border-radius: 18px; padding: 20px 10px; text-align: center;
+      background: rgba(244, 63, 94, 0.08); cursor: pointer; transition: 0.2s;
+    }
+    .src-box.cam {
+      border-color: #38bdf8; background: rgba(56, 189, 248, 0.1);
+    }
+    .src-box:active { transform: scale(0.96); }
+
+    /* PAGE GRID WITH LIVE FILTER PREVIEW */
+    .page-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px;
+    }
+    .page-item {
+      background: #060912; border: 1px solid #263147; border-radius: 14px; padding: 8px;
+      position: relative; animation: popIn 0.25s ease;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.92); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .page-item img {
+      width: 100%; height: 165px; object-fit: contain; border-radius: 9px; background: #fff;
+      transition: filter 0.25s ease;
+    }
+    .page-badge {
+      position: absolute; top: 13px; left: 13px; background: rgba(15, 23, 42, 0.88);
+      color: #fff; font-size: 0.66rem; font-weight: 800; padding: 3px 8px; border-radius: 8px; z-index: 5;
+    }
+    .page-actions {
+      display: flex; justify-content: space-between; gap: 4px; margin-top: 7px;
+    }
+    .mini-act {
+      flex: 1; background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+      padding: 6px 0; border-radius: 8px; font-size: 0.72rem; font-weight: 700; cursor: pointer;
+    }
+    .mini-act.del { background: rgba(220, 38, 38, 0.2); border-color: #ef4444; color: #fca5a5; }
+
+    /* FILTER & TARGET KB CHIPS */
+    .chip-row {
+      display: flex; gap: 7px; overflow-x: auto; margin: 8px 0 12px; scrollbar-width: none;
+    }
+    .chip-row::-webkit-scrollbar { display: none; }
+    .chip {
+      background: #1e293b; border: 1px solid #334155; color: #cbd5e1; padding: 7px 12px;
+      border-radius: 18px; font-size: 0.74rem; font-weight: 700; white-space: nowrap; cursor: pointer;
+    }
+    .chip.active {
+      background: linear-gradient(135deg, #e11d48, #9333ea); color: #fff; border-color: #fda4af;
+    }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    label { font-size: 0.74rem; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px; }
+    input[type="text"], input[type="number"] {
+      width: 100%; background: #060912; border: 1px solid #2d3748; color: #fff;
+      padding: 9px 11px; border-radius: 11px; font-size: 0.85rem; outline: none;
+    }
+
+    .shimmer-btn {
+      position: relative; overflow: hidden; width: 100%;
+      background: linear-gradient(135deg, #e11d48, #9333ea, #2563eb); color: #fff;
+      border: none; padding: 13px; border-radius: 14px; font-size: 0.9rem;
+      font-weight: 800; cursor: pointer; box-shadow: 0 5px 20px rgba(225, 29, 72, 0.45);
+    }
+    .shimmer-btn::after {
+      content: ''; position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+      animation: shimmer 2.8s infinite;
+    }
+    @keyframes shimmer { 100% { left: 160%; } }
+
+    /* LIVE FULL A4 PDF PREVIEW BEFORE DOWNLOAD */
+    .preview-card {
+      background: #060912; border: 1px solid rgba(52, 211, 153, 0.45);
+      border-radius: 18px; padding: 14px; text-align: center;
+    }
+    .kb-badge {
+      display: inline-block; background: rgba(16, 185, 129, 0.2); color: #34d399;
+      border: 1px solid #10b981; padding: 5px 14px; border-radius: 20px;
+      font-size: 0.8rem; font-weight: 800; margin-bottom: 10px;
+    }
+    .a4-scroll-preview {
+      max-height: 360px; overflow-y: auto; display: flex; flex-direction: column;
+      gap: 12px; background: #0b1120; padding: 10px; border-radius: 12px; margin-bottom: 12px;
+    }
+    .a4-sheet-mock {
+      background: #fff; padding: 8px; border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+    }
+    .a4-sheet-mock img { width: 100%; display: block; }
+    .btn-green {
+      width: 100%; background: linear-gradient(135deg, #059669, #10b981); color: #fff;
+      border: none; padding: 13px; border-radius: 13px; font-size: 0.9rem; font-weight: 800;
+      cursor: pointer; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+    }
+
+    /* FULL-SCREEN SMART CAMERA & AUTO-CROP MODALS */
+    .modal {
+      position: fixed; inset: 0; background: #000; z-index: 150;
+      display: none; flex-direction: column; justify-content: space-between;
+    }
+    .cam-top {
+      padding: 14px 16px; display: flex; justify-content: space-between; align-items: center;
+      background: rgba(0,0,0,0.75); z-index: 10;
+    }
+    .cam-view {
+      position: relative; flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    video#camVideo { width: 100%; height: 100%; object-fit: cover; }
+    .scan-guide {
+      position: absolute; width: 78%; height: 68%; border: 2.5px dashed #38bdf8;
+      border-radius: 14px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); pointer-events: none;
+    }
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px; background: #38bdf8;
+      box-shadow: 0 0 12px #38bdf8; animation: scanAnim 2.2s linear infinite;
+    }
+    @keyframes scanAnim { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+    .cam-bottom {
+      padding: 20px; display: flex; justify-content: center; align-items: center; gap: 24px;
+      background: rgba(0,0,0,0.85);
+    }
+    .shutter-btn {
+      width: 68px; height: 68px; border-radius: 50%; background: #fff;
+      border: 5px solid #38bdf8; cursor: pointer; box-shadow: 0 0 20px rgba(56,189,248,0.6);
+    }
+
+    /* CROP ADJUST MODAL */
+    .crop-modal-box {
+      background: #0f172a; height: 100%; display: flex; flex-direction: column; padding: 14px;
+    }
+    .crop-stage { flex: 1; overflow: hidden; background: #000; border-radius: 14px; margin: 10px 0; }
+    .crop-stage img { max-width: 100%; display: block; }
+  </style>
+</head>
+<body>
+
+<div class="bg-orb-1"></div>
+<div class="bg-orb-2"></div>
+
+<div class="topbar">
+  <button class="back-btn" onclick="location.href='index.html'" data-i18n="backBtn">← Home</button>
+  <span class="brand-title" data-i18n="appTitle">Smart PDF Scanner</span>
+  <div class="lang-switch">
+    <button class="lang-btn active" id="btn-en" onclick="setLanguage('en')">EN</button>
+    <button class="lang-btn" id="btn-hi" onclick="setLanguage('hi')">हिन्दी</button>
+    <button class="lang-btn" id="btn-bn" onclick="setLanguage('bn')">বাংলা</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- STEP 1: SMART CAMERA OR GALLERY UPLOAD -->
+  <div class="glow-card">
+    <div class="source-grid">
+      <div class="src-box cam" onclick="openSmartCamera()">
+        <div style="font-size:2rem; margin-bottom:4px;">📷</div>
+        <strong style="font-size:0.86rem; color:#38bdf8;" data-i18n="camScanTitle">Smart Camera</strong>
+        <p style="font-size:0.68rem; color:#94a3b8; margin-top:3px;" data-i18n="camScanSub">Auto-Crop & Scan</p>
+      </div>
+      <div class="src-box" onclick="document.getElementById('multiImgIn').click()">
+        <div style="font-size:2rem; margin-bottom:4px;">🖼️</div>
+        <strong style="font-size:0.86rem; color:#fb7185;" data-i18n="galTitle">Upload Photos</strong>
+        <p style="font-size:0.68rem; color:#94a3b8; margin-top:3px;" data-i18n="galSub">Select Multiple</p>
+      </div>
+    </div>
+    <input type="file" id="multiImgIn" accept="image/*" multiple style="display:none;" />
+
+    <!-- THUMBNAIL GRID WITH LIVE SCAN FILTER PREVIEW -->
+    <div class="page-grid" id="pageGrid"></div>
+  </div>
+
+  <!-- STEP 2: LIVE SCAN FILTER & KB SETTINGS -->
+  <div class="glow-card" id="settingsCard" style="display:none;">
+    <label data-i18n="scanModeLbl">Live Scan Filter (Preview Above):</label>
+    <div class="chip-row">
+      <button class="chip active" onclick="setScanFilter('bw', this)" data-i18n="fBw">📄 Crisp B&W Scan</button>
+      <button class="chip" onclick="setScanFilter('magic', this)" data-i18n="fMagic">✨ Magic Color</button>
+      <button class="chip" onclick="setScanFilter('orig', this)" data-i18n="fOrig">🖼️ Original</button>
+    </div>
+
+    <label data-i18n="quickKbLbl">Target PDF Size Limit:</label>
+    <div class="chip-row">
+      <button class="chip active" onclick="setTargetKb(100, this)">Under 100 KB</button>
+      <button class="chip" onclick="setTargetKb(200, this)">Under 200 KB</button>
+      <button class="chip" onclick="setTargetKb(500, this)">Under 500 KB</button>
+      <button class="chip" onclick="setTargetKb(2000, this)">HD No Limit</button>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label data-i18n="targetKbLbl">Max PDF Size (KB):</label>
+        <input type="number" id="targetKbIn" value="100" min="20" max="5000" />
+      </div>
+      <div>
+        <label data-i18n="fileNameLbl">PDF File Name:</label>
+        <input type="text" id="pdfNameIn" value="Scanned_Doc" />
+      </div>
+    </div>
+
+    <button class="shimmer-btn" id="buildBtn" onclick="buildCompressedPdf()" data-i18n="buildBtn">👁️ Preview & Compress PDF</button>
+  </div>
+
+  <!-- STEP 3: FULL A4 PDF PREVIEW BEFORE DOWNLOAD -->
+  <div class="glow-card" id="resultCard" style="display:none;">
+    <div class="preview-card">
+      <div class="kb-badge" id="pdfSizeBadge">✓ Ready: 86.2 KB</div>
+      <div style="font-size:0.74rem; color:#94a3b8; margin-bottom:8px;" data-i18n="previewHint">Scroll to check final A4 PDF pages before downloading:</div>
+      <div class="a4-scroll-preview" id="a4PreviewList"></div>
+      <button class="btn-green" onclick="downloadGeneratedPdf()" data-i18n="downloadBtn">⬇️ Download Final PDF</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- SMART DOCUMENT CAMERA MODAL -->
+<div class="modal" id="camModal">
+  <div class="cam-top">
+    <button class="back-btn" onclick="closeSmartCamera()">✕ Close</button>
+    <span style="font-size:0.82rem; font-weight:800; color:#38bdf8;" data-i18n="alignHint">Align Document in Box</span>
+    <span style="width:45px;"></span>
+  </div>
+  <div class="cam-view">
+    <video id="camVideo" autoplay playsinline></video>
+    <div class="scan-guide"><div class="scan-line"></div></div>
+  </div>
+  <div class="cam-bottom">
+    <button class="shutter-btn" onclick="captureAndAutoCrop()"></button>
+  </div>
+</div>
+
+<!-- AUTO-CROP & MANUAL EDGE ADJUST MODAL -->
+<div class="modal" id="cropModal">
+  <div class="crop-modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong style="font-size:0.95rem; color:#38bdf8;" data-i18n="autoCropTitle">✂️ Auto-Detected Document Edges</strong>
+      <button class="back-btn" onclick="closeCropModal()">✕</button>
+    </div>
+    <div class="crop-stage"><img id="autoCropImg" /></div>
+    <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px;">
+      <button class="back-btn" style="padding:12px;" onclick="closeCropModal()">Retake</button>
+      <button class="shimmer-btn" onclick="confirmCroppedPage()" data-i18n="addPageBtn">✓ Add Scanned Page</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const i18n = {
+    en: {
+      backBtn: "← Home", appTitle: "Smart PDF Scanner",
+      camScanTitle: "Smart Camera", camScanSub: "Auto-Crop & Scan",
+      galTitle: "Upload Photos", galSub: "Select Multiple",
+      scanModeLbl: "Live Scan Filter (Preview Above):", fBw: "📄 Crisp B&W Scan", fMagic: "✨ Magic Color", fOrig: "🖼️ Original",
+      quickKbLbl: "Target PDF Size Limit:", targetKbLbl: "Max PDF Size (KB):", fileNameLbl: "PDF File Name:",
+      buildBtn: "👁️ Preview & Compress PDF", previewHint: "Scroll to check final A4 PDF pages before downloading:",
+      downloadBtn: "⬇️ Download Final PDF", alignHint: "Align Document in Box",
+      autoCropTitle: "✂️ Auto-Detected Document Edges", addPageBtn: "✓ Add Scanned Page"
+    },
+    hi: {
+      backBtn: "← होम", appTitle: "स्मार्ट PDF स्कैनर",
+      camScanTitle: "स्मार्ट कैमरा", camScanSub: "ऑटो-क्रॉप और स्कैन",
+      galTitle: "फ़ोटो अपलोड करें", galSub: "एक से अधिक चुनें",
+      scanModeLbl: "लाइव स्कैन फ़िल्टर (ऊपर प्रीव्यू देखें):", fBw: "📄 साफ़ B&W स्कैन", fMagic: "✨ मैजिक कलर", fOrig: "🖼️ ओरिजिनल",
+      quickKbLbl: "PDF साइज़ सीमा:", targetKbLbl: "अधिकतम PDF साइज़ (KB):", fileNameLbl: "PDF फ़ाइल का नाम:",
+      buildBtn: "👁️ PDF प्रीव्यू देखें और कम्प्रेश करें", previewHint: "डाउनलोड करने से पहले अंतिम A4 पेज जांचें:",
+      downloadBtn: "⬇️ अंतिम PDF डाउनलोड करें", alignHint: "दस्तावेज़ को बॉक्स में रखें",
+      autoCropTitle: "✂️ ऑटो-डिटेक्टेड दस्तावेज़ किनारे", addPageBtn: "✓ स्कैन किया पेज जोड़ें"
+    },
+    bn: {
+      backBtn: "← হোম", appTitle: "স্মার্ট PDF স্ক্যানার",
+      camScanTitle: "স্মার্ট ক্যামেরা", camScanSub: "অটো-ক্রপ ও স্ক্যান",
+      galTitle: "ফটো আপলোড করুন", galSub: "একাধিক নির্বাচন করুন",
+      scanModeLbl: "লাইভ স্ক্যান ফিল্টার (উপরে প্রিভিউ দেখুন):", fBw: "📄 পরিষ্কার B&W স্ক্যান", fMagic: "✨ ম্যাজিক কালার", fOrig: "🖼️ অরিজিনাল",
+      quickKbLbl: "PDF সাইজ সীমা:", targetKbLbl: "সর্বোচ্চ PDF সাইজ (KB):", fileNameLbl: "PDF ফাইলের নাম:",
+      buildBtn: "👁️ PDF প্রিভিউ দেখুন ও কম্প্রেস করুন", previewHint: "ডাউনলোড করার আগে চূড়ান্ত A4 পৃষ্ঠাগুলো দেখে নিন:",
+      downloadBtn: "⬇️ চূড়ান্ত PDF ডাউনলোড করুন", alignHint: "ডকুমেন্টটি বক্সের মধ্যে রাখুন",
+      autoCropTitle: "✂️ অটো-ডিটেক্টেড ডকুমেন্ট প্রান্ত", addPageBtn: "✓ স্ক্যান করা পৃষ্ঠা যুক্ত করুন"
+    }
+  };
+
+  let curLang = localStorage.getItem("appLang") || "en";
+  function setLanguage(lang) {
+    curLang = lang;
+    localStorage.setItem("appLang", lang);
+    document.querySelectorAll(".lang-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("btn-" + lang).classList.add("active");
+    const dict = i18n[lang];
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const k = el.getAttribute("data-i18n");
+      if (dict[k]) el.innerText = dict[k];
+    });
+  }
+
+  let pages = []; // { src, rot }
+  let scanFilter = "bw"; // Default crisp scan!
+  let generatedPdfBlobUrl = "";
+  let camStream = null;
+  let cropper = null;
+
+  /* ==================== SMART CAMERA & EDGE AUTO-CROP ==================== */
+  async function openSmartCamera() {
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      const video = document.getElementById("camVideo");
+      video.srcObject = camStream;
+      document.getElementById("camModal").style.display = "flex";
+    } catch (err) {
+      // Fallback to native mobile camera capture if permission denied
+      const fallbackIn = document.createElement("input");
+      fallbackIn.type = "file";
+      fallbackIn.accept = "image/*";
+      fallbackIn.capture = "environment";
+      fallbackIn.onchange = (e) => {
+        if (e.target.files[0]) loadFileForAutoCrop(e.target.files[0]);
+      };
+      fallbackIn.click();
+    }
+  }
+
+  function closeSmartCamera() {
+    if (camStream) {
+      camStream.getTracks().forEach(t => t.stop());
+      camStream = null;
+    }
+    document.getElementById("camModal").style.display = "none";
+  }
+
+  function captureAndAutoCrop() {
+    const video = document.getElementById("camVideo");
+    const c = document.createElement("canvas");
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+    c.getContext("2d").drawImage(video, 0, 0);
+    closeSmartCamera();
+    openAutoCropEditor(c.toDataURL("image/jpeg", 0.94));
+  }
+
+  function loadFileForAutoCrop(file) {
+    const reader = new FileReader();
+    reader.onload = (ev) => openAutoCropEditor(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  // Smart Brightness/Contrast Edge-Bounding Auto-Cropper
+  function detectDocumentBounds(img) {
+    const w = 160, h = Math.round(160 * (img.height / img.width));
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+
+    let minX = w, maxX = 0, minY = h, maxY = 0, count = 0;
+    for (let y = 8; y < h - 8; y++) {
+      for (let x = 8; x < w - 8; x++) {
+        const i = (y * w + x) * 4;
+        const lum = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+        // Detect bright paper region vs darker background
+        if (lum > 145) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          count++;
+        }
+      }
+    }
+    if (count > (w * h * 0.15) && (maxX - minX) > w * 0.3 && (maxY - minY) > h * 0.3) {
+      return {
+        x: Math.max(0, (minX / w) * img.width - 10),
+        y: Math.max(0, (minY / h) * img.height - 10),
+        width: Math.min(img.width, ((maxX - minX) / w) * img.width + 20),
+        height: Math.min(img.height, ((maxY - minY) / h) * img.height + 20)
+      };
+    }
+    return null;
+  }
+
+  function openAutoCropEditor(dataUrl) {
+    const imgEl = document.getElementById("autoCropImg");
+    imgEl.onload = () => {
+      document.getElementById("cropModal").style.display = "flex";
+      if (cropper) cropper.destroy();
+      const autoBox = detectDocumentBounds(imgEl);
+      cropper = new Cropper(imgEl, {
+        viewMode: 1,
+        autoCropArea: 0.85,
+        ready() {
+          if (autoBox) cropper.setData(autoBox);
+        }
+      });
+    };
+    imgEl.src = dataUrl;
+  }
+
+  function closeCropModal() {
+    document.getElementById("cropModal").style.display = "none";
+    if (cropper) cropper.destroy();
+  }
+
+  function confirmCroppedPage() {
+    if (!cropper) return;
+    const croppedUrl = cropper.getCroppedCanvas({ maxWidth: 1400 }).toDataURL("image/jpeg", 0.92);
+    pages.push({ src: croppedUrl, rot: 0 });
+    closeCropModal();
+    renderPageGrid();
+  }
+
+  function editExistingPageCrop(idx) {
+    const oldSrc = pages[idx].src;
+    pages.splice(idx, 1);
+    openAutoCropEditor(oldSrc);
+  }
+
+  /* ==================== GALLERY MULTI-UPLOAD ==================== */
+  document.getElementById("multiImgIn").addEventListener("change", (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        pages.push({ src: ev.target.result, rot: 0 });
+        renderPageGrid();
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  });
+
+  function getCssFilter() {
+    if (scanFilter === "bw") return "grayscale(100%) contrast(165%) brightness(118%)";
+    if (scanFilter === "magic") return "contrast(125%) saturate(125%) brightness(108%)";
+    return "none";
+  }
+
+  function renderPageGrid() {
+    const grid = document.getElementById("pageGrid");
+    document.getElementById("settingsCard").style.display = pages.length ? "block" : "none";
+    document.getElementById("resultCard").style.display = "none";
+    const cssF = getCssFilter();
+
+    grid.innerHTML = pages.map((p, idx) => `
+      <div class="page-item">
+        <span class="page-badge">Page ${idx + 1}</span>
+        <img src="${p.src}" style="transform: rotate(${p.rot}deg); filter: ${cssF};" />
+        <div class="page-actions">
+          <button class="mini-act" onclick="editExistingPageCrop(${idx})" title="Crop">✂️</button>
+          <button class="mini-act" onclick="movePage(${idx}, -1)">↑</button>
+          <button class="mini-act" onclick="rotPage(${idx})">↻</button>
+          <button class="mini-act del" onclick="delPage(${idx})">✕</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function movePage(idx, dir) {
+    const target = idx + dir;
+    if (target < 0 || target >= pages.length) return;
+    [pages[idx], pages[target]] = [pages[target], pages[idx]];
+    renderPageGrid();
+  }
+  function rotPage(idx) {
+    pages[idx].rot = (pages[idx].rot + 90) % 360;
+    renderPageGrid();
+  }
+  function delPage(idx) {
+    pages.splice(idx, 1);
+    renderPageGrid();
+  }
+
+  function setScanFilter(f, btn) {
+    scanFilter = f;
+    btn.parentElement.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+    btn.classList.add("active");
+    renderPageGrid(); // Live update preview immediately!
+  }
+
+  function setTargetKb(kb, btn) {
+    document.getElementById("targetKbIn").value = kb;
+    btn.parentElement.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+    btn.classList.add("active");
+  }
+
+  function loadImage(src) {
+    return new Promise(res => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.src = src;
+    });
+  }
+
+  /* ==================== BUILD PDF + LIVE A4 PREVIEW ==================== */
+  async function buildCompressedPdf() {
+    if (!pages.length) return;
+    const btn = document.getElementById("buildBtn");
+    btn.innerText = "⏳ ...";
+    btn.disabled = true;
+
+    const maxBytes = (parseInt(document.getElementById("targetKbIn").value) || 100) * 1024;
+    const loadedImgs = await Promise.all(pages.map(p => loadImage(p.src)));
+
+    let scaleWidth = 1000;
+    let quality = 0.78;
+    let finalBlob = null;
+    let previewDataUrls = [];
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+      previewDataUrls = [];
+
+      for (let i = 0; i < loadedImgs.length; i++) {
+        if (i > 0) pdf.addPage();
+        const img = loadedImgs[i];
+        const rot = pages[i].rot;
+        const swap = (rot === 90 || rot === 270);
+        const origW = swap ? img.height : img.width;
+        const origH = swap ? img.width : img.height;
+
+        const targetW = Math.min(scaleWidth, origW);
+        const targetH = Math.round(origH * (targetW / origW));
+
+        const c = document.createElement("canvas");
+        c.width = targetW;
+        c.height = targetH;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, targetW, targetH);
+
+        ctx.filter = getCssFilter();
+        ctx.save();
+        ctx.translate(targetW / 2, targetH / 2);
+        ctx.rotate((rot * Math.PI) / 180);
+        const drawW = swap ? targetH : targetW;
+        const drawH = swap ? targetW : targetH;
+        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+        ctx.restore();
+
+        const dataUrl = c.toDataURL("image/jpeg", quality);
+        previewDataUrls.push(dataUrl);
+
+        const maxPdfW = 194, maxPdfH = 281;
+        let pdfW = maxPdfW, pdfH = (targetH * maxPdfW) / targetW;
+        if (pdfH > maxPdfH) {
+          pdfH = maxPdfH;
+          pdfW = (targetW * maxPdfH) / targetH;
+        }
+        const x = (210 - pdfW) / 2;
+        const y = (297 - pdfH) / 2;
+        pdf.addImage(dataUrl, "JPEG", x, y, pdfW, pdfH);
+      }
+
+      const blob = pdf.output("blob");
+      finalBlob = blob;
+      if (blob.size <= maxBytes) break;
+
+      quality = Math.max(0.22, quality * 0.72);
+      scaleWidth = Math.max(480, Math.round(scaleWidth * 0.8));
+    }
+
+    if (generatedPdfBlobUrl) URL.revokeObjectURL(generatedPdfBlobUrl);
+    generatedPdfBlobUrl = URL.createObjectURL(finalBlob);
+
+    document.getElementById("pdfSizeBadge").innerText = `✓ Ready: ${(finalBlob.size / 1024).toFixed(1)} KB (${pages.length} Pages)`;
+    document.getElementById("a4PreviewList").innerHTML = previewDataUrls.map((u, i) => `
+      <div class="a4-sheet-mock">
+        <div style="font-size:0.65rem; color:#475569; font-weight:800; text-align:left; margin-bottom:4px;">A4 Page ${i + 1}</div>
+        <img src="${u}" />
+      </div>
+    `).join("");
+
+    document.getElementById("resultCard").style.display = "block";
+    document.getElementById("resultCard").scrollIntoView({ behavior: "smooth" });
+
+    btn.innerText = i18n[curLang].buildBtn;
+    btn.disabled = false;
+  }
+
+  function downloadGeneratedPdf() {
+    const name = (document.getElementById("pdfNameIn").value || "Scanned_Doc").trim();
+    const a = document.createElement("a");
+    a.href = generatedPdfBlobUrl;
+    a.download = `${name}.pdf`;
+    a.click();
+  }
+
+  setLanguage(curLang);
+</script>
+</body>
+</html>
