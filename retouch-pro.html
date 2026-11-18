@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Retouch Pro Studio</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: #04060b; color: #f8fafc; overflow: hidden; }
+
+    /* ULTRA-SLIM TOP HEADER */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; height: 48px;
+      background: rgba(8, 12, 22, 0.85); backdrop-filter: blur(12px);
+      padding: 0 12px; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.07); z-index: 95;
+    }
+    .top-group { display: flex; align-items: center; gap: 6px; }
+    .t-btn {
+      background: rgba(30, 41, 59, 0.8); color: #f1f5f9; border: 1px solid rgba(255,255,255,0.1);
+      height: 32px; padding: 0 10px; border-radius: 9px; font-size: 0.76rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer;
+    }
+    .t-btn:disabled { opacity: 0.3; }
+    .t-btn.active { background: #7c3aed; border-color: #a78bfa; }
+    .save-pill {
+      background: linear-gradient(135deg, #2563eb, #9333ea); color: #fff; border: none;
+      height: 32px; padding: 0 14px; border-radius: 9px; font-size: 0.76rem; font-weight: 800;
+      box-shadow: 0 4px 12px rgba(147, 51, 234, 0.45); cursor: pointer;
+    }
+
+    /* 100% FULL-SCREEN CANVAS VIEWPORT */
+    .studio-viewport {
+      position: fixed; top: 48px; bottom: 0; left: 0; right: 0;
+      background: #04060b; overflow: hidden; touch-action: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upload-hero {
+      border: 2px dashed #6366f1; border-radius: 24px; padding: 38px 24px; text-align: center;
+      background: radial-gradient(circle at top, rgba(99, 102, 241, 0.18), rgba(15, 23, 42, 0.7));
+      max-width: 340px; cursor: pointer;
+    }
+    .upload-badge {
+      width: 64px; height: 64px; border-radius: 20px; margin: 0 auto 14px;
+      background: linear-gradient(135deg, #3b82f6, #9333ea);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45);
+    }
+
+    .zoom-layer {
+      position: relative; width: 100%; max-width: 540px;
+      transform-origin: 0 0; will-change: transform; display: none;
+    }
+    canvas#mainCanvas { width: 100%; display: block; }
+    canvas#outlineOverlay {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 8;
+    }
+
+    /* Clone Pin */
+    .clone-pin {
+      position: absolute; width: 26px; height: 26px; border-radius: 50%;
+      border: 2.5px solid #38bdf8; background: rgba(56, 189, 248, 0.25);
+      transform: translate(-50%, -50%); pointer-events: none; display: none; z-index: 15;
+      box-shadow: 0 0 12px #38bdf8;
+    }
+    .clone-pin::after {
+      content: '+'; position: absolute; inset: 0; display: flex;
+      align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 14px;
+    }
+
+    /* Split Curtain */
+    .split-line {
+      position: absolute; top: 0; bottom: 0; left: 50%; width: 2px;
+      background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; display: none;
+    }
+    .split-handle {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 32px; height: 32px; border-radius: 50%; background: #fff; color: #0f172a;
+      display: none; align-items: center; justify-content: center; font-weight: 900;
+      font-size: 0.72rem; box-shadow: 0 4px 12px rgba(0,0,0,0.7); z-index: 11; cursor: ew-resize;
+    }
+
+    /* ==================== COLLAPSIBLE RIGHT SIDE-ARROW DOCK ==================== */
+    .side-dock-wrap {
+      position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+      display: none; align-items: center; z-index: 90;
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .side-dock-wrap.collapsed {
+      transform: translate(calc(100% - 28px), -50%);
+    }
+    .arrow-handle {
+      width: 28px; height: 64px;
+      background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.15); border-right: none;
+      border-radius: 14px 0 0 14px; color: #c084fc;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem; font-weight: 900; cursor: pointer;
+      box-shadow: -4px 0 16px rgba(0,0,0,0.5);
+    }
+    .side-rail {
+      background: rgba(10, 14, 24, 0.92); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12); border-right: none;
+      border-radius: 18px 0 0 18px; padding: 8px 6px;
+      display: flex; flex-direction: column; gap: 6px;
+      box-shadow: -8px 0 28px rgba(0,0,0,0.7);
+    }
+    .s-tool {
+      background: transparent; border: none; color: #94a3b8;
+      width: 54px; padding: 7px 2px; border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      font-size: 0.62rem; font-weight: 700; cursor: pointer;
+    }
+    .s-tool.active {
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.35), rgba(236, 72, 153, 0.25));
+      color: #f8fafc; border: 1px solid rgba(192, 132, 252, 0.45);
+    }
+    .s-tool svg { width: 19px; height: 19px; }
+
+    /* ==================== SLIM TRANSPARENT BOTTOM ADJUSTMENT STRIP ==================== */
+    .bottom-strip {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, rgba(4, 6, 11, 0.96) 75%, rgba(4, 6, 11, 0));
+      padding: 14px 14px 14px; z-index: 85; display: none;
+    }
+    .strip-inner { max-width: 500px; margin: 0 auto; }
+
+    .h-chips {
+      display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; margin-bottom: 8px;
+    }
+    .h-chips::-webkit-scrollbar { display: none; }
+    .chip {
+      background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255,255,255,0.12);
+      color: #e2e8f0; padding: 6px 12px; border-radius: 20px; font-size: 0.72rem;
+      font-weight: 700; white-space: nowrap; cursor: pointer; flex-shrink: 0;
+    }
+    .chip.active { background: linear-gradient(135deg, #6d28d9, #db2777); border-color: #f472b6; color: #fff; }
+
+    .slider-line {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .slider-line span.lbl { font-size: 0.72rem; font-weight: 700; color: #cbd5e1; min-width: 68px; }
+    .slider-line span.val { font-size: 0.72rem; font-weight: 800; color: #c084fc; min-width: 36px; text-align: right; }
+    input[type="range"] { flex: 1; accent-color: #a855f7; height: 4px; }
+
+    .erase-row { display: flex; gap: 8px; align-items: center; }
+    .btn-tick {
+      background: linear-gradient(135deg, #059669, #10b981); color: #fff; border: none;
+      padding: 7px 14px; border-radius: 20px; font-weight: 800; font-size: 0.75rem; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<!-- SLIM TOP BAR -->
+<div class="topbar">
+  <div class="top-group">
+    <button class="t-btn" onclick="location.href='index.html'">←</button>
+    <button class="t-btn" id="undoBtn" onclick="undoAction()" disabled>↩️</button>
+    <button class="t-btn" id="redoBtn" onclick="redoAction()" disabled>↪️</button>
+  </div>
+  <div class="top-group" id="topRightTools" style="display:none;">
+    <button class="t-btn active" id="splitBtn" onclick="toggleSplit()">◫ Split</button>
+    <button class="t-btn" onclick="resetZoom()">Fit</button>
+    <button class="save-pill" onclick="saveFinal()">Save HD</button>
+  </div>
+</div>
+
+<!-- FULL-SCREEN VIEWPORT -->
+<div class="studio-viewport" id="viewport">
+  <div class="upload-hero" id="uploadHero" onclick="document.getElementById('fileIn').click()">
+    <div class="upload-badge">
+      <svg width="30" height="30" fill="none" stroke="#fff" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+    </div>
+    <h2 style="font-size:1.1rem; margin-bottom:6px;">Open Photo in Pro Studio</h2>
+    <p style="font-size:0.78rem; color:#94a3b8;">Side-Arrow Tool Dock • Magic Object Eraser • DSLR Bokeh</p>
+    <input type="file" id="fileIn" accept="image/*" style="display:none;" />
+  </div>
+
+  <div class="zoom-layer" id="zoomLayer">
+    <canvas id="mainCanvas"></canvas>
+    <canvas id="outlineOverlay"></canvas>
+    <div class="clone-pin" id="clonePin"></div>
+    <div class="split-line" id="splitLine"></div>
+    <div class="split-handle" id="splitHandle">◀▶</div>
+  </div>
+</div>
+
+<!-- COLLAPSIBLE RIGHT SIDE-ARROW TOOL DOCK -->
+<div class="side-dock-wrap" id="sideDockWrap">
+  <div class="arrow-handle" id="arrowBtn" onclick="toggleSideDock()">▶</div>
+  <div class="side-rail">
+    <button class="s-tool active" id="st-erase" onclick="selectTool('erase', this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      <span>Eraser</span>
+    </button>
+    <button class="s-tool" id="st-ai" onclick="selectTool('ai', this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+      <span>AI Boost</span>
+    </button>
+    <button class="s-tool" id="st-bokeh" onclick="selectTool('bokeh', this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+      <span>Bokeh</span>
+    </button>
+    <button class="s-tool" id="st-light" onclick="selectTool('light', this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+      <span>Light</span>
+    </button>
+    <button class="s-tool" id="st-color" onclick="selectTool('color', this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+      <span>Color</span>
+    </button>
+    <button class="s-tool" id="st-filters" onclick="selectTool('filters', this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      <span>Filters</span>
+    </button>
+    <button class="s-tool" id="st-crop" onclick="selectTool('crop', this)">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/></svg>
+      <span>Crop</span>
+    </button>
+  </div>
+</div>
+
+<!-- SLIM BOTTOM ADJUSTMENT STRIP (NO POPUP BOXES) -->
+<div class="bottom-strip" id="bottomStrip">
+  <div class="strip-inner">
+
+    <!-- 1. ERASER & HEAL CONTROLS -->
+    <div id="ctrl-erase">
+      <div class="h-chips">
+        <button class="chip active" id="subObjErase" onclick="setSubMode('obj_erase')">✨ Object Outline</button>
+        <button class="chip" id="subPinClone" onclick="setSubMode('pin_clone')">📍 Pin Clone</button>
+        <button class="chip" id="subSpotHeal" onclick="setSubMode('spot_heal')">🩹 Spot Heal</button>
+        <button class="chip" onclick="clearSelection()">✕ Clear</button>
+        <button class="btn-tick" id="tickEraseBtn" onclick="runPatchMatchErase()">✓ Erase</button>
+      </div>
+      <div id="pinHintRow" style="display:none; margin-bottom:6px;">
+        <button class="chip active" id="pinSetBtn" onclick="armPin()">📍 Tap Clean Skin on Photo to Set Pin</button>
+      </div>
+      <div class="slider-line">
+        <span class="lbl">Brush Size</span>
+        <input type="range" id="rBrush" min="6" max="50" value="22" oninput="document.getElementById('vBrush').innerText=this.value+'px'" />
+        <span class="val" id="vBrush">22px</span>
+      </div>
+    </div>
+
+    <!-- 2. AI PRESETS -->
+    <div id="ctrl-ai" style="display:none;">
+      <div class="h-chips" style="margin:0;">
+        <button class="chip active" onclick="applyPreset('hd', this)">✨ AI HD Pro</button>
+        <button class="chip" onclick="applyPreset('night', this)">🌙 Night Boost</button>
+        <button class="chip" onclick="applyPreset('portrait', this)">🤳 Soft Portrait</button>
+        <button class="chip" onclick="applyPreset('doc', this)">📄 Clean Notes</button>
+        <button class="chip" onclick="applyPreset('orig', this)">↺ Reset</button>
+      </div>
+    </div>
+
+    <!-- 3. DSLR BOKEH -->
+    <div id="ctrl-bokeh" style="display:none;">
+      <div class="slider-line">
+        <span class="lbl">DSLR Blur</span>
+        <input type="range" id="rBokeh" min="0" max="22" value="0" onchange="applyDslrBokeh(this.value)" />
+        <span class="val" id="vBokeh">0px</span>
+      </div>
+    </div>
+
+    <!-- 4. LIGHT ADJUSTMENTS -->
+    <div id="ctrl-light" style="display:none;">
+      <div class="h-chips">
+        <button class="chip active" onclick="pickLightParam('bright', this)">☀️ Brightness</button>
+        <button class="chip" onclick="pickLightParam('cont', this)">🌓 Contrast</button>
+        <button class="chip" onclick="pickLightParam('sharp', this)">💎 Sharpen</button>
+        <button class="chip" onclick="pickLightParam('vig', this)">🌑 Vignette</button>
+      </div>
+      <div class="slider-line">
+        <span class="lbl" id="lightLbl">Brightness</span>
+        <input type="range" id="lightSlider" min="50" max="160" value="100" oninput="onLightSlide(this.value)" />
+        <span class="val" id="lightVal">100%</span>
+      </div>
+    </div>
+
+    <!-- 5. COLOR & TONE -->
+    <div id="ctrl-color" style="display:none;">
+      <div class="h-chips">
+        <button class="chip active" onclick="pickColorParam('sat', this)">🎨 Vibrancy</button>
+        <button class="chip" onclick="pickColorParam('warm', this)">🔥 Warmth</button>
+      </div>
+      <div class="slider-line">
+        <span class="lbl" id="colorLbl">Vibrancy</span>
+        <input type="range" id="colorSlider" min="0" max="180" value="100" oninput="onColorSlide(this.value)" />
+        <span class="val" id="colorVal">100%</span>
+      </div>
+    </div>
+
+    <!-- 6. PRO FILTERS -->
+    <div id="ctrl-filters" style="display:none;">
+      <div class="h-chips" style="margin:0;">
+        <button class="chip active" onclick="setFilter('none', this)">Normal</button>
+        <button class="chip" onclick="setFilter('warm', this)">Golden Hour</button>
+        <button class="chip" onclick="setFilter('cool', this)">Cyber Cool</button>
+        <button class="chip" onclick="setFilter('vivid', this)">Cinema Pop</button>
+        <button class="chip" onclick="setFilter('bw', this)">B&W Noir</button>
+      </div>
+    </div>
+
+    <!-- 7. CROP & ROTATE -->
+    <div id="ctrl-crop" style="display:none;">
+      <div class="h-chips" style="margin:0;">
+        <button class="chip" onclick="cropRatio(1, 1)">1:1 Square</button>
+        <button class="chip" onclick="cropRatio(4, 5)">4:5 Insta</button>
+        <button class="chip" onclick="cropRatio(16, 9)">16:9 Wide</button>
+        <button class="chip" onclick="rotateImg(90)">↻ 90°</button>
+        <button class="chip" onclick="flipImg()">⇄ Flip</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById("mainCanvas");
+  const ctx = canvas.getContext("2d");
+  const outlineOverlay = document.getElementById("outlineOverlay");
+  const outCtx = outlineOverlay.getContext("2d");
+
+  let baseCanvas = document.createElement("canvas");
+  let baseCtx = baseCanvas.getContext("2d");
+
+  let workCanvas = document.createElement("canvas");
+  let workCtx = workCanvas.getContext("2d");
+
+  let procCanvas = document.createElement("canvas");
+  let procCtx = procCanvas.getContext("2d");
+
+  let selGrid = null;
+  let undoStack = [];
+  let redoStack = [];
+
+  let currentTool = "erase";
+  let subMode = "obj_erase";
+  let awaitingPin = false;
+  let pinSource = null;
+  let cloneOffset = null;
+  let isDrawing = false;
+
+  let splitEnabled = true;
+  let splitRatio = 0.5;
+  let draggingSplit = false;
+  let activeFilter = "none";
+
+  // Adjustment Values
+  let adj = { bright: 100, cont: 100, sharp: 0, vig: 0, sat: 100, warm: 0 };
+  let activeLightKey = "bright";
+  let activeColorKey = "sat";
+
+  /* ==================== COLLAPSIBLE SIDE-ARROW DOCK ==================== */
+  let dockCollapsed = false;
+  function toggleSideDock() {
+    dockCollapsed = !dockCollapsed;
+    document.getElementById("sideDockWrap").classList.toggle("collapsed", dockCollapsed);
+    document.getElementById("arrowBtn").innerText = dockCollapsed ? "◀" : "▶";
+  }
+
+  function selectTool(name, btn) {
+    document.querySelectorAll(".s-tool").forEach(b => b.classList.remove("active"));
+    if (btn) btn.classList.add("active");
+
+    ["erase", "ai", "bokeh", "light", "color", "filters", "crop"].forEach(id => {
+      document.getElementById("ctrl-" + id).style.display = (id === name) ? "block" : "none";
+    });
+
+    currentTool = name;
+    const inErase = (name === "erase");
+    outlineOverlay.style.display = (inErase && subMode === "obj_erase") ? "block" : "none";
+    document.getElementById("clonePin").style.display = (inErase && subMode === "pin_clone" && pinSource) ? "block" : "none";
+    updateSplitVis();
+    drawViewport();
+  }
+
+  /* ==================== 2-FINGER PINCH ZOOM & PAN ==================== */
+  const viewport = document.getElementById("viewport");
+  const zoomLayer = document.getElementById("zoomLayer");
+  let scale = 1, panX = 0, panY = 0;
+  let pinchDist0 = 0, pinchScale0 = 1, mid0 = {x:0, y:0}, pan0 = {x:0, y:0};
+  let isPinching = false;
+
+  function applyTransform() {
+    zoomLayer.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  }
+  function resetZoom() {
+    scale = 1; panX = 0; panY = 0;
+    applyTransform();
+  }
+
+  viewport.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      isPinching = true;
+      isDrawing = false;
+      pinchDist0 = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      pinchScale0 = scale;
+      mid0 = { x: (e.touches[0].clientX + e.touches[1].clientX)/2, y: (e.touches[0].clientY + e.touches[1].clientY)/2 };
+      pan0 = { x: panX, y: panY };
+    }
+  }, { passive: false });
+
+  viewport.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 2 && isPinching) {
+      e.preventDefault();
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      scale = Math.min(4.5, Math.max(0.85, pinchScale0 * (dist / pinchDist0)));
+      const midX = (e.touches[0].clientX + e.touches[1].clientX)/2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY)/2;
+      panX = pan0.x + (midX - mid0.x);
+      panY = pan0.y + (midY - mid0.y);
+      applyTransform();
+    }
+  }, { passive: false });
+
+  viewport.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) setTimeout(() => { isPinching = false; }, 60);
+  });
+
+  /* ==================== LOAD IMAGE & UNDO/REDO ==================== */
+  document.getElementById("fileIn").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxW = 760;
+        const s = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width * s);
+        const h = Math.round(img.height * s);
+
+        [canvas, outlineOverlay, baseCanvas, workCanvas, procCanvas].forEach(c => { c.width = w; c.height = h; });
+        selGrid = new Uint8Array(w * h);
+
+        baseCtx.drawImage(img, 0, 0, w, h);
+        workCtx.drawImage(img, 0, 0, w, h);
+        undoStack = [workCanvas.toDataURL()];
+        redoStack = [];
+        updateHistoryButtons();
+        resetZoom();
+
+        document.getElementById("uploadHero").style.display = "none";
+        zoomLayer.style.display = "block";
+        document.getElementById("sideDockWrap").style.display = "flex";
+        document.getElementById("bottomStrip").style.display = "block";
+        document.getElementById("topRightTools").style.display = "flex";
+
+        applyPreset("hd", document.querySelector("#ctrl-ai .chip"));
+        selectTool("erase", document.getElementById("st-erase"));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function pushHistory() {
+    undoStack.push(workCanvas.toDataURL());
+    if (undoStack.length > 20) undoStack.shift();
+    redoStack = [];
+    updateHistoryButtons();
+  }
+
+  function updateHistoryButtons() {
+    document.getElementById("undoBtn").disabled = undoStack.length <= 1;
+    document.getElementById("redoBtn").disabled = redoStack.length === 0;
+  }
+
+  function undoAction() {
+    if (undoStack.length <= 1) return;
+    redoStack.push(undoStack.pop());
+    loadWorkState(undoStack[undoStack.length - 1]);
+    updateHistoryButtons();
+  }
+
+  function redoAction() {
+    if (redoStack.length === 0) return;
+    const state = redoStack.pop();
+    undoStack.push(state);
+    loadWorkState(state);
+    updateHistoryButtons();
+  }
+
+  function loadWorkState(dataUrl) {
+    const img = new Image();
+    img.onload = () => {
+      workCtx.clearRect(0, 0, workCanvas.width, workCanvas.height);
+      workCtx.drawImage(img, 0, 0);
+      renderPipeline();
+    };
+    img.src = dataUrl;
+  }
+
+  /* ==================== ERASER SUBMODES & EDGE-SNAP OUTLINE ==================== */
+  function setSubMode(mode) {
+    subMode = mode;
+    document.getElementById("subObjErase").classList.toggle("active", mode === "obj_erase");
+    document.getElementById("subPinClone").classList.toggle("active", mode === "pin_clone");
+    document.getElementById("subSpotHeal").classList.toggle("active", mode === "spot_heal");
+
+    document.getElementById("pinHintRow").style.display = mode === "pin_clone" ? "block" : "none";
+    outlineOverlay.style.display = mode === "obj_erase" ? "block" : "none";
+
+    if (mode === "pin_clone") {
+      if (!pinSource) awaitingPin = true;
+      updatePinMarker();
+    } else {
+      document.getElementById("clonePin").style.display = "none";
+    }
+  }
+
+  function armPin() {
+    awaitingPin = true;
+    document.getElementById("pinSetBtn").innerText = "👆 Tap Clean Skin on Photo...";
+  }
+
+  function updatePinMarker() {
+    const pinEl = document.getElementById("clonePin");
+    if (!pinSource || currentTool !== "erase" || subMode !== "pin_clone") {
+      pinEl.style.display = "none";
+      return;
+    }
+    pinEl.style.display = "block";
+    pinEl.style.left = ((pinSource.x / canvas.width) * 100) + "%";
+    pinEl.style.top = ((pinSource.y / canvas.height) * 100) + "%";
+  }
+
+  function getCoords(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: Math.round((clientX - rect.left) * (canvas.width / rect.width)),
+      y: Math.round((clientY - rect.top) * (canvas.height / rect.height))
+    };
+  }
+
+  viewport.addEventListener("pointerdown", (e) => {
+    if (currentTool !== "erase" || isPinching || draggingSplit) return;
+    const pt = getCoords(e.clientX, e.clientY);
+
+    if (subMode === "pin_clone" && (awaitingPin || !pinSource)) {
+      pinSource = pt;
+      awaitingPin = false;
+      cloneOffset = null;
+      document.getElementById("pinSetBtn").innerText = "📍 Move Pin to Another Spot";
+      updatePinMarker();
+      return;
+    }
+
+    isDrawing = true;
+    if (subMode === "pin_clone" && pinSource) {
+      cloneOffset = { dx: pinSource.x - pt.x, dy: pinSource.y - pt.y };
+    }
+    processBrushAt(pt.x, pt.y);
+  });
+
+  viewport.addEventListener("pointermove", (e) => {
+    if (currentTool !== "erase" || !isDrawing || isPinching) return;
+    const pt = getCoords(e.clientX, e.clientY);
+    processBrushAt(pt.x, pt.y);
+  });
+
+  viewport.addEventListener("pointerup", () => {
+    if (isDrawing) {
+      isDrawing = false;
+      if (subMode === "obj_erase") renderSelectionOutline();
+      else pushHistory();
+    }
+  });
+
+  function processBrushAt(cx, cy) {
+    const w = canvas.width, h = canvas.height;
+    if (cx < 0 || cx >= w || cy < 0 || cy >= h) return;
+    const r = parseInt(document.getElementById("rBrush").value);
+
+    if (subMode === "obj_erase") {
+      const imgData = workCtx.getImageData(0, 0, w, h).data;
+      const centerIdx = (cy * w + cx) * 4;
+      const cr = imgData[centerIdx], cg = imgData[centerIdx + 1], cb = imgData[centerIdx + 2];
+      const maxSearch = Math.min(48, Math.round(r * 1.65));
+      const colorTol = 46;
+
+      for (let dy = -maxSearch; dy <= maxSearch; dy++) {
+        for (let dx = -maxSearch; dx <= maxSearch; dx++) {
+          const dist = Math.hypot(dx, dy);
+          if (dist > maxSearch) continue;
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+          const idx = ny * w + nx;
+          if (selGrid[idx]) continue;
+
+          if (dist <= r * 0.65) {
+            selGrid[idx] = 1;
+          } else {
+            const p = idx * 4;
+            const diff = Math.abs(imgData[p] - cr) + Math.abs(imgData[p+1] - cg) + Math.abs(imgData[p+2] - cb);
+            if (diff < colorTol * 3) selGrid[idx] = 1;
+          }
+        }
+      }
+      renderSelectionOutline();
+    } else if (subMode === "pin_clone" && pinSource && cloneOffset) {
+      const sx = cx + cloneOffset.dx;
+      const sy = cy + cloneOffset.dy;
+      const pinEl = document.getElementById("clonePin");
+      pinEl.style.left = ((sx / w) * 100) + "%";
+      pinEl.style.top = ((sy / h) * 100) + "%";
+      drawFeatheredPatch(sx, sy, cx, cy, r, 1.0);
+      renderPipeline();
+    } else {
+      const dist = r * 1.4;
+      [
+        { sx: cx - dist, sy: cy }, { sx: cx + dist, sy: cy },
+        { sx: cx, sy: cy - dist }, { sx: cx, sy: cy + dist }
+      ].forEach(d => drawFeatheredPatch(d.sx, d.sy, cx, cy, r, 0.45));
+      renderPipeline();
+    }
+  }
+
+  function renderSelectionOutline() {
+    const w = canvas.width, h = canvas.height;
+    const outImg = outCtx.createImageData(w, h);
+    const d = outImg.data;
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const idx = y * w + x;
+        if (!selGrid[idx]) continue;
+        const p = idx * 4;
+        const isEdge = !selGrid[idx - 1] || !selGrid[idx + 1] || !selGrid[idx - w] || !selGrid[idx + w] ||
+                       !selGrid[idx - 2] || !selGrid[idx + 2] || !selGrid[idx - w*2] || !selGrid[idx + w*2];
+        if (isEdge) {
+          d[p] = 56; d[p+1] = 248; d[p+2] = 255; d[p+3] = 245;
+        } else {
+          d[p] = 168; d[p+1] = 85; d[p+2] = 247; d[p+3] = 85;
+        }
+      }
+    }
+    outCtx.putImageData(outImg, 0, 0);
+  }
+
+  function clearSelection() {
+    if (selGrid) selGrid.fill(0);
+    outCtx.clearRect(0, 0, outlineOverlay.width, outlineOverlay.height);
+  }
+
+  /* ==================== PATCHMATCH TEXTURE SYNTHESIS ERASER ==================== */
+  function runPatchMatchErase() {
+    const w = workCanvas.width, h = workCanvas.height;
+    let minX = w, maxX = 0, minY = h, maxY = 0, hasSel = false;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (selGrid[y * w + x]) {
+          hasSel = true;
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (!hasSel) return alert("Pehle object par brush chala kar select karein!");
+
+    const btn = document.getElementById("tickEraseBtn");
+    btn.innerText = "⏳...";
+
+    setTimeout(() => {
+      const pad = 6;
+      const bx0 = Math.max(0, minX - pad), by0 = Math.max(0, minY - pad);
+      const bx1 = Math.min(w - 1, maxX + pad), by1 = Math.min(h - 1, maxY + pad);
+      const visited = new Uint8Array(w * h);
+      const q = [];
+
+      for (let x = bx0; x <= bx1; x++) {
+        if (!selGrid[by0*w+x]) { visited[by0*w+x]=1; q.push(by0*w+x); }
+        if (!selGrid[by1*w+x]) { visited[by1*w+x]=1; q.push(by1*w+x); }
+      }
+      for (let y = by0; y <= by1; y++) {
+        if (!selGrid[y*w+bx0]) { visited[y*w+bx0]=1; q.push(y*w+bx0); }
+        if (!selGrid[y*w+bx1]) { visited[y*w+bx1]=1; q.push(y*w+bx1); }
+      }
+      let head = 0;
+      while (head < q.length) {
+        const idx = q[head++], cx = idx % w, cy = (idx / w) | 0;
+        const nbs = [cx>bx0?idx-1:-1, cx<bx1?idx+1:-1, cy>by0?idx-w:-1, cy<by1?idx+w:-1];
+        for (let i = 0; i < 4; i++) {
+          const n = nbs[i];
+          if (n >= 0 && !visited[n] && !selGrid[n]) { visited[n] = 1; q.push(n); }
+        }
+      }
+      for (let y = by0; y <= by1; y++) {
+        for (let x = bx0; x <= bx1; x++) {
+          if (!visited[y*w+x]) selGrid[y*w+x] = 1;
+        }
+      }
+
+      const imgData = workCtx.getImageData(0, 0, w, h);
+      const px = imgData.data;
+      const cleanRing = [];
+      const ringPad = 28;
+      const rx0 = Math.max(2, bx0 - ringPad), ry0 = Math.max(2, by0 - ringPad);
+      const rx1 = Math.min(w - 3, bx1 + ringPad), ry1 = Math.min(h - 3, by1 + ringPad);
+
+      for (let y = ry0; y <= ry1; y += 2) {
+        for (let x = rx0; x <= rx1; x += 2) {
+          if (!selGrid[y * w + x]) cleanRing.push({ x, y });
+        }
+      }
+
+      const known = new Uint8Array(w * h);
+      for (let i = 0; i < w * h; i++) known[i] = selGrid[i] ? 0 : 1;
+
+      const patchR = 4;
+      let remaining = 1, passes = 0;
+      while (remaining > 0 && passes < 140) {
+        remaining = 0;
+        passes++;
+        const nextKnown = new Uint8Array(known);
+
+        for (let y = by0; y <= by1; y += 2) {
+          for (let x = bx0; x <= bx1; x += 2) {
+            const idx = y * w + x;
+            if (known[idx]) continue;
+
+            let hasBoundary = false;
+            for (let dy = -3; dy <= 3; dy++) {
+              for (let dx = -3; dx <= 3; dx++) {
+                const nx = x + dx, ny = y + dy;
+                if (nx >= 0 && nx < w && ny >= 0 && ny < h && known[ny * w + nx]) {
+                  hasBoundary = true; break;
+                }
+              }
+              if (hasBoundary) break;
+            }
+            if (!hasBoundary) { remaining++; continue; }
+
+            let bestSrc = cleanRing[0] || { x: rx0, y: ry0 };
+            let bestScore = Infinity;
+            const step = Math.max(1, Math.floor(cleanRing.length / 45));
+
+            for (let k = 0; k < cleanRing.length; k += step) {
+              const cand = cleanRing[k];
+              let score = 0, samples = 0;
+              for (let py = -patchR; py <= patchR; py += 2) {
+                for (let pxOff = -patchR; pxOff <= patchR; pxOff += 2) {
+                  const tx = x + pxOff, ty = y + py;
+                  if (tx >= 0 && tx < w && ty >= 0 && ty < h && known[ty * w + tx]) {
+                    const p1 = (ty * w + tx) * 4;
+                    const p2 = ((cand.y + py) * w + (cand.x + pxOff)) * 4;
+                    score += Math.abs(px[p1] - px[p2]) + Math.abs(px[p1+1] - px[p2+1]) + Math.abs(px[p1+2] - px[p2+2]);
+                    samples++;
+                  }
+                }
+              }
+              if (samples > 0) {
+                score = (score / samples) + Math.hypot(cand.x - x, cand.y - y) * 0.25;
+                if (score < bestScore) { bestScore = score; bestSrc = cand; }
+              }
+            }
+
+            for (let py = -2; py <= 2; py++) {
+              for (let pxOff = -2; pxOff <= 2; pxOff++) {
+                const tx = x + pxOff, ty = y + py;
+                const sx = bestSrc.x + pxOff, sy = bestSrc.y + py;
+                if (tx >= 0 && tx < w && ty >= 0 && ty < h && !known[ty * w + tx] &&
+                    sx >= 0 && sx < w && sy >= 0 && sy < h) {
+                  const dstP = (ty * w + tx) * 4;
+                  const srcP = (sy * w + sx) * 4;
+                  px[dstP] = px[srcP];
+                  px[dstP + 1] = px[srcP + 1];
+                  px[dstP + 2] = px[srcP + 2];
+                  nextKnown[ty * w + tx] = 1;
+                }
+              }
+            }
+          }
+        }
+        known.set(nextKnown);
+      }
+
+      workCtx.putImageData(imgData, 0, 0);
+      clearSelection();
+      pushHistory();
+      renderPipeline();
+      btn.innerText = "✓ Erase";
+    }, 30);
+  }
+
+  function drawFeatheredPatch(sx, sy, dx, dy, r, alpha) {
+    const patch = document.createElement("canvas");
+    const size = r * 2;
+    patch.width = size; patch.height = size;
+    const pCtx = patch.getContext("2d");
+    pCtx.drawImage(workCanvas, sx - r, sy - r, size, size, 0, 0, size, size);
+    pCtx.globalCompositeOperation = "destination-in";
+    const grad = pCtx.createRadialGradient(r, r, r * 0.25, r, r, r);
+    grad.addColorStop(0, "rgba(0,0,0,1)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    pCtx.fillStyle = grad;
+    pCtx.fillRect(0, 0, size, size);
+    workCtx.save();
+    workCtx.globalAlpha = alpha;
+    workCtx.drawImage(patch, dx - r, dy - r);
+    workCtx.restore();
+  }
+
+  /* ==================== LIGHT, COLOR, BOKEH & FILTERS ==================== */
+  function pickLightParam(key, btn) {
+    activeLightKey = key;
+    document.querySelectorAll("#ctrl-light .chip").forEach(c => c.classList.remove("active"));
+    btn.classList.add("active");
+    const s = document.getElementById("lightSlider");
+    if (key === "bright") { s.min=50; s.max=160; s.value=adj.bright; document.getElementById("lightLbl").innerText="Brightness"; }
+    if (key === "cont") { s.min=50; s.max=170; s.value=adj.cont; document.getElementById("lightLbl").innerText="Contrast"; }
+    if (key === "sharp") { s.min=0; s.max=100; s.value=adj.sharp; document.getElementById("lightLbl").innerText="Sharpen"; }
+    if (key === "vig") { s.min=0; s.max=80; s.value=adj.vig; document.getElementById("lightLbl").innerText="Vignette"; }
+    document.getElementById("lightVal").innerText = s.value + "%";
+  }
+
+  function onLightSlide(v) {
+    adj[activeLightKey] = parseInt(v);
+    document.getElementById("lightVal").innerText = v + "%";
+    renderPipeline();
+  }
+
+  function pickColorParam(key, btn) {
+    activeColorKey = key;
+    document.querySelectorAll("#ctrl-color .chip").forEach(c => c.classList.remove("active"));
+    btn.classList.add("active");
+    const s = document.getElementById("colorSlider");
+    if (key === "sat") { s.min=0; s.max=180; s.value=adj.sat; document.getElementById("colorLbl").innerText="Vibrancy"; }
+    if (key === "warm") { s.min=0; s.max=60; s.value=adj.warm; document.getElementById("colorLbl").innerText="Warmth"; }
+    document.getElementById("colorVal").innerText = s.value + "%";
+  }
+
+  function onColorSlide(v) {
+    adj[activeColorKey] = parseInt(v);
+    document.getElementById("colorVal").innerText = v + "%";
+    renderPipeline();
+  }
+
+  function applyPreset(type, el) {
+    document.querySelectorAll("#ctrl-ai .chip").forEach(c => c.classList.remove("active"));
+    if (el) el.classList.add("active");
+    activeFilter = "none";
+    if (type === "hd") adj = { bright: 107, cont: 120, sharp: 45, vig: 10, sat: 118, warm: 5 };
+    else if (type === "night") adj = { bright: 132, cont: 118, sharp: 30, vig: 0, sat: 112, warm: 8 };
+    else if (type === "portrait") adj = { bright: 110, cont: 112, sharp: 25, vig: 20, sat: 115, warm: 12 };
+    else if (type === "doc") adj = { bright: 126, cont: 158, sharp: 65, vig: 0, sat: 5, warm: 0 };
+    else adj = { bright: 100, cont: 100, sharp: 0, vig: 0, sat: 100, warm: 0 };
+    renderPipeline();
+  }
+
+  function setFilter(f, el) {
+    activeFilter = f;
+    document.querySelectorAll("#ctrl-filters .chip").forEach(c => c.classList.remove("active"));
+    if (el) el.classList.add("active");
+    renderPipeline();
+  }
+
+  let segMaskImg = null;
+  const selfieSeg = new SelfieSegmentation({
+    locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
+  });
+  selfieSeg.setOptions({ modelSelection: 1 });
+  selfieSeg.onResults((res) => {
+    segMaskImg = res.segmentationMask;
+    renderPipeline();
+  });
+
+  async function applyDslrBokeh(val) {
+    document.getElementById("vBokeh").innerText = val + "px";
+    if (parseInt(val) > 0 && !segMaskImg) {
+      await selfieSeg.send({ image: workCanvas });
+    } else {
+      renderPipeline();
+    }
+  }
+
+  function renderPipeline() {
+    const w = procCanvas.width, h = procCanvas.height;
+    const bokeh = parseInt(document.getElementById("rBokeh").value);
+
+    let fStr = `brightness(${adj.bright}%) contrast(${adj.cont}%) saturate(${adj.sat}%) sepia(${adj.warm}%)`;
+    if (activeFilter === "warm") fStr += " sepia(22%) saturate(125%)";
+    if (activeFilter === "cool") fStr += " hue-rotate(15deg) saturate(110%)";
+    if (activeFilter === "vivid") fStr += " contrast(118%) saturate(135%)";
+    if (activeFilter === "bw") fStr = `grayscale(100%) contrast(${Math.max(125, adj.cont)}%) brightness(${adj.bright}%)`;
+
+    procCtx.save();
+    procCtx.clearRect(0, 0, w, h);
+
+    if (bokeh > 0 && segMaskImg) {
+      procCtx.filter = `${fStr} blur(${bokeh}px)`;
+      procCtx.drawImage(workCanvas, 0, 0);
+
+      const fgC = document.createElement("canvas");
+      fgC.width = w; fgC.height = h;
+      const fgCtx = fgC.getContext("2d");
+      fgCtx.drawImage(segMaskImg, 0, 0, w, h);
+      fgCtx.globalCompositeOperation = "source-in";
+      fgCtx.filter = fStr;
+      fgCtx.drawImage(workCanvas, 0, 0);
+
+      procCtx.filter = "none";
+      procCtx.drawImage(fgC, 0, 0);
+    } else {
+      procCtx.filter = fStr;
+      procCtx.drawImage(workCanvas, 0, 0);
+    }
+    procCtx.restore();
+
+    if (adj.sharp > 0) {
+      const imgData = procCtx.getImageData(0, 0, w, h);
+      const src = imgData.data;
+      const out = procCtx.createImageData(w, h);
+      const dst = out.data;
+      const mix = (adj.sharp / 100) * 0.55;
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const i = (y * w + x) * 4;
+          for (let ch = 0; ch < 3; ch++) {
+            const val = src[i + ch] * (1 + 4 * mix) - mix * (src[i - 4 + ch] + src[i + 4 + ch] + src[i - w * 4 + ch] + src[i + w * 4 + ch]);
+            dst[i + ch] = Math.min(255, Math.max(0, val));
+          }
+          dst[i + 3] = 255;
+        }
+      }
+      procCtx.putImageData(out, 0, 0);
+    }
+
+    if (adj.vig > 0) {
+      const grad = procCtx.createRadialGradient(w/2, h/2, w*0.28, w/2, h/2, Math.max(w,h)*0.72);
+      grad.addColorStop(0, "rgba(0,0,0,0)");
+      grad.addColorStop(1, `rgba(0,0,0,${adj.vig / 100})`);
+      procCtx.fillStyle = grad;
+      procCtx.fillRect(0, 0, w, h);
+    }
+
+    drawViewport();
+  }
+
+  function drawViewport() {
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!splitEnabled || currentTool === "erase") {
+      ctx.drawImage(procCanvas, 0, 0);
+      return;
+    }
+    const splitX = Math.round(w * splitRatio);
+    ctx.drawImage(baseCanvas, 0, 0, splitX, h, 0, 0, splitX, h);
+    ctx.drawImage(procCanvas, splitX, 0, w - splitX, h, splitX, 0, w - splitX, h);
+  }
+
+  function updateSplitVis() {
+    const vis = (splitEnabled && currentTool !== "erase") ? "block" : "none";
+    document.getElementById("splitLine").style.display = vis;
+    document.getElementById("splitHandle").style.display = vis;
+  }
+
+  function toggleSplit() {
+    splitEnabled = !splitEnabled;
+    document.getElementById("splitBtn").classList.toggle("active", splitEnabled);
+    updateSplitVis();
+    drawViewport();
+  }
+
+  const handle = document.getElementById("splitHandle");
+  handle.addEventListener("pointerdown", (e) => { draggingSplit = true; e.stopPropagation(); });
+  window.addEventListener("pointermove", (e) => {
+    if (!draggingSplit) return;
+    const rect = canvas.getBoundingClientRect();
+    splitRatio = Math.min(0.95, Math.max(0.05, (e.clientX - rect.left) / rect.width));
+    const pct = (splitRatio * 100) + "%";
+    document.getElementById("splitLine").style.left = pct;
+    handle.style.left = pct;
+    drawViewport();
+  });
+  window.addEventListener("pointerup", () => { draggingSplit = false; });
+
+  /* CROP RATIO & ROTATE */
+  function cropRatio(rw, rh) {
+    const w = workCanvas.width, h = workCanvas.height;
+    let nw = w, nh = Math.round(w * (rh / rw));
+    if (nh > h) { nh = h; nw = Math.round(h * (rw / rh)); }
+    const sx = Math.round((w - nw) / 2), sy = Math.round((h - nh) / 2);
+
+    [baseCanvas, workCanvas].forEach(c => {
+      const tmp = document.createElement("canvas");
+      tmp.width = nw; tmp.height = nh;
+      tmp.getContext("2d").drawImage(c, sx, sy, nw, nh, 0, 0, nw, nh);
+      c.width = nw; c.height = nh;
+      c.getContext("2d").drawImage(tmp, 0, 0);
+    });
+    [canvas, outlineOverlay, procCanvas].forEach(c => { c.width = nw; c.height = nh; });
+    selGrid = new Uint8Array(nw * nh);
+    segMaskImg = null;
+    pushHistory();
+    renderPipeline();
+  }
+
+  function rotateImg(deg) {
+    [baseCanvas, workCanvas].forEach(c => {
+      const tmp = document.createElement("canvas");
+      tmp.width = c.height; tmp.height = c.width;
+      const tCtx = tmp.getContext("2d");
+      tCtx.translate(tmp.width / 2, tmp.height / 2);
+      tCtx.rotate((deg * Math.PI) / 180);
+      tCtx.drawImage(c, -c.width / 2, -c.height / 2);
+      c.width = tmp.width; c.height = tmp.height;
+      c.getContext("2d").drawImage(tmp, 0, 0);
+    });
+    const w = baseCanvas.width, h = baseCanvas.height;
+    [canvas, outlineOverlay, procCanvas].forEach(c => { c.width = w; c.height = h; });
+    selGrid = new Uint8Array(w * h);
+    segMaskImg = null;
+    pushHistory();
+    renderPipeline();
+  }
+
+  function flipImg() {
+    [baseCanvas, workCanvas].forEach(c => {
+      const tmp = document.createElement("canvas");
+      tmp.width = c.width; tmp.height = c.height;
+      const tCtx = tmp.getContext("2d");
+      tCtx.translate(c.width, 0);
+      tCtx.scale(-1, 1);
+      tCtx.drawImage(c, 0, 0);
+      c.getContext("2d").drawImage(tmp, 0, 0);
+    });
+    segMaskImg = null;
+    pushHistory();
+    renderPipeline();
+  }
+
+  function saveFinal() {
+    const a = document.createElement("a");
+    a.href = procCanvas.toDataURL("image/jpeg", 0.96);
+    a.download = "Retouch_Pro_Studio.jpg";
+    a.click();
+  }
+</script>
+</body>
+</html>
