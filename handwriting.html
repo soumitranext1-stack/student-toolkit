@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Handwriting Assignment Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Hind+Siliguri:wght@500;600;700&family=Indie+Flower&family=Kalam:wght@400;700&family=Noto+Sans+Bengali:wght@500;700&family=Noto+Sans+Devanagari:wght@500;700&family=Noto+Sans+Gujarati:wght@500;700&family=Noto+Sans+Kannada:wght@500;700&family=Noto+Sans+Malayalam:wght@500;700&family=Noto+Sans+Oriya:wght@500;700&family=Noto+Sans+Tamil:wght@500;700&family=Noto+Sans+Telugu:wght@500;700&family=Noto+Nastaliq+Urdu:wght@500;700&family=Patrick+Hand&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box; margin: 0; padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: #03050a; color: #f8fafc; min-height: 100vh;
+      padding-bottom: 90px; overflow-x: hidden; position: relative;
+    }
+
+    /* GLOWING AMBIENT BACKGROUND */
+    .orb-1, .orb-2 {
+      position: fixed; border-radius: 50%; filter: blur(95px); z-index: -1; opacity: 0.4;
+      animation: orbDrift 9s ease-in-out infinite alternate;
+    }
+    .orb-1 { width: 250px; height: 250px; background: #0ea5e9; top: -50px; left: -50px; }
+    .orb-2 { width: 270px; height: 270px; background: #8b5cf6; bottom: -60px; right: -60px; animation-delay: 2.5s; }
+    @keyframes orbDrift {
+      from { transform: translate(0, 0) scale(1); }
+      to { transform: translate(22px, 26px) scale(1.1); }
+    }
+
+    /* TOP BAR */
+    .topbar {
+      background: rgba(9, 13, 24, 0.92); backdrop-filter: blur(18px);
+      padding: 11px 12px; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08); position: sticky; top: 0; z-index: 90; gap: 8px;
+    }
+    .nav-btn {
+      background: rgba(30, 41, 59, 0.88); color: #fff; border: 1px solid rgba(255,255,255,0.14);
+      padding: 7px 11px; border-radius: 11px; font-weight: 700; font-size: 0.76rem;
+      cursor: pointer; transition: transform 0.15s ease;
+    }
+    .nav-btn:active { transform: scale(0.95); }
+    .brand {
+      font-size: 0.92rem; font-weight: 800;
+      background: linear-gradient(90deg, #38bdf8, #a78bfa, #f472b6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .lang-trigger {
+      background: rgba(15, 23, 42, 0.95); color: #e2e8f0;
+      border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 16px;
+      padding: 6px 10px; font-size: 0.72rem; font-weight: 800;
+      cursor: pointer; display: flex; align-items: center; gap: 5px;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+    }
+
+    .container { max-width: 540px; margin: 0 auto; padding: 14px; }
+
+    /* GLASS CONTROL PANEL */
+    .panel {
+      background: rgba(13, 19, 34, 0.9); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px; padding: 14px; margin-bottom: 14px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+      animation: fadeUp 0.25s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .sec-label {
+      font-size: 0.76rem; font-weight: 800; color: #38bdf8;
+      text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .assignment-ta {
+      width: 100%; min-height: 135px; background: #060912;
+      border: 1.5px solid rgba(255,255,255,0.12); border-radius: 14px;
+      padding: 12px; color: #f8fafc; font-size: 0.92rem; line-height: 1.5;
+      outline: none; resize: vertical; transition: border-color 0.2s ease;
+    }
+    .assignment-ta:focus { border-color: #38bdf8; }
+
+    .controls-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px;
+    }
+    .ctrl-box {
+      background: rgba(6, 9, 18, 0.85); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 13px; padding: 9px 10px;
+    }
+    .ctrl-box label {
+      display: block; font-size: 0.68rem; font-weight: 700; color: #94a3b8; margin-bottom: 5px;
+    }
+    .ctrl-select, .ctrl-range {
+      width: 100%; background: #0f172a; color: #fff; border: 1px solid #334155;
+      border-radius: 8px; padding: 6px 8px; font-size: 0.78rem; font-weight: 700; outline: none;
+    }
+    .ink-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .ink-dot {
+      width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent;
+      cursor: pointer; transition: transform 0.15s ease;
+    }
+    .ink-dot.active { border-color: #fff; transform: scale(1.12); box-shadow: 0 0 10px rgba(255,255,255,0.4); }
+
+    /* SHEET PREVIEW AREA */
+    .preview-wrap {
+      overflow-x: auto; background: #070b16; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px; padding: 12px; text-align: center;
+    }
+    .sheet-page {
+      display: inline-block; width: 360px; min-height: 490px;
+      background-color: #fcfbf7; color: #162a5c;
+      border-radius: 6px; padding: 20px 18px 20px 36px;
+      text-align: left; position: relative;
+      box-shadow: 0 14px 36px rgba(0,0,0,0.85);
+      margin-bottom: 14px; transition: all 0.2s ease;
+    }
+
+    /* RULED LINES + MARGIN */
+    .sheet-page.ruled {
+      background-image:
+        linear-gradient(to right, transparent 30px, #ef4444 30px, #ef4444 31.5px, transparent 31.5px),
+        repeating-linear-gradient(to bottom, transparent 0px, transparent var(--line-gap, 28px), rgba(59, 130, 246, 0.26) var(--line-gap, 28px), rgba(59, 130, 246, 0.26) calc(var(--line-gap, 28px) + 1px));
+      background-position: 0 0, 0 18px;
+    }
+    .sheet-page.plain {
+      padding-left: 20px;
+      background-image: none;
+    }
+    .sheet-page.exam {
+      background-image:
+        linear-gradient(to right, transparent 30px, rgba(239, 68, 68, 0.65) 30px, rgba(239, 68, 68, 0.65) 31px, transparent 31px),
+        repeating-linear-gradient(to bottom, transparent 0px, transparent var(--line-gap, 28px), rgba(100, 116, 139, 0.28) var(--line-gap, 28px), rgba(100, 116, 139, 0.28) calc(var(--line-gap, 28px) + 1px));
+      background-position: 0 0, 0 26px;
+    }
+    .sheet-header-bar {
+      display: flex; justify-content: space-between; font-size: 0.66rem;
+      color: #64748b; border-bottom: 1px dashed #cbd5e1; padding-bottom: 5px; margin-bottom: 8px;
+    }
+    .hw-text {
+      white-space: pre-wrap; word-break: break-word;
+      transform: skewX(-2deg);
+    }
+
+    /* BOTTOM FLOATING DOCK */
+    .bottom-dock {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(9, 13, 24, 0.96); backdrop-filter: blur(16px);
+      border-top: 1px solid rgba(255,255,255,0.1); padding: 9px 12px;
+      display: flex; justify-content: space-around; gap: 8px; z-index: 95;
+    }
+    .dock-btn {
+      flex: 1; background: #1e293b; color: #fff; border: 1px solid #334155;
+      padding: 10px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 800;
+      cursor: pointer; transition: transform 0.15s ease;
+    }
+    .dock-btn:active { transform: scale(0.96); }
+    .dock-btn.primary {
+      background: linear-gradient(135deg, #2563eb, #7c3aed); border: none;
+    }
+    .dock-btn.success {
+      background: linear-gradient(135deg, #059669, #10b981); border: none;
+    }
+
+    /* LANGUAGE LIST MODAL */
+    .modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.88); backdrop-filter: blur(8px);
+      z-index: 150; display: none; align-items: center; justify-content: center; padding: 14px;
+    }
+    .modal-box {
+      background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 22px;
+      padding: 16px; width: 100%; max-width: 420px; max-height: 82vh; overflow-y: auto;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.9); animation: popIn 0.2s ease;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.94); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .lang-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
+    .lang-item {
+      background: #1e293b; border: 1px solid #334155; color: #f8fafc;
+      padding: 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 700;
+      cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center;
+    }
+    .lang-item.active {
+      background: linear-gradient(135deg, #2563eb, #7c3aed); border-color: #93c5fd;
+    }
+    .x-btn {
+      width: 28px; height: 28px; border-radius: 50%; background: rgba(239,68,68,0.2);
+      border: 1px solid #ef4444; color: #fca5a5; font-weight: 900; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="orb-1"></div>
+<div class="orb-2"></div>
+
+<div class="topbar">
+  <button class="nav-btn" onclick="location.href='index.html'" id="uiHomeBtn">← Home</button>
+  <span class="brand" id="uiTitle">Handwriting Studio</span>
+  <button class="lang-trigger" onclick="openLangModal()">
+    <span>🌐</span>
+    <span id="curLangCode">EN</span>
+  </button>
+</div>
+
+<div class="container">
+
+  <!-- TEXT & STYLE CONTROLS -->
+  <div class="panel">
+    <div class="sec-label">
+      <span id="uiInputLbl">Assignment Text</span>
+      <button class="nav-btn" style="padding:4px 9px; font-size:0.68rem;" onclick="loadSampleNote()" id="uiSampleBtn">✨ Sample</button>
+    </div>
+    <textarea class="assignment-ta" id="noteInput" placeholder="Type or paste your assignment answer here..." oninput="renderPages()"></textarea>
+
+    <div class="controls-grid">
+      <div class="ctrl-box">
+        <label id="uiPaperLbl">Page Type</label>
+        <select class="ctrl-select" id="paperStyle" onchange="renderPages()">
+          <option value="ruled">Ruled Notebook</option>
+          <option value="exam">Exam / Practical Sheet</option>
+          <option value="plain">Plain Sheet</option>
+        </select>
+      </div>
+
+      <div class="ctrl-box">
+        <label id="uiFontLbl">Handwriting Style</label>
+        <select class="ctrl-select" id="scriptStyle" onchange="renderPages()">
+          <option value="cursive">Neat Cursive</option>
+          <option value="print">Clean Print Hand</option>
+          <option value="sketch">Casual Sketch</option>
+        </select>
+      </div>
+
+      <div class="ctrl-box">
+        <label id="uiSizeLbl">Text Size: <span id="sizeVal">19</span>px</label>
+        <input type="range" class="ctrl-range" id="fontSizeRange" min="15" max="26" value="19" oninput="updateRangeLabels(); renderPages();" />
+      </div>
+
+      <div class="ctrl-box">
+        <label id="uiInkLbl">Pen Ink Colour</label>
+        <div class="ink-row">
+          <button class="ink-dot active" style="background:#162a5c;" onclick="setInk('#162a5c', this)" title="Blue Pen"></button>
+          <button class="ink-dot" style="background:#0f172a;" onclick="setInk('#0f172a', this)" title="Black Gel"></button>
+          <button class="ink-dot" style="background:#1e3a8a;" onclick="setInk('#1e3a8a', this)" title="Royal Blue"></button>
+          <button class="ink-dot" style="background:#312e81;" onclick="setInk('#312e81', this)" title="Dark Indigo"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE MULTI-PAGE PREVIEW -->
+  <div class="preview-wrap" id="pagesContainer"></div>
+
+</div>
+
+<!-- BOTTOM ACTIONS -->
+<div class="bottom-dock">
+  <button class="dock-btn" onclick="clearNote()" id="uiClearBtn">🗑️ Clear</button>
+  <button class="dock-btn primary" onclick="downloadPagePng()" id="uiImgBtn">🖼️ Save Page</button>
+  <button class="dock-btn success" onclick="downloadPdf()" id="uiPdfBtn">⬇️ Export PDF</button>
+</div>
+
+<!-- POPULAR LANGUAGES PICKER MODAL -->
+<div class="modal" id="langModal">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="font-size:0.96rem; color:#38bdf8;" id="uiLangModalTitle">Select Language</h3>
+      <button class="x-btn" onclick="closeLangModal()">✕</button>
+    </div>
+    <div class="lang-list" id="langListGrid"></div>
+  </div>
+</div>
+
+<script>
+  const popularLangs = [
+    { code: "en", label: "English", native: "English", font: "'Caveat', 'Patrick Hand', cursive", ui: { home: "← Home", title: "Handwriting Studio", input: "Assignment Text", sample: "✨ Sample", paper: "Page Type", font: "Handwriting Style", size: "Text Size", ink: "Pen Ink Colour", clear: "🗑️ Clear", img: "🖼️ Save Page", pdf: "⬇️ Export PDF", modal: "Select Language", note: "Chapter 3: Renewable Energy Sources\n\nSolar and wind energy are clean and sustainable alternatives to fossil fuels. Solar panels convert sunlight directly into electrical energy without emitting greenhouse gases.\n\nKey Points:\n1. Solar energy reduces long-term electricity costs.\n2. Wind turbines generate clean power for homes and industries." } },
+    { code: "hi", label: "Hindi", native: "हिन्दी", font: "'Kalam', 'Noto Sans Devanagari', sans-serif", ui: { home: "← होम", title: "हैंडराइटिंग स्टूडियो", input: "असाइनमेंट टेक्स्ट", sample: "✨ सैंपल", paper: "पेज का प्रकार", font: "हैंडराइटिंग स्टाइल", size: "अक्षर का आकार", ink: "पेन की स्याही", clear: "🗑️ साफ करें", img: "🖼️ पेज सेव करें", pdf: "⬇️ PDF बनाएं", modal: "भाषा चुनें", note: "अध्याय 3: नवीकरणीय ऊर्जा के स्रोत\n\nसौर ऊर्जा और पवन ऊर्जा स्वच्छ और टिकाऊ विकल्प हैं। सोलर पैनल सूर्य की रोशनी को सीधे बिजली में बदलते हैं।\n\nमुख्य बिंदु:\n1. इससे बिजली का खर्च कम होता है।\n2. पर्यावरण सुरक्षित रहता है।" } },
+    { code: "bn", label: "Bengali", native: "বাংলা", font: "'Hind Siliguri', 'Noto Sans Bengali', sans-serif", ui: { home: "← হোম", title: "হ্যান্ডরাইটিং স্টুডিও", input: "অ্যাসাইনমেন্ট টেক্সট", sample: "✨ স্যাম্পল", paper: "পেজের ধরন", font: "হাতের লেখার ধরন", size: "লেখার সাইজ", ink: "কালির রঙ", clear: "🗑️ মুছুন", img: "🖼️ পেজ সেভ", pdf: "⬇️ PDF ডাউনলোড", modal: "ভাষা নির্বাচন করুন", note: "অধ্যায় ৩: নবায়নযোগ্য শক্তির উৎস\n\nসৌরশক্তি ও বায়ুশক্তি পরিবেশবান্ধব এবং টেকসই বিকল্প। সৌর প্যানেল সূর্যের আলো থেকে সরাসরি বিদ্যুৎ তৈরি করে।\n\nমূল বিষয়:\n১. বিদ্যুৎ খরচ কমাতে সাহায্য করে।\n২. পরিবেশ দূষণ কমায়।" } },
+    { code: "mr", label: "Marathi", native: "मराठी", font: "'Kalam', 'Noto Sans Devanagari', sans-serif", ui: { home: "← मुख्यपृष्ठ", title: "हस्ताक्षर स्टुडिओ", input: "असाइनमेंट मजकूर", sample: "✨ नमुना", paper: "पानाचा प्रकार", font: "हस्ताक्षर शैली", size: "अक्षरांचा आकार", ink: "शाईचा रंग", clear: "🗑️ पुसा", img: "🖼️ पान सेव्ह", pdf: "⬇️ PDF निर्यात", modal: "भाषा निवडा", note: "प्रकरण ३: अपारंपरिक ऊर्जा स्रोत\n\nसौर ऊर्जा आणि पवन ऊर्जा हे स्वच्छ आणि शाश्वत पर्याय आहेत. सौर पॅनेलद्वारे विजेची निर्मिती होते." } },
+    { code: "gu", label: "Gujarati", native: "ગુજરાતી", font: "'Noto Sans Gujarati', sans-serif", ui: { home: "← હોમ", title: "હેન્ડરાઇટિંગ સ્ટુડિયો", input: "અસાઇનમેન્ટ લખાણ", sample: "✨ નમૂનો", paper: "પેજનો પ્રકાર", font: "હસ્તાક્ષર શૈલી", size: "અક્ષરનું કદ", ink: "શાહીનો રંગ", clear: "🗑️ સાફ કરો", img: "🖼️ પેજ સાચવો", pdf: "⬇️ PDF બનાવો", modal: "ભાષા પસંદ કરો", note: "પ્રકરણ ૩: પુનઃપ્રાપ્ય ઊર્જા સ્ત્રોત\n\nસૌર ઊર્જા અને પવન ઊર્જા સ્વચ્છ અને ટકાઉ વિકલ્પો છે." } },
+    { code: "ta", label: "Tamil", native: "தமிழ்", font: "'Noto Sans Tamil', sans-serif", ui: { home: "← முகப்பு", title: "கையெழுத்து ஸ்டுடியோ", input: "பாடக்குறிப்பு உரை", sample: "✨ மாதிரி", paper: "தாள் வகை", font: "கையெழுத்து பாணி", size: "எழுத்து அளவு", ink: "மை நிறம்", clear: "🗑️ அழி", img: "🖼️ பக்கம் சேமி", pdf: "⬇️ PDF ஏற்றுமதி", modal: "மொழியைத் தேர்ந்தெடுக்கவும்", note: "பாடம் 3: புதுப்பிக்கத்தக்க ஆற்றல் வளங்கள்\n\nசூரிய ஆற்றல் மற்றும் காற்றாலை ஆற்றல் தூய்மையான ஆற்றல் மூலங்களாகும்." } },
+    { code: "te", label: "Telugu", native: "తెలుగు", font: "'Noto Sans Telugu', sans-serif", ui: { home: "← హోమ్", title: "హ్యాండ్‌రైటింగ్ స్టూడియో", input: "అసైన్‌మెంట్ టెక్స్ట్", sample: "✨ నమూనా", paper: "పేజీ రకం", font: "చేతిరాత శైలి", size: "అక్షర పరిమాణం", ink: "సిరా రంగు", clear: "🗑️ క్లియర్", img: "🖼️ పేజీ సేవ్", pdf: "⬇️ PDF ఎగుమతి", modal: "భాషను ఎంచుకోండి", note: "అధ్యాయం 3: పునరుత్పాదక ఇంధన వనరులు\n\nసౌర శక్తి మరియు పవన శక్తి స్వచ్ఛమైన శక్తి వనరులు." } },
+    { code: "kn", label: "Kannada", native: "ಕನ್ನಡ", font: "'Noto Sans Kannada', sans-serif", ui: { home: "← ಮುಖಪುಟ", title: "ಕೈಬರಹ ಸ್ಟುಡಿಯೋ", input: "ಅಸೈನ್‌ಮೆಂಟ್ ಪಠ್ಯ", sample: "✨ ಮಾದರಿ", paper: "ಪುಟದ ವಿಧ", font: "ಕೈಬರಹ ಶೈಲಿ", size: "ಅಕ್ಷರ ಗಾತ್ರ", ink: "ಶಾಯಿ ಬಣ್ಣ", clear: "🗑️ ತೆರವು", img: "🖼️ ಪುಟ ಉಳಿಸಿ", pdf: "⬇️ PDF ರಫ್ತು", modal: "ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ", note: "ಅಧ್ಯಾಯ 3: ನವೀಕರಿಸಬಹುದಾದ ಇಂಧನ ಮೂಲಗಳು\n\nಸೌರಶಕ್ತಿ ಮತ್ತು ಪವನಶಕ್ತಿ ಶುದ್ಧ ಇಂಧನ ಮೂಲಗಳಾಗಿವೆ." } },
+    { code: "ml", label: "Malayalam", native: "മലയാളം", font: "'Noto Sans Malayalam', sans-serif", ui: { home: "← ഹോം", title: "കൈയെഴുത്ത് സ്റ്റുഡിയോ", input: "അസൈൻമെന്റ് ടെക്സ്റ്റ്", sample: "✨ മാതൃക", paper: "പേജ് തരം", font: "കൈയെഴുത്ത് ശൈലി", size: "അക്ഷര വലിപ്പം", ink: "മഷി നിറം", clear: "🗑️ മായ്ക്കുക", img: "🖼️ പേജ് സേവ്", pdf: "⬇️ PDF എക്സ്പോർട്ട്", modal: "ഭാഷ തിരഞ്ഞെടുക്കുക", note: "അധ്യായം 3: പുനരുപയോഗ ഊർജ്ജ സ്രോതസ്സുകൾ\n\nസൗരോർജ്ജവും കാറ്റാടി ഊർജ്ജവും ശുദ്ധമായ ഊർജ്ജ സ്രോതസ്സുകളാണ്." } },
+    { code: "pa", label: "Punjabi", native: "ਪੰਜਾਬੀ", font: "'Noto Sans Devanagari', sans-serif", ui: { home: "← ਹੋਮ", title: "ਹੈਂਡਰਾਈਟਿੰਗ ਸਟੂਡੀਓ", input: "ਅਸਾਈਨਮੈਂਟ ਟੈਕਸਟ", sample: "✨ ਨਮੂਨਾ", paper: "ਪੰਨੇ ਦੀ ਕਿਸਮ", font: "ਲਿਖਣ ਸ਼ੈਲੀ", size: "ਅੱਖਰ ਦਾ ਆਕਾਰ", ink: "ਸਿਆਹੀ ਦਾ ਰੰਗ", clear: "🗑️ ਸਾਫ਼ ਕਰੋ", img: "🖼️ ਪੰਨਾ ਸੇਵ", pdf: "⬇️ PDF ਬਣਾਓ", modal: "ਭਾਸ਼ਾ ਚੁਣੋ", note: "ਅਧਿਆਇ 3: ਨਵਿਆਉਣਯੋਗ ਊਰਜਾ ਸਰੋਤ\n\nਸੂਰਜੀ ਊਰਜਾ ਅਤੇ ਪੌਣ ਊਰਜਾ ਸਾਫ਼ ਊਰਜਾ ਦੇ ਸਰੋਤ ਹਨ।" } },
+    { code: "or", label: "Odia", native: "ଓଡ଼ିଆ", font: "'Noto Sans Oriya', sans-serif", ui: { home: "← ହୋମ୍", title: "ହ୍ୟାଣ୍ଡରାଇଟିଂ ଷ୍ଟୁଡିଓ", input: "ଆସାଇନମେଣ୍ଟ ଟେକ୍ସଟ", sample: "✨ ନମୁନା", paper: "ପୃଷ୍ଠା ପ୍ରକାର", font: "ହସ୍ତାକ୍ଷର ଶୈଳୀ", size: "ଅକ୍ଷର ଆକାର", ink: "କାଳି ରଙ୍ଗ", clear: "🗑️ ସଫା କରନ୍ତୁ", img: "🖼️ ପୃଷ୍ଠା ସେଭ୍", pdf: "⬇️ PDF କରନ୍ତୁ", modal: "ଭାଷା ବାଛନ୍ତୁ", note: "ଅଧ୍ୟାୟ ୩: ନବୀକରଣଯୋଗ୍ୟ ଶକ୍ତି ଉତ୍ସ\n\nସୌର ଶକ୍ତି ଏବଂ ପବନ ଶକ୍ତି ପରିଷ୍କାର ଶକ୍ତି ଉତ୍ସ ଅଟେ।" } },
+    { code: "ur", label: "Urdu", native: "اردو", font: "'Noto Nastaliq Urdu', serif", ui: { home: "← ہوم", title: "ہینڈ رائٹنگ اسٹوڈیو", input: "اسائنمنٹ ٹیکسٹ", sample: "✨ نمونہ", paper: "صفحے کی قسم", font: "لکھائی کا انداز", size: "فونٹ سائز", ink: "سیاہی کا رنگ", clear: "🗑️ صاف کریں", img: "🖼️ صفحہ محفوظ", pdf: "⬇️ PDF برآمد", modal: "زبان منتخب کریں", note: "باب 3: قابل تجدید توانائی کے ذرائع\n\nشمسی اور ہوائی توانائی صاف اور پائیدار ذرائع ہیں۔" } }
+  ];
+
+  let activeLangObj = popularLangs[0]; // Default: English
+  let curInk = "#162a5c";
+
+  function renderLangModalList() {
+    document.getElementById("langListGrid").innerHTML = popularLangs.map(l => `
+      <button class="lang-item ${l.code === activeLangObj.code ? 'active' : ''}" onclick="selectAppLanguage('${l.code}')">
+        <span>${l.native}</span>
+        <span style="font-size:0.68rem; opacity:0.8;">${l.label}</span>
+      </button>
+    `).join("");
+  }
+
+  function openLangModal() {
+    renderLangModalList();
+    document.getElementById("langModal").style.display = "flex";
+  }
+
+  function closeLangModal() {
+    document.getElementById("langModal").style.display = "none";
+  }
+
+  function selectAppLanguage(code) {
+    const found = popularLangs.find(x => x.code === code) || popularLangs[0];
+    activeLangObj = found;
+    document.getElementById("curLangCode").innerText = found.code.toUpperCase();
+    const u = found.ui;
+    document.getElementById("uiHomeBtn").innerText = u.home;
+    document.getElementById("uiTitle").innerText = u.title;
+    document.getElementById("uiInputLbl").innerText = u.input;
+    document.getElementById("uiSampleBtn").innerText = u.sample;
+    document.getElementById("uiPaperLbl").innerText = u.paper;
+    document.getElementById("uiFontLbl").innerText = u.font;
+    document.getElementById("uiInkLbl").innerText = u.ink;
+    document.getElementById("uiClearBtn").innerText = u.clear;
+    document.getElementById("uiImgBtn").innerText = u.img;
+    document.getElementById("uiPdfBtn").innerText = u.pdf;
+    document.getElementById("uiLangModalTitle").innerText = u.modal;
+    updateRangeLabels();
+    closeLangModal();
+    renderPages();
+  }
+
+  function updateRangeLabels() {
+    const px = document.getElementById("fontSizeRange").value;
+    document.getElementById("sizeVal").innerText = px;
+    document.getElementById("uiSizeLbl").innerHTML = `${activeLangObj.ui.size}: <span id="sizeVal">${px}</span>px`;
+  }
+
+  function setInk(color, btn) {
+    curInk = color;
+    document.querySelectorAll(".ink-dot").forEach(d => d.classList.remove("active"));
+    btn.classList.add("active");
+    renderPages();
+  }
+
+  function loadSampleNote() {
+    document.getElementById("noteInput").value = activeLangObj.ui.note;
+    renderPages();
+  }
+
+  function clearNote() {
+    document.getElementById("noteInput").value = "";
+    renderPages();
+  }
+
+  function getActiveFontFamily() {
+    const mode = document.getElementById("scriptStyle").value;
+    if (activeLangObj.code === "en") {
+      if (mode === "print") return "'Patrick Hand', sans-serif";
+      if (mode === "sketch") return "'Indie Flower', cursive";
+      return "'Caveat', cursive";
+    }
+    return activeLangObj.font;
+  }
+
+  function renderPages() {
+    const container = document.getElementById("pagesContainer");
+    const rawText = document.getElementById("noteInput").value || activeLangObj.ui.note;
+    const paperType = document.getElementById("paperStyle").value;
+    const fontSize = parseInt(document.getElementById("fontSizeRange").value, 10) || 19;
+    const lineGap = Math.round(fontSize * 1.55);
+    const fontFamily = getActiveFontFamily();
+    const isRtl = activeLangObj.code === "ur";
+
+    // Split text into multi-page chunks cleanly
+    const maxCharsPerPage = Math.max(260, Math.round(14500 / (fontSize * 1.35)));
+    const chunks = [];
+    let idx = 0;
+    while (idx < rawText.length) {
+      let end = Math.min(rawText.length, idx + maxCharsPerPage);
+      if (end < rawText.length) {
+        const spacePos = rawText.lastIndexOf(" ", end);
+        if (spacePos > idx + 80) end = spacePos;
+      }
+      chunks.push(rawText.slice(idx, end).trim());
+      idx = end;
+    }
+    if (!chunks.length) chunks.push("");
+
+    container.innerHTML = chunks.map((chunk, i) => `
+      <div class="sheet-page ${paperType}" style="--line-gap:${lineGap}px; color:${curInk};" dir="${isRtl ? 'rtl' : 'ltr'}">
+        ${paperType === "exam" ? `<div class="sheet-header-bar"><span>Subject: Assignment</span><span>Page ${i + 1}</span></div>` : ""}
+        <div class="hw-text" style="font-family:${fontFamily}; font-size:${fontSize}px; line-height:${lineGap}px;">${chunk}</div>
+      </div>
+    `).join("");
+  }
+
+  function downloadPdf() {
+    const wrap = document.getElementById("pagesContainer");
+    html2pdf().set({
+      margin: 6,
+      filename: `Handwritten_Assignment_${activeLangObj.code.toUpperCase()}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2.2, useCORS: true },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    }).from(wrap).save();
+  }
+
+  function downloadPagePng() {
+    const firstPage = document.querySelector(".sheet-page");
+    if (!firstPage) return;
+    html2canvas(firstPage, { scale: 2.5, useCORS: true }).then(canvas => {
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = `Assignment_Page1_${activeLangObj.code.toUpperCase()}.png`;
+      a.click();
+    });
+  }
+
+  loadSampleNote();
+</script>
+</body>
+</html>
