@@ -36,7 +36,7 @@ $('#storeTabs').onclick=e=>{const c=e.target.dataset.cat;if(c){storeCat=c;render
 $('#storeList').onclick=e=>{
   const del=e.target.dataset.delitem;
   if(del&&devMode){customItems=customItems.filter(x=>x.id!==del);ls.set('sg_store_custom',customItems);storeItems=[...DEFAULT_ITEMS,...customItems];dbOp(()=>F.deleteDoc(F.doc(db,'store_items',del)));renderStore();return}
-  const btn=e.target.closest('[data-buy]');if(!btn)return;
+  const btn=e.target.closest('[data-buy]');if(!btn)return;if(needLogin('the Store'))return;
   const it=storeItems.find(x=>x.id===btn.dataset.buy),dur=DURATIONS[btn.dataset.dur];if(!it||!dur)return;
   const cost=Math.max(5,Math.round((it.basePrice||40)*dur.mult));if(me.coins<cost)return toast('Not enough coins');
   me.coins-=cost;const key=itemKey(it);me.tempUnlocks[key]=Math.max(Date.now(),Number(me.tempUnlocks[key]||0))+dur.ms;

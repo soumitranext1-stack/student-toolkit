@@ -1,6 +1,5 @@
 "use strict";
 const DEV_LOGIN_ID = "soumitranext1@gmail.com";
-const DEV_LOGIN_PASS = "7908368702003";
 const DEV_UID = "DEV_SUDIPTA_99";
 const DEV_AVATAR = "👑";
 const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
@@ -129,6 +128,8 @@ function getUserTodayPts(u){
 
 function isDevAccount(u){return Boolean(u&&(u.uid===DEV_UID||String(u.accountId||'').toLowerCase()===DEV_LOGIN_ID))}
 let devMode=isDevAccount(me);
+/* guests (not registered) get no coin features: store, duels, coin matches */
+function needLogin(what){if(devMode||me.accountType==='account')return false;toast('Register / Login to use '+what);return true}
 
 function sanitizeUserAppearance(u){
   const copy={...(u||{})};
@@ -235,7 +236,7 @@ function shareInvite(){
 
 function syncDevInboxToCloud(tid,obj){ls.set('sg_dev_inbox',devInbox);dbOp(()=>F.setDoc(F.doc(db,'dev_inbox',tid),obj,{merge:true}))}
 function cleanupInactiveZeroFriendUsers(docList){
-  if(!online||!db)return;const now=Date.now();
+  if(!online||!db||!devMode)return;const now=Date.now();
   docList.forEach(d=>{if(isDevAccount(d)||d.uid===uid||d.accountType==='account')return;const fc=Array.isArray(d.friends)?d.friends.length:0,lsT=Number(d.lastSeen||d.createdAt||now);if(fc===0&&(now-lsT)>=TEN_DAYS_MS)dbOp(()=>F.deleteDoc(F.doc(db,'users',d.uid)))});
 }
 

@@ -36,6 +36,7 @@ function settleDuel(m){
 }
 function sweepDuels(){let ch=false;Object.values(chats).forEach(t=>(t.messages||[]).forEach(m=>{if(m.type==='duel'&&!m.settled&&m.myScore!=null){settleDuel(m);ch=true}}));if(ch){saveChats();if(cur)renderThread()}}
 function startTimedDuel(msg,peer){
+  if(needLogin('coin duels'))return;
   if(!online)return toast('Duels need a live connection');
   if(!msg.accepted)return toast('Friend must Accept Challenge first');
   if(msg.paid||msg.myScore!=null||me.done['bet_'+msg.id])return toast('You already played this duel');

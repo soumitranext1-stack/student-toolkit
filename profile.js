@@ -17,46 +17,46 @@ function openAuthModal(){
   const m=modal('Register & Login',`
     <p style="font-size:12px;color:var(--mu);margin-bottom:8px">Status: <b style="color:var(--tx)">${me.accountType==='account'?esc(me.accountId):'Guest: '+esc(uid)}</b></p>
     <div class="tabs"><button class="on" data-am="login">Login</button><button data-am="reg">Register New ID</button></div>
-    <label>Login ID</label><input id="auId" type="text" placeholder="Enter Login ID" autocomplete="off">
-    <label>Password</label><input id="auPw" type="password" placeholder="Enter Password">
+    <label>Login ID (name or email)</label><input id="auId" type="text" placeholder="Enter Login ID" autocomplete="off">
+    <label>Password (6+ characters)</label><input id="auPw" type="password" placeholder="Enter Password">
     <label>Invite Code (optional)</label><input id="auRef" type="text" placeholder="REF_..." value="${esc(me.referredBy||REF_PARAM)}">
     <button class="btn full" id="auSubmit">Login</button>
-    <button class="btn red full" id="auLogout">Logout &amp; Reset</button>
+    <button class="btn red full" id="auLogout">Logout</button>
   `);
   let mode='login';
   $$('[data-am]',m).forEach(b=>b.onclick=()=>{mode=b.dataset.am;$$('[data-am]',m).forEach(x=>x.classList.toggle('on',x===b));$('#auSubmit',m).textContent=mode==='login'?'Login':'Create Account'});
 
   $('#auSubmit',m).onclick=async()=>{
-    const idClean=$('#auId',m).value.trim().toLowerCase(), pass=$('#auPw',m).value, refCode=$('#auRef',m).value.trim().toUpperCase();
+    if(!auth||!AUTH)return toast('Connecting… try again in a moment');
+    const idClean=$('#auId',m).value.trim().toLowerCase(),pass=$('#auPw',m).value,refCode=$('#auRef',m).value.trim().toUpperCase();
     if(!idClean||!pass)return toast('Enter ID and password');
-    if(idClean===DEV_LOGIN_ID&&pass===DEV_LOGIN_PASS){
-      const devProf={...freshDefaultProfile(DEV_UID,false),name:'Developer',avatar:DEV_AVATAR,frame:'dev',banner:'bn-dev',textStyle:'anim-firetxt',msgStyle:'msg-glow-gold',tags:['Developer','LVL 99'],accountType:'account',accountId:DEV_LOGIN_ID};
-      switchToIdentity(DEV_UID,devProf);
-      dbOp(()=>F.setDoc(userRef(DEV_UID),base(),{merge:true}));
-      m.close();toast('Developer Mode ON');return;
-    }
-    const safeKey=btoa(unescape(encodeURIComponent(idClean))).replace(/[^a-zA-Z0-9]/g,'').slice(0,24);
-    const accUid='ACC_'+safeKey, localAccs=ls.get('sg_local_accounts',{});
-    let remoteAcc=null;if(online&&db){try{const s=await F.getDoc(F.doc(db,'accounts',accUid));if(s.exists())remoteAcc=s.data()}catch{}}
-    const ex=remoteAcc||localAccs[accUid];
-    if(mode==='reg'){
-      if(ex)return toast('ID already exists');
-      const rec={id:idClean,pass,uid:accUid,createdAt:Date.now()};localAccs[accUid]=rec;ls.set('sg_local_accounts',localAccs);dbOp(()=>F.setDoc(F.doc(db,'accounts',accUid),rec));
-      const newProf={...freshDefaultProfile(accUid,false),name:idClean.split('@')[0],accountType:'account',accountId:idClean,referredBy:refCode||''};
-      switchToIdentity(accUid,newProf);
-      dbOp(()=>F.setDoc(userRef(accUid),base(),{merge:true}));
-      m.close();toast('Account created');return;
-    }
-    if(!ex||ex.pass!==pass)return toast('Invalid ID or password');
-    let cloudProf=null;if(online&&db){try{const ps=await F.getDoc(userRef(accUid));if(ps.exists())cloudProf=ps.data()}catch{}}
-    const savedLocal=ls.get('sg_profile_'+accUid,null);
-    const mergedProf={...(cloudProf||savedLocal||freshDefaultProfile(accUid,false)),uid:accUid,accountType:'account',accountId:idClean,referredBy:refCode||(cloudProf?.referredBy||savedLocal?.referredBy||'')};
-    switchToIdentity(accUid,mergedProf);
-    m.close();toast('Logged in');
+    if(pass.length<6)return toast('Password must be 6+ characters');
+    const email=emailOf(idClean),btn=$('#auSubmit',m);btn.disabled=true;
+    try{
+      if(mode==='reg'){
+        if(auth.currentUser&&auth.currentUser.isAnonymous){
+          /* upgrade the guest in place: same uid, same coins */
+          await AUTH.linkWithCredential(auth.currentUser,AUTH.EmailAuthProvider.credential(email,pass));
+          me.referredBy=me.referredBy||refCode||'';
+          if(/^guest /i.test(me.name||''))me.name=idClean.split('@')[0].slice(0,24);
+          await adoptAuthUser(auth.currentUser);
+          attachUserListeners();attachDevListeners();
+          buildProfile();renderAll();
+        }else{
+          await AUTH.createUserWithEmailAndPassword(auth,email,pass);
+        }
+        toast('Account created');
+      }else{
+        await AUTH.signInWithEmailAndPassword(auth,email,pass);   // onAuthStateChanged switches the profile
+        toast('Logged in');
+      }
+      m.close();
+    }catch(e){btn.disabled=false;toast(authMsg(e))}
   };
 
-  $('#auLogout',m).onclick=()=>{
-    switchToIdentity(guestUid,ls.get('sg_profile_'+guestUid,null));
+  $('#auLogout',m).onclick=async()=>{
+    if(!auth||!AUTH){m.close();return}
+    try{await AUTH.signOut(auth);await AUTH.signInAnonymously(auth)}catch(e){toast(authMsg(e))}
     m.close();toast('Logged out');
   };
 }
