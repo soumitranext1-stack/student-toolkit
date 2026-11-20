@@ -72,6 +72,27 @@ nav button span{font-size:18px}nav button.on{color:var(--ac);font-weight:700}
 .spin-cw{animation:cw 7s linear infinite;transform-origin:center}.pulse-fx{animation:pf 1.6s ease-in-out infinite alternate;transform-origin:center}
 @keyframes cw{to{transform:rotate(360deg)}}@keyframes pf{from{transform:scale(.95)}to{transform:scale(1.06)}}
 
+.tag-grid{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
+.p-tag{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:4px 11px;border-radius:999px;font-size:11.5px;font-weight:800;
+  background:rgba(15,23,42,.72);color:#fff;border:1px solid rgba(255,255,255,.22);
+  transition:transform .2s ease,box-shadow .2s ease;
+}
+.p-tag.tag-glow-sm{
+  padding:4px 10px;font-size:11px;
+  box-shadow:0 0 8px rgba(124,140,255,.38);
+}
+.p-tag.tag-glow-md{
+  padding:5px 13px;font-size:12px;
+  box-shadow:0 0 14px rgba(255,211,107,.55),0 0 22px rgba(124,140,255,.32);
+}
+.p-tag.tag-glow-lg{
+  padding:6px 16px;font-size:12.5px;letter-spacing:.35px;
+  border-color:rgba(255,211,107,.75);
+  box-shadow:0 0 18px rgba(255,211,107,.75),0 0 30px rgba(255,77,106,.45);
+}
+
 .top1-glow-wrap .av{
   border:3px solid #ffd36b!important;
   box-shadow:0 0 18px #ffd36b,0 0 30px #ff8a00aa,inset 0 0 10px #ffe27a88!important;
