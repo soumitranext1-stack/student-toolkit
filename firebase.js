@@ -11,7 +11,6 @@ const firebaseConfig = {
 
 /* ===== Firebase Auth helpers ===== */
 let AUTH=null,auth=null,userUnsubs=[],devListening=false;
-/* A plain "Login ID" (no @) is turned into an internal email so Email/Password auth works */
 const emailOf=id=>{id=String(id||'').trim().toLowerCase();return id.includes('@')?id:id.replace(/[^a-z0-9._-]/g,'')+'@studygame.app'};
 function authMsg(e){
   const c=String((e&&e.code)||'');
@@ -26,10 +25,46 @@ function authMsg(e){
   return 'Login failed';
 }
 
-/* Called whenever Firebase tells us who is signed in. uid == Firebase Auth uid from now on. */
+function mergeAppearanceFromCloud(m){
+  if(!m)return;
+  if(typeof m.coins==='number')me.coins=m.coins;
+  if(typeof m.exp==='number')me.exp=Math.max(me.exp,m.exp);
+  if(typeof m.name==='string'&&m.name.trim())me.name=m.name.trim();
+  if(typeof m.bio==='string')me.bio=m.bio;
+  if(typeof m.hobbies==='string')me.hobbies=m.hobbies;
+  if(m.tempUnlocks&&typeof m.tempUnlocks==='object'&&!Array.isArray(m.tempUnlocks)){
+    me.tempUnlocks={...me.tempUnlocks,...m.tempUnlocks};
+  }
+  if(Array.isArray(m.tags)&&m.tags.length)me.tags=m.tags.slice(0,3);
+  if(Array.isArray(m.friends))me.friends=m.friends;
+  if(Array.isArray(m.activeDays)&&m.activeDays.length){
+    me.activeDays=[...new Set([...(me.activeDays||[]),...m.activeDays])].slice(-60);
+  }
+  if(!isDevAccount(me)){
+    if(typeof m.avatar==='string'&&m.avatar&&m.avatar!==DEV_AVATAR)me.avatar=m.avatar;
+    if(typeof m.frame==='string'&&m.frame&&m.frame!=='dev')me.frame=m.frame;
+    if(typeof m.banner==='string'&&m.banner&&m.banner!=='bn-dev')me.banner=m.banner;
+    if(typeof m.textStyle==='string')me.textStyle=m.textStyle;
+    if(typeof m.msgStyle==='string')me.msgStyle=m.msgStyle;
+    if(typeof m.bioStyle==='string')me.bioStyle=m.bioStyle;
+  }
+  if(m.dailyCoinsByDay&&typeof m.dailyCoinsByDay==='object'){
+    const o={...m.dailyCoinsByDay};
+    Object.entries(me.dailyCoinsByDay||{}).forEach(([k,v])=>{o[k]=Math.max(Number(o[k]||0),Number(v||0))});
+    me.dailyCoinsByDay=o;
+  }
+  if(m.claimedByDay&&typeof m.claimedByDay==='object'){
+    me.claimedByDay={...m.claimedByDay,...me.claimedByDay};
+  }
+  if(typeof m.banned==='boolean')me.banned=m.banned;
+  me=normalizeProfile(me,uid);
+  devMode=isDevAccount(me);
+  saveMe();
+}
+
 async function adoptAuthUser(u){
   const anon=u.isAnonymous,email=(u.email||'').toLowerCase();
-  if(u.uid===uid){                       // same person: just refresh account info (e.g. guest -> registered)
+  if(u.uid===uid){
     me.accountType=anon?'guest':'account';me.accountId=anon?'':email;
     me=normalizeProfile(me,uid);devMode=isDevAccount(me);
     saveMe();applyDevUI();checkBan();
@@ -41,7 +76,7 @@ async function adoptAuthUser(u){
   let cloud=null;
   try{const ps=await F.getDoc(F.doc(db,'users',u.uid));if(ps.exists())cloud=ps.data()}catch{}
   let start=(local||cloud)?{...(local||{}),...(cloud||{})}:null;
-  if(!start&&!localStorage.getItem('sg_migrated')){        // first run after the Auth update: keep old local progress once
+  if(!start&&!localStorage.getItem('sg_migrated')){
     start=JSON.parse(JSON.stringify(me));delete start.banned;
   }
   localStorage.setItem('sg_migrated','1');
@@ -50,7 +85,6 @@ async function adoptAuthUser(u){
   attachUserListeners();attachDevListeners();
 }
 
-/* listeners that depend on WHO the user is (re-attached after login / logout) */
 function attachUserListeners(){
   if(!F||!db)return;
   userUnsubs.forEach(f=>{try{f()}catch{}});userUnsubs=[];
@@ -63,7 +97,7 @@ function attachUserListeners(){
     userUnsubs.push(S.onSnapshot(S.doc(db,'dev_inbox',uid),sn=>{devInbox=sn.exists()?{[uid]:{uid,...sn.data()}}:{};ls.set('sg_dev_inbox',devInbox);if(!cur)renderChats()},()=>{}));
   }
 }
-/* developer-only listeners */
+
 function attachDevListeners(){
   if(devListening||!devMode||!F||!db)return;
   devListening=true;
@@ -82,7 +116,6 @@ async function initFirebase(){
     const app=A.initializeApp(firebaseConfig);
     db=S.getFirestore(app);F=S;AUTH=AU;auth=AU.getAuth(app);
 
-    /* who is signed in? (nobody yet -> silent guest login) */
     let u=await new Promise(res=>{const un=AU.onAuthStateChanged(auth,x=>{un();res(x)})});
     if(!u)u=(await AU.signInAnonymously(auth)).user;
     online=true;
@@ -90,12 +123,19 @@ async function initFirebase(){
     setStatus(true);
     AU.onAuthStateChanged(auth,x=>{if(x&&x.uid!==uid)adoptAuthUser(x)});
 
-    S.getDoc(userRef(uid)).then(s=>{if(!s.exists())return S.setDoc(userRef(uid),{...base(),createdAt:Date.now()})}).catch(()=>{});
+    S.getDoc(userRef(uid)).then(s=>{
+      if(!s.exists()){
+        return S.setDoc(userRef(uid),{...base(),createdAt:Date.now()},{merge:true});
+      }
+      mergeAppearanceFromCloud(s.data());
+      applyDevUI();checkBan();updateHud();buildProfile();renderAll();
+    }).catch(()=>{});
+
     S.onSnapshot(S.collection(db,'users'),snap=>{
       const docs=snap.docs.map(d=>({uid:d.id,...d.data()}));
       cleanupInactiveZeroFriendUsers(docs);users=docs;ls.set('sg_users_cache',users);
-      const m=users.find(u=>u.uid===uid);
-      if(m){if(typeof m.coins==='number')me.coins=m.coins;if(typeof m.exp==='number')me.exp=Math.max(me.exp,m.exp);if(m.dailyCoinsByDay){const o={...m.dailyCoinsByDay};Object.entries(me.dailyCoinsByDay).forEach(([k,v])=>{o[k]=Math.max(Number(o[k]||0),Number(v||0))});me.dailyCoinsByDay=o}if(m.claimedByDay)me.claimedByDay={...m.claimedByDay,...me.claimedByDay};me.banned=!!m.banned;saveMe();checkBan()}
+      const m=users.find(x=>x.uid===uid);
+      if(m){mergeAppearanceFromCloud(m);applyDevUI();checkBan()}
       setStatus(true);claimRankReward();checkReferralPayout();updateHud();renderAll();
     },()=>{});
 
@@ -110,7 +150,6 @@ async function initFirebase(){
 
     attachUserListeners();attachDevListeners();
 
-    // Approved poems shown on Home screen
     S.onSnapshot(S.collection(db,'poems_wall'),snap=>{
       const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.ts||0)-(a.ts||0));
       poems=list;ls.set('sg_poems_cache',poems);renderPoems();
