@@ -1,0 +1,134 @@
+/* Layout polish for Home, Games, Rank, Tasks, and Chat.
+   These overrides intentionally leave the existing DOM and app behavior unchanged. */
+
+/* Shared page sizing and predictable text wrapping */
+#app{width:100%;min-width:0}
+main{width:100%;min-width:0;overscroll-behavior-y:contain}
+.view{min-width:0}
+.view h2,.view h3{line-height:1.25}
+.view :where(.mid,.tool-copy,.task-copy,.rank-copy){min-width:0}
+.view :where(b,strong){overflow-wrap:anywhere}
+.view :where(small,p){line-height:1.4}
+
+/* Home and Games: clean, even card grids */
+#toolGrid,#gameSlotsGrid,.grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:stretch;
+  gap:10px;
+}
+#toolGrid>.tool,#gameSlotsGrid>.tool{
+  min-width:0;
+  min-height:132px;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:flex-start;
+  gap:7px;
+  padding:13px;
+  text-decoration:none;
+  overflow:hidden;
+}
+#toolGrid>.tool .art,#gameSlotsGrid>.tool .art{
+  width:42px;
+  height:42px;
+  flex:0 0 42px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid var(--bd);
+  border-radius:12px;
+  background:var(--card2);
+  font-size:22px;
+  line-height:1;
+}
+#toolGrid>.tool>b,#gameSlotsGrid>.tool>b{
+  display:block;
+  max-width:100%;
+  font-size:14px;
+  line-height:1.25;
+  overflow-wrap:anywhere;
+}
+#toolGrid>.tool>small,#gameSlotsGrid>.tool>small{
+  display:block;
+  max-width:100%;
+  font-size:12px;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+#toolGrid>.tool:active,#gameSlotsGrid>.tool:active{transform:translateY(1px)}
+
+/* Shared list rows: prevent long names and badges from breaking alignment */
+#taskList>.task,#rankList>.rk,#chatList>.th,#chatList>.world-card,#chatList>.dev{
+  min-width:0;
+  box-sizing:border-box;
+  gap:10px;
+  border:1px solid var(--bd);
+  border-radius:13px;
+  background:var(--card);
+  color:var(--tx);
+}
+#taskList>.task{display:flex;align-items:center;justify-content:space-between;padding:12px;margin:0 0 9px}
+#taskList>.task>.mid{flex:1;min-width:0}
+#taskList>.task b{display:block;line-height:1.3;overflow-wrap:anywhere}
+#taskList>.task p{margin-top:4px;color:var(--mu);font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+#taskList>.task .row{flex-wrap:wrap;gap:6px}
+#taskList>.task [data-claim],#taskList>.task [data-deltask]{flex:0 0 auto;white-space:nowrap}
+
+/* Rank rows and podium */
+#podiumSection .podium-wrap{min-width:0}
+#podiumSection .podium{align-items:end;gap:8px}
+#podiumSection .pod{min-width:0;overflow:hidden;padding:11px 6px}
+#podiumSection .pod :where(b,small){max-width:100%;overflow-wrap:anywhere}
+#podiumSection .podium .av-wrap{--s:40px}
+#podiumSection .rw-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 12px}
+#podiumSection .rw-card{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;padding:9px 5px;border:1px solid var(--bd);border-radius:12px;background:var(--card)}
+#podiumSection .rw-card b,#podiumSection .rw-card small{max-width:100%;overflow-wrap:anywhere;line-height:1.25}
+#rankList>.rk{display:flex;align-items:center;padding:10px;margin:0 0 8px}
+#rankList>.rk .badge{flex:0 0 34px;text-align:center;font-weight:800}
+#rankList>.rk .mid{flex:1;min-width:0}
+#rankList>.rk .mid :where(b,small){display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rankList>.rk.me{border-color:color-mix(in srgb,var(--ac) 55%,var(--bd))}
+
+/* Chat list rows */
+#chatList>.th,#chatList>.world-card,#chatList>.dev{display:flex;align-items:center;padding:10px 12px;margin:0 0 8px;cursor:pointer}
+#chatList>.th .mid,#chatList>.world-card .mid,#chatList>.dev .mid{flex:1;min-width:0}
+#chatList>.th .mid :where(b,small),#chatList>.world-card .mid :where(b,small),#chatList>.dev .mid :where(b,small){display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chatList .av-wrap{flex:0 0 auto}
+#chatList .red-dot{flex:0 0 9px;width:9px;height:9px;border-radius:50%;background:var(--bad)}
+#chatList>.th:active,#chatList>.world-card:active,#chatList>.dev:active{background:var(--card2)}
+
+/* Profile tag glow: stable glow tiers, comfortable spacing, and readable contrast */
+.tag-grid,.tags{max-width:100%;align-items:center}
+.p-tag,.tg{max-width:100%;line-height:1.3;text-align:center;overflow-wrap:anywhere}
+.p-tag.tag-glow-sm{box-shadow:0 0 8px rgba(124,140,255,.5)}
+.p-tag.tag-glow-md{box-shadow:0 0 12px rgba(255,211,107,.55),0 0 20px rgba(124,140,255,.32)}
+.p-tag.tag-glow-lg{box-shadow:0 0 16px rgba(255,211,107,.72),0 0 26px rgba(255,77,106,.42)}
+.p-tag:hover,.tg:hover{transform:translateY(-1px)}
+.tg.d,.pill.dev{
+  background:linear-gradient(120deg,#ffe28a 0%,#ffb347 38%,#ff647c 100%);
+  color:#24120b;
+  border:1px solid rgba(255,226,138,.8);
+  box-shadow:0 0 10px rgba(255,180,71,.42),0 0 20px rgba(255,77,106,.24);
+  font-weight:900;
+  letter-spacing:.04em;
+}
+.tg.l{box-shadow:0 0 10px rgba(124,140,255,.2)}
+.bn-box.bn-dev{border-color:rgba(255,211,107,.72);box-shadow:0 0 22px rgba(255,211,107,.2),inset 0 0 22px rgba(255,77,106,.08)}
+
+@media(min-width:560px){
+  #toolGrid,#gameSlotsGrid,.grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:380px){
+  main{padding-left:10px;padding-right:10px}
+  #toolGrid,#gameSlotsGrid,.grid{gap:8px}
+  #toolGrid>.tool,#gameSlotsGrid>.tool{min-height:124px;padding:10px}
+  #taskList>.task{align-items:flex-start;gap:8px;padding:10px}
+  #podiumSection .podium{gap:5px}
+  #podiumSection .pod{padding:9px 3px}
+  #rankList>.rk{gap:7px;padding:8px}
+}
+@media(prefers-reduced-motion:reduce){
+  .p-tag,.tg,#toolGrid>.tool,#gameSlotsGrid>.tool{transition:none}
+}
