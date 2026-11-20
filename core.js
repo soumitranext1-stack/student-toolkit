@@ -66,6 +66,7 @@ function openPage(href,ret){
   history.replaceState(null,'',location.pathname);
   location.assign(href);
 }
+/* Back from any tool/game lands on the app's Home tab (no history loops) */
 addEventListener('pageshow',e=>{
   let r=null;try{r=sessionStorage.getItem('sg_return');sessionStorage.removeItem('sg_return')}catch{}
   if(!r)return;showTab(r);cur=null;$('#thread').hidden=true;if(e.persisted){updateHud();renderAll()}
@@ -121,12 +122,13 @@ const saveMe=()=>ls.set('sg_profile_'+uid,me);
 
 function getUserTodayPts(u){
   if(!u)return 0;
-  const map=(u.uid===uid?me:u).dailyCoinsByDay;
+  const map=(u.uid===uid?me:u).dailyCoinsByDay;   // each uid reads only its own map
   return map&&typeof map==='object'?Number(map[today()]||0):0;
 }
 
 function isDevAccount(u){return Boolean(u&&(u.uid===DEV_UID||String(u.accountId||'').toLowerCase()===DEV_LOGIN_ID))}
 let devMode=isDevAccount(me);
+/* guests (not registered) get no coin features: store, duels, coin matches */
 function needLogin(what){if(devMode||me.accountType==='account')return false;toast('Register / Login to use '+what);return true}
 
 function sanitizeUserAppearance(u){
@@ -141,171 +143,6 @@ function isUnlocked(key){
   if(devMode)return true;
   if(['frame:none','banner:bn-aurora','text:','msg:','bio:'].includes(key)||(key.startsWith('tag:')&&FREE_TAGS.includes(key.slice(4))))return true;
   return Number(me.tempUnlocks[key]||0)>Date.now();
-}
-function cleanExpiredUnlocks(){
-  let ch=false;
-  for(const [k,exp] of Object.entries(me.tempUnlocks||{})){
-    if(Number(exp)<=Date.now()){
-      delete me.tempUnlocks[k];
-      if(me.frame&&k==='frame:'+me.frame)me.frame='none';
-      if(me.textStyle&&k==='text:'+me.textStyle)me.textStyle='';
-      if(me.msgStyle&&k==='msg:'+me.msgStyle)me.msgStyle='';if(me.bioStyle&&k==='bio:'+me.bioStyle)me.bioStyle='';if(me.banner&&k==='banner:'+me.banner)me.banner='bn-aurora';if(k.startsWith('tag:')){me.tags=(me.tags||[]).filter(x=>x!==k.slice(4));if(!me.tags.length)me.tags=[me.accountType==='account'?'Newbie':'Guest Pass']}
-      ch=true;
-    }
-  }
-  if(!devMode&&me.frame==='dev'){me.frame='none';ch=true}
-  if(!devMode&&me.avatar===DEV_AVATAR){me.avatar='🦊';ch=true}
-  if(devMode){me.frame='dev';me.avatar=DEV_AVATAR}
-  if(ch)saveMe();
-}
-
-let stats=ls.get('sg_stats_'+uid,{calc_open:0,pdf_open:0,tool_open:0,profile_save:0,games_played:0,store_buy:0,ad_watch:0});
-const saveStats=()=>ls.set('sg_stats_'+uid,stats);
-function bumpStat(k){stats[k]=(stats[k]||0)+1;saveStats();renderTasks()}
-
-let users=ls.get('sg_users_cache',[]);
-let devInbox=ls.get('sg_dev_inbox',{});
-let worldMsgs=ls.get('sg_world_msgs',[]);
-let poems=ls.get('sg_poems_cache',[]);
-let poemRequests=ls.get('sg_poem_requests_cache',[]);
-
-const USER_FRAMES=[['none','Plain'],['top1_glow','No.1 Glow'],['flame','Fire Ring'],['wings','Royal Wings'],['crown','Crown'],['star','Starlight'],['neon','Neon'],['ice','Frost'],['rainbow','Rainbow']];
-const BANNERS=[['bn-aurora','Aurora'],['bn-crimson','Crimson'],['bn-galaxy','Galaxy'],['bn-solar','Solar'],['bn-emerald','Emerald'],['bn-midnight','Midnight'],['bn-rose','Rose'],['bn-ocean','Ocean'],['bn-sunrise','Sunrise'],['bn-candy','Candy']];
-const TEXTS=[['','Normal'],['anim-firetxt','Fire'],['anim-royal-txt','Royal'],['anim-neon-txt','Neon'],['anim-gold-txt','Gold'],['anim-ice-txt','Ice'],['anim-berry-txt','Berry'],['anim-mint-txt','Mint'],['anim-sunset-txt','Sunset'],['anim-lava-txt','Lava'],['anim-aqua-txt','Aqua']];
-const MSGS=[['','Normal Msg'],['msg-glow-gold','Gold'],['msg-glow-cyan','Cyan'],['msg-glow-rose','Rose'],['msg-glow-violet','Violet'],['msg-glow-green','Green'],['msg-glow-orange','Orange']];
-const BIOS=[['','Normal'],['bio-gold','Gold'],['bio-cyan','Cyan'],['bio-pink','Pink'],['bio-rainbow','Rainbow']];
-const USER_AVATARS=['🦊','🐼','🐯','🦉','🐙','🚀','🧠','🎮','⚡','🔥','🌟','🐲'];
-
-function frameSvgBase(fr){
-  if(fr==='dev')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#ffd36b" stroke-width="3.8" stroke-dasharray="16 6"/><polygon points="34,11 42,2 50,10 58,2 66,11 61,18 39,18" fill="#ff4d6a" stroke="#ffd36b" stroke-width="1.4"/></svg><span class="f-top-tag">DEV 99</span>`;
-  if(fr==='top1_glow')return `<svg class="ring-svg pulse-fx" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#ffd36b" stroke-width="3.6" stroke-dasharray="18 6"/><polygon points="34,12 42,2 50,10 58,2 66,12 61,18 39,18" fill="#ffd36b" stroke="#78350f" stroke-width="1.4"/></svg><span class="f-top-tag">NO.1</span>`;
-  if(fr==='flame')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#ff6a1a" stroke-width="3.4" stroke-dasharray="14 8"/></svg><span class="f-top-tag" style="background:#ff5500;color:#fff">FIRE</span>`;
-  if(fr==='wings')return `<svg class="ring-svg pulse-fx" viewBox="0 0 100 100"><path d="M16 52 C2 35, 5 18, 22 25 C14 35, 16 44, 22 48" fill="#ffd54f"/><path d="M84 52 C98 35, 95 18, 78 25 C86 35, 84 44, 78 48" fill="#ffd54f"/><circle cx="50" cy="50" r="45" fill="none" stroke="#a88bff" stroke-width="2.6" stroke-dasharray="9 6"/></svg>`;
-  if(fr==='crown')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#ffd36b" stroke-width="3.4"/><polygon points="36,12 43,4 50,11 57,4 64,12 60,18 40,18" fill="#ffd36b" stroke="#78350f" stroke-width="1.2"/></svg>`;
-  if(fr==='star')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#f472b6" stroke-width="3" stroke-dasharray="3 9"/></svg>`;
-  return '';
-}
-function frameSvg(fr){
-  if(fr==='neon')return `<svg class="ring-svg pulse-fx" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#2dd4bf" stroke-width="3.6" style="filter:drop-shadow(0 0 4px #2dd4bf)"/><circle cx="50" cy="50" r="42" fill="none" stroke="#e879f9" stroke-width="1.6" stroke-dasharray="6 5"/></svg>`;
-  if(fr==='ice')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#66d9e8" stroke-width="3.4" stroke-dasharray="10 6"/><circle cx="50" cy="50" r="41" fill="none" stroke="#e3fafc" stroke-width="1.4" stroke-dasharray="2 8"/></svg>`;
-  if(fr==='rainbow')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100" fill="none" stroke-width="3.6"><circle cx="50" cy="50" r="45" stroke="#ff4d6a" stroke-dasharray="70.7 212"/><circle cx="50" cy="50" r="45" stroke="#ffd43b" stroke-dasharray="70.7 212" stroke-dashoffset="-70.7"/><circle cx="50" cy="50" r="45" stroke="#2dd4bf" stroke-dasharray="70.7 212" stroke-dashoffset="-141.4"/><circle cx="50" cy="50" r="45" stroke="#a855f7" stroke-dasharray="70.7 212" stroke-dashoffset="-212.1"/></svg>`;
-  return frameSvgBase(fr);
-}
-const av=(rawU,s=44)=>{const isDev=isDevAccount(rawU),u=isDev?{avatar:DEV_AVATAR,frame:'dev'}:sanitizeUserAppearance(rawU||{});return `<div class="av-wrap ${u.frame==='top1_glow'?'top1-glow-wrap':''}" style="--s:${s}px">${frameSvg(u.frame||'none')}<div class="av"><span>${esc(u.avatar||'🙂')}</span></div></div>`};
-const styledName=(u)=>`<span class="${esc(u.textStyle||'')}">${esc(u.name||'Player')}</span>`;
-function renderTags(tags){return `<div class="tag-grid">${(Array.isArray(tags)&&tags.length?tags:['Study Boy']).map(tg=>`<span class="p-tag">${esc(tg)}</span>`).join('')}</div>`}
-
-let F=null,db=null,online=false;
-function setStatus(ok){online=ok;const s=$('#st');s.classList.toggle('on',ok);$('em',s).textContent=ok?'Live':'Local mode'}
-const userRef=id=>F.doc(db,'users',id);
-function dbOp(fn){if(!online||!db)return;try{Promise.resolve(fn()).catch(()=>{})}catch{}}
-const base=()=>({uid,name:me.name,bio:me.bio,hobbies:me.hobbies,avatar:me.avatar,frame:me.frame,banner:me.banner,textStyle:me.textStyle,msgStyle:me.msgStyle,bioStyle:me.bioStyle||'',streakDays:calcStreak(me.activeDays),activeDays:me.activeDays,tags:me.tags,accountType:me.accountType,accountId:me.accountId,exp:me.exp,dailyCoinsByDay:me.dailyCoinsByDay,claimedByDay:me.claimedByDay,friends:me.friends,tempUnlocks:me.tempUnlocks,lastSeen:Date.now()});
-function patchUser(id,obj){let u=users.find(x=>x.uid===id);if(!u){u={uid:id};users.push(u)}Object.assign(u,obj);ls.set('sg_users_cache',users)}
-function checkBan(){$('#banBox').hidden=!me.banned;$('#banUid').textContent=uid}
-function getClaimedToday(){return me.claimedByDay[today()]||[]}
-function updateHud(){$$('.coinval').forEach(e=>e.textContent=fmtNum(me.coins));$$('.lvlval').forEach(e=>e.textContent=calcLevel(me.exp))}
-
-function checkDailyLoginBonus(){
-  const d=today();
-  if(me.lastLoginBonusDay===d)return;
-  me.lastLoginBonusDay=d;saveMe();
-  addReward(15,10);toast('Daily login bonus: +15 coins!');
-}
-
-function addReward(coinsDelta, expDelta, taskId, noLb){
-  if(me.banned)return;
-  const cDelta=Number(coinsDelta||0), eDelta=Number(expDelta||0);
-  me.coins=Math.max(0,Number(me.coins||0)+cDelta);
-  me.exp=Math.max(0,Number(me.exp||0)+eDelta);
-  const d=today();
-  if(cDelta>0&&!noLb)me.dailyCoinsByDay[d]=Number(me.dailyCoinsByDay[d]||0)+cDelta;
-  if(taskId){me.claimedByDay[d]=me.claimedByDay[d]||[];if(!me.claimedByDay[d].includes(taskId))me.claimedByDay[d].push(taskId)}
-  saveMe();patchUser(uid,{...base(),coins:me.coins});updateHud();renderRanking();
-  dbOp(()=>F.setDoc(userRef(uid),{...base(),coins:me.coins,exp:me.exp,dailyCoinsByDay:me.dailyCoinsByDay,claimedByDay:me.claimedByDay},{merge:true}));
-}
-
-function getInviteCode(){return me.accountType==='account'?'REF_'+uid.replace(/[^A-Z0-9]/gi,'').slice(-8).toUpperCase():''}
-function shareInvite(){
-  const code=getInviteCode();if(!code)return toast('Login first for invite code');
-  const link=location.href.split('#')[0].split('?')[0]+'?ref='+code;
-  if(navigator.share)navigator.share({title:'Study Game',text:`Join with code ${code}: ${link}`,url:link}).catch(()=>{});
-  else navigator.clipboard?.writeText(link).then(()=>toast('Invite link copied'),()=>toast(link));
-}
-
-function syncDevInboxToCloud(tid,obj){ls.set('sg_dev_inbox',devInbox);dbOp(()=>F.setDoc(F.doc(db,'dev_inbox',tid),obj,{merge:true}))}
-function cleanupInactiveZeroFriendUsers(docList){
-  if(!online||!db||!devMode)return;const now=Date.now();
-  docList.forEach(d=>{if(isDevAccount(d)||d.uid===uid||d.accountType==='account')return;const fc=Array.isArray(d.friends)?d.friends.length:0,lsT=Number(d.lastSeen||d.createdAt||now);if(fc===0&&(now-lsT)>=TEN_DAYS_MS)dbOp(()=>F.deleteDoc(F.doc(db,'users',d.uid)))});
-}
-
-function modal(title,html,cls=''){
-  const b=document.createElement('div');b.className='mb';
-  b.innerHTML=`<div class="sheet ${cls}"><div class="sh"><h3>${title}</h3><button class="x">✕</button></div><div class="sb">${html}</div></div>`;
-  $('#modals').appendChild(b);b.close=()=>{b.remove();b.onclose&&b.onclose()};$('.x',b).onclick=b.close;b.addEventListener('click',e=>{if(e.target===b)b.close()});return b;
-}
-
-function openRewardAd(onDone){
-  const m=modal('Reward Ad',`<div class="ad"><div class="adbox">📺 Reward Ad</div><p id="adt">Ad ends in 15s</p><button class="btn ghost full" id="adskip" disabled>Skip in 5s</button></div>`);
-  let t=15;const iv=setInterval(()=>{t--;$('#adt',m).textContent=t>0?`Ad ends in ${t}s`:'Done';const sk=$('#adskip',m);if(15-t>=5){sk.disabled=false;sk.textContent='Claim'}else sk.textContent=`Skip in ${5-(15-t)}s`;if(t<=0){clearInterval(iv);bumpStat('ad_watch');m.close();onDone&&onDone()}},1000);
-  $('#adskip',m).onclick=()=>{if($('#adskip',m).disabled)return;clearInterval(iv);bumpStat('ad_watch');m.close();onDone&&onDone()};
-  m.onclose=()=>clearInterval(iv);
-}
-
-function allUsers(){const m=new Map(users.map(u=>[u.uid,sanitizeUserAppearance(u)]));m.set(uid,{...(m.get(uid)||{}),...sanitizeUserAppearance(me)});return [...m.values()]}
-function rankableUsers(){return allUsers().filter(u=>!isDevAccount(u)).map(u=>({...u,todayPts:getUserTodayPts(u)})).sort((a,b)=>b.todayPts-a.todayPts||(b.coins||0)-(a.coins||0))}
-function isFriend(id){return me.friends.includes(id)}
-function toggleFriend(targetUid){
-  if(!targetUid||targetUid===uid)return;
-  if(isFriend(targetUid)){me.friends=me.friends.filter(x=>x!==targetUid);toast('Removed friend')}
-  else{me.friends.push(targetUid);toast('Friend added')}
-  saveMe();patchUser(uid,{friends:me.friends});renderChats();
-}
-
-function openPublicProfile(targetUid){
-  if(targetUid==='developer'||targetUid===DEV_UID){
-    return modal('Developer Profile',`<div class="bn-box bn-dev"><div class="pf">${av({uid:DEV_UID,avatar:DEV_AVATAR,frame:'dev'},74)}<b>Developer</b><div class="tags"><span class="tg d">DEV</span><span class="tg l">LVL 99</span></div></div></div><button class="btn full" id="pmDev">Message Developer</button>`).querySelector('#pmDev').onclick=function(){this.closest('.mb').remove();openThread('developer')};
-  }
-  const u=allUsers().find(x=>x.uid===targetUid);if(!u)return toast('Player not found');
-  const self=u.uid===uid, fr=isFriend(u.uid);
-  const m=modal('Player Profile',`
-    <div class="bn-box ${esc(u.banner||'bn-aurora')}">
-      <div class="pf">${av(u,74)}<b style="font-size:18px">${styledName(u)}</b><small>LVL ${calcLevel(u.exp)} · UID: ${esc(u.uid)}</small></div>
-      <div style="text-align:center;margin-top:4px"><span class="chip">🪙 ${fmtNum(u.coins)}</span> · <span class="exp-chip">Today: ${fmtNum(getUserTodayPts(u))} 🪙</span></div>
-      ${renderTags(u.tags)}
-    </div>
-    <div class="card" style="margin-top:10px;font-size:13px"><div><b>Bio:</b> <span class="${esc(u.bioStyle||'')}">${esc(u.bio||'—')}</span></div>${u.streakDays?`<div>🔥 ${u.streakDays} ${tr('streak')}</div>`:''}<div><b>Hobbies:</b> ${esc(u.hobbies||'—')}</div></div>
-    ${!self?`<div class="row" style="margin-top:10px"><button class="btn ${fr?'ghost':''}" id="pfAdd" style="flex:1">${fr?'Friends ✓':'Add Friend'}</button><button class="btn" id="pfMsg" style="flex:1" ${fr||devMode?'':'disabled'}>Message</button></div>`:''}
-  `);
-  if(devMode&&!self){
-    $('.sb',m).insertAdjacentHTML('beforeend',`<div class="card" style="margin-top:10px;border-color:var(--gold)"><b style="color:var(--gold)">Developer tools</b><div class="row" style="margin-top:8px"><input id="dvCoin" type="number" placeholder="± coins" style="flex:1"><button class="btn sm" id="dvAdj">Apply</button></div><button class="btn ${u.banned?'ok':'red'} full" id="dvBan">${u.banned?'Unban':'Ban'} user</button></div>`);
-    $('#dvAdj',m).onclick=()=>{
-      const n=Math.trunc(+$('#dvCoin',m).value);if(!n)return;
-      const nc=Math.max(0,Number(u.coins||0)+n);
-      if(u.uid===uid){me.coins=nc;saveMe();updateHud()}
-      patchUser(u.uid,{coins:nc});
-      dbOp(()=>F.setDoc(userRef(u.uid),{coins:nc},{merge:true}));
-      toast('Coins '+(n>0?'+':'')+n);m.close();openPublicProfile(u.uid);
-    };
-    $('#dvBan',m).onclick=()=>{
-      const b=!u.banned;
-      if(u.uid===uid){me.banned=b;saveMe();checkBan()}
-      patchUser(u.uid,{banned:b});
-      dbOp(()=>F.setDoc(userRef(u.uid),{banned:b},{merge:true}));
-      toast(b?'User banned':'User unbanned');m.close();openPublicProfile(u.uid);
-    };
-  }
-  if($('#pfAdd',m))$('#pfAdd',m).onclick=()=>{toggleFriend(u.uid);m.close();openPublicProfile(u.uid)};
-  if($('#pfMsg',m))$('#pfMsg',m).onclick=()=>{if(!chats[u.uid])chats[u.uid]={id:u.uid,name:u.name||'Player',uid:u.uid,messages:[]};saveChats();m.close();openThread(u.uid)};
-}
-
-function showTab(tab){
-  $$('#nav button').forEach(x=>x.classList.toggle('on',x.dataset.tab===tab));
-  $$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+tab));
-  $('main').scrollTop=0;
-}
-$('#nav').onclick=e=>{const b=e.target.closest('[data-tab]');if(b)showTab(b.dataset.tab)};
-function renderAll(){renderRanking();renderTasks();renderStore();renderPoems();if(!cur)renderChats()}
-y]||0)>Date.now();
 }
 function cleanExpiredUnlocks(){
   let ch=false;
