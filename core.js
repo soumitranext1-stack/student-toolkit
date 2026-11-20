@@ -1,6 +1,6 @@
 "use strict";
 const DEV_LOGIN_ID = "soumitranext1@gmail.com";
-const DEV_UID = "DEV_SUDIPTA_99";
+const DEV_UID = "DEV_SUDIPTA";
 const DEV_AVATAR = "👑";
 const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -10,6 +10,16 @@ const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelect
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
+
+function renderTags(tags){
+  const list=Array.isArray(tags)&&tags.length?tags:['Study Boy'];
+  return `<div class="tag-grid">${list.map(tg=>{
+    const s=String(tg||'');
+    const len=s.trim().length;
+    const tier=len>=11?'tag-glow-lg':len>=7?'tag-glow-md':'tag-glow-sm';
+    return `<span class="p-tag ${tier}">${esc(s)}</span>`;
+  }).join('')}</div>`;
+}
 
 function fmtNum(n){
   const v=Number(n||0), abs=Math.abs(v);
