@@ -13,6 +13,16 @@ const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
 
+function renderTags(tags){
+  const list=Array.isArray(tags)&&tags.length?tags:['Study Boy'];
+  return `<div class="tag-grid">${list.map(tg=>{
+    const s=String(tg||'');
+    const len=s.trim().length;
+    const tier=len>=11?'tag-glow-lg':len>=7?'tag-glow-md':'tag-glow-sm';
+    return `<span class="p-tag ${tier}">${esc(s)}</span>`;
+  }).join('')}</div>`;
+}
+
 function fmtNum(n){
   const v=Number(n||0), abs=Math.abs(v);
   if(abs>=1000000000)return (v/1000000000).toFixed(abs%1000000000===0?0:1).replace(/\.0$/,'')+'B';
