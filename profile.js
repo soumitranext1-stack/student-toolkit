@@ -4,7 +4,7 @@ function switchToIdentity(nextUid,nextProfileObj){
   $$('#modals .mb').forEach(b=>b.remove());
   cur=null;$('#thread').hidden=true;
   uid=nextUid;localStorage.setItem('sg_uid',uid);
-  me=normalizeProfile(nextProfileObj,nextUid);          // fully isolated, dev styles stripped for non-dev
+  me=normalizeProfile(nextProfileObj,nextUid);
   devMode=isDevAccount(me);
   stats={calc_open:0,pdf_open:0,tool_open:0,profile_save:0,games_played:0,store_buy:0,ad_watch:0,...ls.get('sg_stats_'+uid,{})};
   chats=ls.get('sg_chats_'+uid,{});ensureDevChat();
@@ -35,7 +35,6 @@ function openAuthModal(){
     try{
       if(mode==='reg'){
         if(auth.currentUser&&auth.currentUser.isAnonymous){
-          /* upgrade the guest in place: same uid, same coins */
           await AUTH.linkWithCredential(auth.currentUser,AUTH.EmailAuthProvider.credential(email,pass));
           me.referredBy=me.referredBy||refCode||'';
           if(/^guest /i.test(me.name||''))me.name=idClean.split('@')[0].slice(0,24);
@@ -47,7 +46,7 @@ function openAuthModal(){
         }
         toast('Account created');
       }else{
-        await AUTH.signInWithEmailAndPassword(auth,email,pass);   // onAuthStateChanged switches the profile
+        await AUTH.signInWithEmailAndPassword(auth,email,pass);
         toast('Logged in');
       }
       m.close();
@@ -112,12 +111,12 @@ function buildProfile(){
   $('#psv').onclick=()=>{
     me.name=$('#pn').value.trim()||'Player '+uid.slice(-4);me.bio=$('#pb').value.trim();
     me.avatar=devMode?DEV_AVATAR:d.avatar;me.frame=devMode?'dev':d.frame;me.banner=d.banner;me.textStyle=d.textStyle;me.msgStyle=d.msgStyle;me.bioStyle=d.bioStyle;if(!devMode)me.tags=d.tags.length?d.tags:[me.accountType==='account'?'Newbie':'Guest Pass'];
+    me=normalizeProfile(me,uid);
     saveMe();patchUser(uid,base());dbOp(()=>F.setDoc(userRef(uid),base(),{merge:true}));
-    bumpStat('profile_save');renderAll();toast('Saved');
+    bumpStat('profile_save');buildProfile();renderAll();toast('Saved');
   };
 }
 
-/* Referral: after 3 active days the referred user files a claim; the referrer's client pays +50 once */
 function checkReferralPayout(){
   if(!online||me.accountType!=='account'||!me.referredBy||me.referralRewardClaimed)return;
   if(new Set(me.activeDays).size>=3){me.referralRewardClaimed=true;saveMe();dbOp(()=>F.setDoc(F.doc(db,'referrals',uid),{uid,code:me.referredBy,paid:false,ts:Date.now()}))}
