@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14182b">
+<title>Speed Math</title>
+<link rel="stylesheet" href="gamekit.css">
+</head>
+<body>
+<div id="app">
+  <header><button class="ib" id="back">←</button><b class="ttl">⚡ Speed Math</b><div class="coin">🪙 <span id="coins">0</span></div></header>
+  <main id="main"></main>
+</div>
+<script src="gamekit.js"></script>
+<script>
+"use strict";
+const LV={easy:{n:'Easy',m:1},med:{n:'Medium',m:1.5},hard:{n:'Hard',m:2}};
+let level='med',iv=0;
+const main=$('#main');
+
+function menu(){
+  clearInterval(iv);
+  main.innerHTML=`<div class="card"><h3>⚡ 60 second Rush <span class="tag">FREE</span></h3>
+    <p class="mu">60 second me jitne sawal hal kar sako karo. Sahi = +10, galat = −5. Har 5 sahi streak par +5 bonus.</p>
+    <label>Level</label>
+    <div class="chips" id="lv"><button data-v="easy">Easy</button><button data-v="med" class="on">Medium</button><button data-v="hard">Hard</button></div>
+    <p class="mu" style="margin-top:10px">🏆 Best (<span id="bl"></span>): <b id="bs"></b></p>
+    <button class="btn full" id="go">Start</button></div>
+    <div class="card"><p class="mu">Coins: score ke hisaab se (max 20 🪙 per din), sirf registered players ko.</p></div>`;
+  const sh=()=>{$('#bl').textContent=LV[level].n;$('#bs').textContent=bestGet('sm_'+level)};
+  level='med';sh();
+  pick('#lv',v=>{level=v;sh()});
+  $('#go').onclick=play;
+}
+
+function gen(l){
+  let a,b,op,ans;
+  if(l==='easy'){op=['+','-'][rnd(2)];a=rnd(20)+2;b=rnd(20)+2}
+  else if(l==='med'){op=['+','-','×'][rnd(3)];if(op==='×'){a=rnd(11)+2;b=rnd(11)+2}else{a=rnd(90)+10;b=rnd(90)+10}}
+  else{op=['+','-','×','÷'][rnd(4)];if(op==='×'){a=rnd(14)+6;b=rnd(12)+3}else if(op==='÷'){b=rnd(11)+2;ans=rnd(15)+3;a=b*ans}else{a=rnd(900)+100;b=rnd(900)+100}}
+  if(op==='-'&&b>a)[a,b]=[b,a];
+  if(op==='÷'){/* ans set above */}else ans=op==='+'?a+b:op==='-'?a-b:a*b;
+  const set=new Set([ans]);let guard=0;
+  const spread=Math.max(5,Math.round(Math.abs(ans)*.15));
+  while(set.size<4&&guard++<60){const d=(rnd(spread)+1)*(rnd(2)?1:-1),v=ans+d;if(v>=0)set.add(v)}
+  while(set.size<4)set.add(ans+set.size+1);
+  return {q:`${a} ${op} ${b}`,ans,opts:shuffle([...set])};
+}
+
+function play(){
+  let score=0,streak=0,solved=0,wrong=0,left=60,lock=false,q;
+  main.innerHTML=`<div class="hud"><span class="pill">⏱ <b id="t">60</b>s</span><span class="pill">🔥 <b id="st">0</b></span><span class="pill">Score <b id="sc">0</b></span></div>
+    <div class="tbar" id="tbar"><i id="tb"></i></div><div class="qbox" id="q"></div><div class="opts2" id="o"></div><div class="fb" id="fb"></div>`;
+  const next=()=>{
+    q=gen(level);lock=false;$('#fb').textContent='';
+    $('#q').textContent=q.q+' = ?';
+    $('#o').innerHTML=q.opts.map(v=>`<button class="opt" data-v="${v}">${v}</button>`).join('');
+  };
+  $('#o').onclick=e=>{
+    const b=e.target.closest('.opt');if(!b||lock)return;lock=true;
+    const ok=+b.dataset.v===q.ans;
+    if(ok){solved++;streak++;score+=10;if(streak%5===0){score+=5;$('#fb').textContent='🔥 Streak bonus +5'}}
+    else{wrong++;streak=0;score=Math.max(0,score-5);$('#fb').textContent='❌ Sahi jawab: '+q.ans}
+    b.classList.add(ok?'good':'bad');
+    $('#sc').textContent=score;$('#st').textContent=streak;
+    setTimeout(()=>{if(left>0)next()},ok?180:650);
+  };
+  const t0=Date.now();
+  iv=setInterval(()=>{
+    left=Math.max(0,60-(Date.now()-t0)/1000);
+    $('#t').textContent=Math.ceil(left);$('#tb').style.width=(left/60*100)+'%';
+    $('#tbar').classList.toggle('low',left<10);
+    if(left<=0){clearInterval(iv);finish()}
+  },100);
+  next();
+  async function finish(){
+    lock=true;
+    const newBest=bestSet('sm_'+level,score);
+    const want=Math.floor(score/40*LV[level].m);
+    const r=await award('speedmath',want,Math.floor(score/10));
+    result({emoji:newBest&&score>0?'🏆':'⚡',title:`Score: ${score}`,
+      lines:[`Sahi: ${solved} · Galat: ${wrong}`,newBest&&score>0?'🎉 Naya best score!':`Best: ${bestGet('sm_'+level)}`],
+      r,again:play,menu});
+  }
+}
+menu();
+</script>
+</body>
+</html>

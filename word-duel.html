@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14182b">
+<title>Word Duel</title>
+<link rel="stylesheet" href="gamekit.css">
+</head>
+<body>
+<div id="app">
+  <header><button class="ib" id="back">←</button><b class="ttl">🔤 Word Duel</b><div class="coin">🪙 <span id="coins">0</span></div></header>
+  <main id="main"></main>
+</div>
+<script src="gamekit.js"></script>
+<script>
+"use strict";
+const main=$('#main');
+const WORDS=[['Abundant','plentiful; more than enough'],['Benevolent','kind and generous'],['Candid','honest and frank'],['Diligent','hardworking and careful'],['Eloquent','fluent and persuasive in speech'],['Frugal','careful about spending money'],['Gloomy','dark, sad or hopeless'],['Hesitate','pause before doing something'],['Jubilant','extremely joyful'],['Keen','eager and enthusiastic'],['Lethargic','sluggish and without energy'],['Meticulous','very careful about details'],['Nostalgia','sentimental longing for the past'],['Obsolete','no longer in use'],['Pragmatic','practical rather than idealistic'],['Reluctant','unwilling or hesitant'],['Serene','calm and peaceful'],['Tedious','boring and too long'],['Unique','one of a kind'],['Vivid','bright, clear and strong'],['Wary','cautious about danger'],['Zealous','full of passionate enthusiasm'],['Ambiguous','having more than one possible meaning'],['Brevity','shortness of expression'],['Defy','openly resist'],['Endure','suffer patiently'],['Fragile','easily broken'],['Genuine','real and authentic'],['Humble','modest, not proud'],['Inevitable','certain to happen'],['Lucid','clearly expressed'],['Mundane','ordinary and dull'],['Novice','a beginner'],['Opaque','not allowing light through'],['Persist','continue firmly despite difficulty'],['Rapid','very fast'],['Scarce','in short supply'],['Vacant','empty, not occupied']];
+const BOT={easy:{n:'Easy',acc:.55,min:3,max:9,win:6},med:{n:'Medium',acc:.75,min:2,max:7,win:9},hard:{n:'Hard',acc:.9,min:1.5,max:5,win:12}};
+let lv='med',iv=0,token=0;
+
+function menu(){
+  clearInterval(iv);token++;
+  main.innerHTML=`<div class="card"><h3>🤖 Duel vs Robot <span class="tag">FREE</span></h3>
+    <p class="mu">10 words. Sahi meaning chuno. Sahi = +10, Robot se tez = +5 bonus. Jo jyada points laaye wo jeete!</p>
+    <label>Robot level</label><div class="chips" id="lv"><button data-v="easy">Easy</button><button data-v="med" class="on">Medium</button><button data-v="hard">Hard</button></div>
+    <button class="btn full" id="d1">Start Duel</button></div>
+    <div class="card"><h3>🔀 Word Scramble <span class="tag">FREE</span></h3>
+    <p class="mu">60 second me jumbled letters se sahi word banao. Hint me meaning milega.</p>
+    <p class="mu" style="margin-top:6px">🏆 Best: <b>${bestGet('wd_scr')}</b></p>
+    <button class="btn full" id="d2">Start Scramble</button></div>
+    <div class="card"><p class="mu">Coins: max 20 🪙 per din, sirf registered players ko.</p></div>`;
+  lv='med';pick('#lv',v=>lv=v);$('#d1').onclick=duel;$('#d2').onclick=scramble;
+}
+
+function duel(){
+  token++;const my=token;
+  const B=BOT[lv],words=shuffle(WORDS).slice(0,10);
+  let r=0,me=0,bot=0,lock=false;
+  const round=()=>{
+    if(r>=10)return finish();
+    const [w,mean]=words[r];r++;lock=false;
+    const opts=shuffle([mean,...shuffle(WORDS.filter(x=>x[0]!==w)).slice(0,3).map(x=>x[1])]);
+    const t0=Date.now(),limit=12000;
+    const rt=(B.min+Math.random()*(B.max-B.min))*1000,rOk=Math.random()<B.acc;
+    main.innerHTML=`<div class="hud"><span class="pill">Round ${r}/10</span><span class="pill">You ${me} · 🤖 ${bot}</span></div>
+      <div class="tbar" id="tbar"><i id="tb"></i></div><div class="qbox">${esc(w)}</div>
+      <div id="o">${opts.map(o=>`<button class="opt" data-m="${esc(o)}">${esc(o)}</button>`).join('')}</div><div class="fb" id="fb"></div>`;
+    const settle=(pick)=>{
+      if(lock)return;lock=true;clearInterval(iv);
+      const t=pick==null?limit:Date.now()-t0,ok=pick===mean;
+      let m=0,b=0;
+      if(ok)m=10;if(rOk)b=10;
+      if(ok&&(!rOk||t<rt))m+=5;else if(rOk&&(!ok||rt<t))b+=5;
+      me+=m;bot+=b;
+      $$('.opt').forEach(x=>{if(x.dataset.m===mean)x.classList.add('good');else if(x.dataset.m===pick)x.classList.add('bad');else x.classList.add('off')});
+      $('#fb').textContent=`${ok?'✅ Sahi':pick==null?'⏰ Time up':'❌ Galat'} (+${m}) · 🤖 ${rOk?'✅':'❌'} (+${b})`;
+      setTimeout(()=>{if(my===token)round()},1500);
+    };
+    $('#o').onclick=e=>{const b=e.target.closest('.opt');if(b)settle(b.dataset.m)};
+    clearInterval(iv);
+    iv=setInterval(()=>{
+      const left=Math.max(0,limit-(Date.now()-t0));
+      $('#tb').style.width=(left/limit*100)+'%';$('#tbar').classList.toggle('low',left<4000);
+      if(left<=0)settle(null);
+    },100);
+  };
+  async function finish(){
+    const won=me>bot,tie=me===bot;
+    const want=won?B.win:tie?2:0;
+    const rw=await award('worddual',want,me/5);
+    result({emoji:won?'🏆':tie?'🤝':'😔',title:won?'Tum jeet gaye!':tie?'Draw':'Robot jeet gaya',lines:[`You ${me} – ${bot} Robot (${B.n})`],r:rw,again:duel,menu});
+  }
+  round();
+}
+
+function scramble(){
+  token++;
+  let score=0,solved=0,cur,used=new Set(),left=60;
+  const scr=w=>{let s;do{s=shuffle(w.split('')).join('')}while(s===w);return s};
+  main.innerHTML=`<div class="hud"><span class="pill">⏱ <b id="t">60</b>s</span><span class="pill">Score <b id="sc">0</b></span></div>
+    <div class="tbar" id="tbar"><i id="tb"></i></div><div class="qbox" id="q" style="letter-spacing:4px"></div>
+    <p class="mu" id="hint" style="text-align:center;margin-bottom:10px"></p>
+    <input id="ans" autocomplete="off" autocapitalize="off" placeholder="Type the word">
+    <div class="row" style="margin-top:10px"><button class="btn" style="flex:1" id="ok">Check</button><button class="btn ghost" style="flex:1" id="skip">Skip</button></div><div class="fb" id="fb"></div>`;
+  const next=()=>{
+    let c;do{c=WORDS[rnd(WORDS.length)]}while(used.has(c[0])&&used.size<WORDS.length);
+    used.add(c[0]);cur=c;$('#q').textContent=scr(c[0].toUpperCase());$('#hint').textContent='Hint: '+c[1];$('#ans').value='';$('#ans').focus();
+  };
+  const check=()=>{
+    const v=$('#ans').value.trim().toLowerCase();if(!v)return;
+    if(v===cur[0].toLowerCase()){score+=10;solved++;$('#sc').textContent=score;$('#fb').textContent='✅ Sahi!';next()}
+    else{$('#fb').textContent='❌ Dobara try karo';$('#ans').select()}
+  };
+  $('#ok').onclick=check;$('#ans').onkeydown=e=>{if(e.key==='Enter')check()};
+  $('#skip').onclick=()=>{$('#fb').textContent='Jawab tha: '+cur[0];next()};
+  const t0=Date.now();clearInterval(iv);
+  iv=setInterval(async()=>{
+    left=Math.max(0,60-(Date.now()-t0)/1000);
+    $('#t').textContent=Math.ceil(left);$('#tb').style.width=(left/60*100)+'%';$('#tbar').classList.toggle('low',left<10);
+    if(left<=0){
+      clearInterval(iv);
+      const nb=bestSet('wd_scr',score);
+      const r=await award('wordscramble',Math.floor(score/30),score/8);
+      result({emoji:'🔀',title:`Score: ${score}`,lines:[`${solved} words solve kiye`,nb&&score>0?'🎉 Naya best!':`Best: ${bestGet('wd_scr')}`],r,again:scramble,menu});
+    }
+  },100);
+  next();
+}
+menu();
+</script>
+</body>
+</html>

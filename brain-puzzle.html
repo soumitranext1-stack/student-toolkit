@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14182b">
+<title>Brain Puzzle</title>
+<link rel="stylesheet" href="gamekit.css">
+</head>
+<body>
+<div id="app">
+  <header><button class="ib" id="back">←</button><b class="ttl">🧩 Brain Puzzle</b><div class="coin">🪙 <span id="coins">0</span></div></header>
+  <main id="main"></main>
+</div>
+<script src="gamekit.js"></script>
+<script>
+"use strict";
+const main=$('#main');
+let token=0;   // cancels pending timeouts when leaving a game
+
+function menu(){
+  token++;
+  main.innerHTML=`<div class="card"><h3>🔢 Number Series <span class="tag">FREE</span></h3>
+    <p class="mu">10 patterns. Agla number dhundo. Har sahi jawab +10.</p>
+    <p class="mu" style="margin-top:6px">🏆 Best: <b>${bestGet('bp_series')}</b>/100</p>
+    <button class="btn full" id="m1">Start</button></div>
+    <div class="card"><h3>🧠 Pattern Memory <span class="tag">FREE</span></h3>
+    <p class="mu">Tiles ka order yaad rakho aur wahi dohrao. Har level me ek tile badhti hai.</p>
+    <p class="mu" style="margin-top:6px">🏆 Best level: <b>${bestGet('bp_mem')}</b></p>
+    <button class="btn full" id="m2">Start</button></div>
+    <div class="card"><p class="mu">Coins: max 20 🪙 per din, sirf registered players ko.</p></div>`;
+  $('#m1').onclick=series;$('#m2').onclick=memory;
+}
+
+/* ---------- Number series ---------- */
+function makeSeries(){
+  const t=rnd(6);let seq=[],why='';
+  if(t===0){const s=rnd(10)+1,d=rnd(7)+2*(rnd(2)?1:1);const sign=rnd(3)?1:-1;seq=Array.from({length:6},(_,i)=>s+(sign===1?d*i:100-d*i-s*0));why=sign===1?`Har baar +${d}`:`Har baar −${d}`;
+    if(sign===-1){seq=Array.from({length:6},(_,i)=>100-d*i)}}
+  else if(t===1){const s=rnd(3)+1,q=rnd(2)+2;seq=Array.from({length:6},(_,i)=>s*q**i);why=`Har baar ×${q}`}
+  else if(t===2){const n=rnd(5)+1,k=rnd(4);seq=Array.from({length:6},(_,i)=>(n+i)**2+k);why=k?`Squares + ${k}`:'Perfect squares'}
+  else if(t===3){const s=rnd(10)+5,a=rnd(6)+4,b=rnd(3)+1;seq=[s];for(let i=1;i<6;i++)seq.push(seq[i-1]+(i%2?a:-b));why=`Ek baar +${a}, ek baar −${b}`}
+  else if(t===4){const s=rnd(8)+1;seq=[s];for(let i=1;i<6;i++)seq.push(seq[i-1]+i);why='Difference 1, 2, 3, 4… badhta hai'}
+  else{const a=rnd(4)+1,b=rnd(4)+2;seq=[a,b];for(let i=2;i<6;i++)seq.push(seq[i-1]+seq[i-2]);why='Pichhle do numbers ka sum'}
+  const ans=seq[5],set=new Set([ans]);let g=0;
+  while(set.size<4&&g++<60){const v=ans+(rnd(9)+1)*(rnd(2)?1:-1);if(v>0)set.add(v)}
+  while(set.size<4)set.add(ans+set.size*3);
+  return {shown:seq.slice(0,5),ans,why,opts:shuffle([...set])};
+}
+function series(){
+  token++;let n=0,score=0,lock=false,q;
+  const next=()=>{
+    if(n>=10)return finish();
+    q=makeSeries();lock=false;n++;
+    main.innerHTML=`<div class="hud"><span class="pill">Q ${n}/10</span><span class="pill">Score ${score}</span></div>
+      <div class="qbox sm">${q.shown.join(' , ')} , ?</div>
+      <div class="opts2" id="o">${q.opts.map(v=>`<button class="opt" data-v="${v}">${v}</button>`).join('')}</div><div class="fb" id="fb"></div>`;
+    $('#o').onclick=e=>{
+      const b=e.target.closest('.opt');if(!b||lock)return;lock=true;
+      const ok=+b.dataset.v===q.ans;
+      if(ok)score+=10;
+      b.classList.add(ok?'good':'bad');
+      if(!ok)$$('.opt').forEach(x=>{if(+x.dataset.v===q.ans)x.classList.add('good')});
+      $('#fb').textContent=(ok?'✅ Sahi! ':'❌ Jawab '+q.ans+'. ')+q.why;
+      const my=token;setTimeout(()=>{if(my===token)next()},1500);
+    };
+  };
+  async function finish(){
+    const nb=bestSet('bp_series',score);
+    const r=await award('brain_series',Math.floor(score/12),score/5);
+    result({emoji:score>=80?'🏆':'🧩',title:`Score: ${score}/100`,lines:[nb&&score>0?'🎉 Naya best!':`Best: ${bestGet('bp_series')}`],r,again:series,menu});
+  }
+  next();
+}
+
+/* ---------- Pattern memory ---------- */
+function memory(){
+  token++;const my=token;
+  let seq=[],pos=0,level=0,accept=false;
+  main.innerHTML=`<div class="hud"><span class="pill">Level <b id="lv">1</b></span><span class="pill" id="msg">Dekho…</span></div>
+    <div class="grid3" id="g">${Array.from({length:9},(_,i)=>`<div class="tile" data-i="${i}"></div>`).join('')}</div>`;
+  const tiles=$$('.tile'),msg=t=>$('#msg').textContent=t;
+  const wait=ms=>new Promise(r=>setTimeout(r,ms));
+  async function show(){
+    accept=false;msg('Dekho…');await wait(600);
+    for(const i of seq){if(my!==token)return;tiles[i].classList.add('lit');await wait(450);tiles[i].classList.remove('lit');await wait(180)}
+    if(my!==token)return;pos=0;accept=true;msg('Ab tumhari baari');
+  }
+  function up(){level++;$('#lv').textContent=level;seq.push(rnd(9));show()}
+  $('#g').onclick=async e=>{
+    const t=e.target.closest('.tile');if(!t||!accept)return;
+    const i=+t.dataset.i;t.classList.add('lit');setTimeout(()=>t.classList.remove('lit'),150);
+    if(i!==seq[pos]){accept=false;t.classList.add('bad');return fail()}
+    pos++;if(pos===seq.length){accept=false;msg('✅ Sahi!');await wait(700);if(my===token)up()}
+  };
+  async function fail(){
+    const done=level-1;
+    const nb=bestSet('bp_mem',done);
+    const r=await award('brain_mem',Math.floor(done/2),done*3);
+    result({emoji:'🧠',title:`Level ${done} complete`,lines:[nb&&done>0?'🎉 Naya best!':`Best level: ${bestGet('bp_mem')}`],r,again:memory,menu});
+  }
+  up();
+}
+menu();
+</script>
+</body>
+</html>
