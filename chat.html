@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14182b">
+<title>Study Game — Chat</title>
+<style>
+:root{
+  --bg:#121629;--s1:#1a203a;--s2:#232b4d;--ln:#34406e;
+  --tx:#f2f5ff;--mu:#a6b0d6;--ac:#6c8cff;--coin:#ffc53d;
+  --red:#ff4d6a;--gold:#ffd36b;--ok:#2dd4bf
+}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,sans-serif}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+#app{max-width:520px;margin:0 auto;height:100%;display:flex;flex-direction:column;position:relative}
+header{display:flex;justify-content:space-between;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;border-bottom:1px solid var(--ln);background:var(--s1);position:sticky;top:0;z-index:15}
+.row{display:flex;align-items:center;gap:8px}.row.wrap{flex-wrap:wrap}
+.coin{background:#2b2410;border:1px solid #5a4716;color:var(--coin);padding:5px 10px;border-radius:99px;font-weight:700;font-size:13px}
+main{flex:1;overflow-y:auto;padding:14px 14px 40px}
+h2{font-size:18px;margin:0}
+.list{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--s1);border:1px solid var(--ln);border-radius:16px;padding:14px}
+.btn{background:var(--ac);color:#fff;border:0;border-radius:12px;padding:9px 13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.ghost{background:var(--s2);color:var(--tx);border:1px solid var(--ln)}.btn.red{background:var(--red);color:#fff}.btn.ok{background:var(--ok);color:#05201d}.btn.full{width:100%;margin-top:10px}
+.btn.sm{padding:7px 10px;font-size:12px;border-radius:10px}
+.mid{flex:1;min-width:0}.mid b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mid small{color:var(--mu);font-size:12px}
+.red-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);flex:none}
+.world-card{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;cursor:pointer;background:#0f766e29;border:1.5px solid var(--ok)}
+.dev{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;cursor:pointer;background:linear-gradient(135deg,#881337,#78350f);border:1.5px solid var(--gold);color:#fff}
+.th{display:flex;align-items:center;gap:12px;padding:11px 12px;background:var(--s1);border:1px solid var(--ln);border-radius:14px;cursor:pointer}
+.av{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--s2);font-size:21px;border:2px solid var(--ln);flex:none}
+
+.thread{position:fixed;inset:0;margin:0 auto;max-width:520px;background:var(--bg);z-index:40;display:flex;flex-direction:column}
+.thh{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:var(--s1);border-bottom:1px solid var(--ln)}
+.msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.m{display:flex;flex-direction:column;max-width:82%}.m.out{align-self:flex-end;align-items:flex-end}.m.in{align-self:flex-start}
+.bub{padding:9px 13px;border-radius:16px;word-break:break-word;white-space:pre-wrap}.m.out .bub{background:var(--ac);color:#fff;border-bottom-right-radius:4px}.m.in .bub{background:var(--s2);border-bottom-left-radius:4px}
+.msg-glow-gold{border:1.5px solid var(--gold)!important;box-shadow:0 0 12px #ffd36b66!important}
+.msg-glow-cyan{border:1.5px solid var(--ok)!important;box-shadow:0 0 12px #2dd4bf66!important}
+.msg-glow-rose{border:1.5px solid var(--red)!important;box-shadow:0 0 12px #ff4d6a66!important}
+.m time{font-size:10px;color:var(--mu);margin-top:2px}
+.chal{background:var(--s2);border:1px solid var(--ac);border-radius:16px;padding:12px;min-width:225px}.chal p{color:var(--mu);font-size:12px;margin:4px 0 8px}.chal .rw{color:var(--coin);font-weight:700}
+.comp{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--s1);border-top:1px solid var(--ln);align-items:center}
+.comp input{flex:1}.comp .btn{padding:10px 14px}
+.opt{display:block;width:100%;text-align:left;margin-top:8px;padding:11px;border-radius:12px;border:1px solid var(--ln);background:var(--s2);cursor:pointer}
+.opt.ok{border-color:var(--ok);background:#0f766e33}.opt.bad{border-color:var(--red);background:#be123c33}
+.dur-pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--s2);color:var(--ac)}
+.chip{color:var(--coin);font-weight:700;font-size:13px}
+.empty{color:var(--mu);text-align:center;padding:24px 10px}
+label{display:block;color:var(--mu);font-size:12px;margin:10px 0 4px}
+input{width:100%;background:var(--s2);border:1px solid var(--ln);border-radius:11px;padding:9px 12px;font-size:15px;outline:none}
+.mb{position:fixed;inset:0;background:#0009;display:flex;align-items:flex-end;justify-content:center;z-index:80}
+.sheet{width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;background:var(--s1);border-radius:20px 20px 0 0;border:1px solid var(--ln)}
+.sh{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--ln)}.sh h3{font-size:16px}
+.x{background:var(--s2);border:0;border-radius:50%;width:30px;height:30px;cursor:pointer}
+.sb{padding:14px 16px 24px;overflow:auto}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#fff;color:#111;padding:9px 15px;border-radius:99px;font-weight:700;z-index:120}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="row">
+      <button class="btn ghost sm" id="backHomeBtn">← Home</button>
+      <h2>Messages</h2>
+    </div>
+    <div class="row">
+      <div class="coin">🪙 <span id="coinVal">0</span></div>
+      <button class="btn sm" id="addFriendBtn">+ Friend</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="list" id="chatList"></div>
+  </main>
+
+  <div id="thread" class="thread" hidden>
+    <div class="thh" id="thHead"></div>
+    <div class="msgs" id="msgs"></div>
+    <div class="comp">
+      <button class="btn ghost" id="chBtn" title="60s MCQ Duel">🎯</button>
+      <input id="msgIn" placeholder="Type a message" maxlength="500" autocomplete="off">
+      <button class="btn" id="sendBtn">Send</button>
+    </div>
+  </div>
+  <div id="modals"></div>
+</div>
+
+<script type="module">
+import {
+  DEV_UID, DEV_AVATAR, TWENTY_FOUR_HOURS_MS,
+  ls, esc, today, fmtNum, getGuestUid, getActiveUid,
+  isDevAccount, normalizeProfile, openCleanPage, createDbClient
+} from "./firebase-init.js";
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const BAD_WORDS = ["fuck", "bitch", "asshole", "bastard", "madarchod", "bhosdike", "chutiya", "lund", "randi", "sex", "porn"];
+
+function toast(t) {
+  $$(".toast").forEach(x => x.remove());
+  const e = document.createElement("div"); e.className = "toast"; e.textContent = t;
+  document.body.appendChild(e); setTimeout(() => e.remove(), 2200);
+}
+
+const guestUid = getGuestUid();
+const uid = getActiveUid();
+let me = normalizeProfile(ls.get("sg_profile_" + uid, null), uid, guestUid);
+let devMode = isDevAccount(me);
+const saveMe = () => ls.set("sg_profile_" + uid, me);
+
+let users = ls.get("sg_users_cache", []);
+let worldMsgs = ls.get("sg_world_msgs", []);
+let chats = ls.get("sg_chats_" + uid, {});
+let cur = null;
+
+if (!chats.developer) {
+  chats.developer = { id: "developer", name: "Developer", uid: DEV_UID, dev: true, messages: [{ id: "w1", from: "them", type: "text", text: "Welcome to Study Game!", ts: Date.now() }] };
+}
+const saveChats = () => ls.set("sg_chats_" + uid, chats);
+const mid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const hasBadWord = txt => BAD_WORDS.some(w => new RegExp(`\\b${w}\\b`, "i").test(txt));
+
+function consecutiveOutgoingCount(msgs) {
+  let c = 0;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].from === "me") c++;
+    else break;
+  }
+  return c;
+}
+
+const client = createDbClient();
+function dbOp(fn) {
+  if (!client.ready || !client.db) return;
+  try { Promise.resolve(fn()).catch(() => {}); } catch {}
+}
+
+function updateHud() {
+  $("#coinVal").textContent = fmtNum(me.coins);
+}
+
+function addCoins(delta, countDaily = true) {
+  me.coins = Math.max(0, Number(me.coins || 0) + Number(delta || 0));
+  if (countDaily && Number(delta) > 0) {
+    const d = today();
+    me.dailyCoinsByDay[d] = Number(me.dailyCoinsByDay[d] || 0) + Number(delta);
+  }
+  saveMe(); updateHud();
+  dbOp(() => client.setDoc(client.docRef("users", uid), {
+    coins: me.coins, dailyCoinsByDay: me.dailyCoinsByDay, lastSeen: Date.now()
+  }, { merge: true }));
+}
+
+function modal(title, html) {
+  const b = document.createElement("div"); b.className = "mb";
+  b.innerHTML = `<div class="sheet"><div class="sh"><h3>${title}</h3><button class="x">✕</button></div><div class="sb">${html}</div></div>`;
+  $("#modals").appendChild(b);
+  b.close = () => { b.remove(); if (b.onclose) b.onclose(); };
+  $(".x", b).onclick = b.close;
+  b.addEventListener("click", e => { if (e.target === b) b.close(); });
+  return b;
+}
+
+const DUEL_GAMES = [
+  { name: "Math Speed Duel", icon: "🧮", questions: [{ q: "(24 ÷ 3) + (6 × 5) = ?", o: ["34", "38", "42", "30"], a: 1 }, { q: "15% of 200 = ?", o: ["25", "30", "35", "40"], a: 1 }, { q: "14 × 6 = ?", o: ["74", "84", "94", "64"], a: 1 }] },
+  { name: "Science Quiz Duel", icon: "🔬", questions: [{ q: "Powerhouse of the cell?", o: ["Ribosome", "Mitochondria", "Nucleus", "Golgi"], a: 1 }, { q: "Symbol of Sodium?", o: ["So", "Na", "Sd", "K"], a: 1 }, { q: "SI unit of force?", o: ["Joule", "Watt", "Newton", "Pascal"], a: 2 }] }
+];
+
+function startTimedDuel(msg, peerUid) {
+  if (!msg.accepted) return toast("Accept Challenge first");
+  if (msg.settled) return toast("Match already settled");
+  if (me.coins < 20) return toast("Need 20 coins to play");
+  addCoins(-20, false);
+  msg.settled = true; saveChats();
+
+  const g = DUEL_GAMES[msg.gi] || DUEL_GAMES[0];
+  let qIdx = 0, score = 0, secLeft = 60, done = false;
+  const m = modal(`${g.icon} ${esc(g.name)} (60s)`, `<div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="dur-pill">⏱ <b id="dTimer">60s</b></span><span class="chip" id="dScore">Score: 0</span></div><div id="dBody"></div>`);
+
+  const finish = reason => {
+    if (done) return; done = true; clearInterval(iv);
+    const oppScore = 4;
+    let resText = "";
+    if (score > oppScore) {
+      addCoins(36, true);
+      msg.state = "won";
+      resText = `You Won (${score} vs ${oppScore})! +36 coins (4 coins Platform Fee).`;
+    } else if (score === oppScore) {
+      addCoins(20, false);
+      msg.state = "tie";
+      resText = `Draw (${score} vs ${oppScore})! 20 coins returned.`;
+    } else {
+      msg.state = "lost";
+      resText = `You Lost (${score} vs ${oppScore}). ${reason || ""}`;
+    }
+    saveChats(); if (cur) renderThread();
+    const body = $("#dBody", m);
+    if (body) body.innerHTML = `<div class="card"><b>Result</b><p style="color:var(--mu);margin-top:6px">${esc(resText)}</p></div>`;
+  };
+
+  const renderQ = () => {
+    if (done) return;
+    if (qIdx >= g.questions.length) return finish("All questions completed.");
+    const item = g.questions[qIdx];
+    $("#dBody", m).innerHTML = `<p style="margin-bottom:8px"><b>Q${qIdx + 1}. ${esc(item.q)}</b></p>` + item.o.map((o, i) => `<button class="opt" data-ans="${i}">${esc(o)}</button>`).join("");
+    $$("[data-ans]", m).forEach(b => b.onclick = () => {
+      if (done) return;
+      if (+b.dataset.ans === item.a) { score += 4; toast("+4 pts"); }
+      else { score -= 2; toast("-2 pts"); }
+      $("#dScore", m).textContent = `Score: ${score}`;
+      qIdx++; renderQ();
+    });
+  };
+
+  const iv = setInterval(() => {
+    if (done) return clearInterval(iv);
+    secLeft--;
+    const tEl = $("#dTimer", m); if (tEl) tEl.textContent = secLeft + "s";
+    if (secLeft <= 0) finish("Time up!");
+  }, 1000);
+  m.onclose = () => { clearInterval(iv); if (!done) finish("Match closed"); };
+  renderQ();
+}
+
+function renderChats() {
+  updateHud();
+  const worldHtml = `<div class="world-card" data-th="world"><div class="av">🌍</div><div class="mid"><b>World Chat</b><small>${worldMsgs.length}/100 msgs · No duels</small></div></div>`;
+  const devHtml = `<div class="dev" data-th="developer"><div class="av" style="border-color:var(--gold)">${DEV_AVATAR}</div><div class="mid"><b>Developer</b><small style="color:#fde68a">Official support</small></div></div>`;
+  const friendList = Object.values(chats).filter(t => !t.dev && (me.friends.includes(t.uid || t.id) || (t.messages && t.messages.length > 0)));
+  const fHtml = friendList.map(t => {
+    const peerId = t.uid || t.id;
+    const u = users.find(x => x.uid === peerId);
+    const dot = (me.unreadFrom && me.unreadFrom[peerId]) ? `<span class="red-dot"></span>` : "";
+    return `<div class="th" data-th="${esc(t.id)}"><div class="av">${esc(u?.avatar || "🙂")}</div><div class="mid"><b>${esc(t.name || peerId)}</b><small>${esc(peerId)}</small></div>${dot}</div>`;
+  }).join("") || '<div class="empty">No friend chats yet. Tap "+ Friend".</div>';
+  $("#chatList").innerHTML = worldHtml + devHtml + fHtml;
+}
+
+function openThread(id) {
+  cur = id;
+  if (me.unreadFrom && me.unreadFrom[id]) { delete me.unreadFrom[id]; saveMe(); }
+  $("#thread").hidden = false;
+  renderThread();
+}
+
+function renderThread() {
+  if (!cur) return;
+  if (cur === "world") {
+    $("#thHead").innerHTML = `<button class="x" id="thBack">←</button><div class="mid"><b>🌍 World Chat</b><small>${worldMsgs.length}/100 messages</small></div>`;
+    $("#thBack").onclick = () => { $("#thread").hidden = true; cur = null; renderChats(); };
+    $("#chBtn").hidden = true;
+    $("#msgs").innerHTML = worldMsgs.map(m => `<div class="m ${m.uid === uid ? "out" : "in"}"><small style="color:var(--mu);font-size:10px">${esc(m.name || "Player")}</small><div class="bub ${esc(m.msgStyle || "")}">${esc(m.text)}</div><time>${new Date(m.ts || Date.now()).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>`).join("");
+    $("#msgs").scrollTop = $("#msgs").scrollHeight;
+    return;
+  }
+
+  const t = chats[cur]; if (!t) return;
+  $("#thHead").innerHTML = `<button class="x" id="thBack">←</button><div class="mid"><b>${esc(t.name || t.id)}</b><small>${esc(t.uid || "")}</small></div>`;
+  $("#thBack").onclick = () => { $("#thread").hidden = true; cur = null; renderChats(); };
+  $("#chBtn").hidden = !!t.dev;
+
+  $("#msgs").innerHTML = (t.messages || []).map(m => {
+    const out = m.from === "me";
+    if (m.type === "duel") {
+      const g = DUEL_GAMES[m.gi] || DUEL_GAMES[0];
+      const act = m.state === "won" ? `<b style="color:var(--ok)">✅ Won 36 🪙</b>` : (m.state ? `<span style="color:var(--mu);font-size:12px">Finished</span>` : (m.accepted ? `<button class="btn sm" data-startduel="${m.id}">Start 60s Match</button>` : `<button class="btn ok sm" data-acceptduel="${m.id}">Accept Challenge</button>`));
+      return `<div class="m ${out ? "out" : "in"}"><div class="chal"><b>${g.icon} ${esc(g.name)}</b><p>Bet: 20+20 🪙 · Win: <span class="rw">36 🪙</span> (4 🪙 fee)</p>${act}</div><time>${new Date(m.ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>`;
+    }
+    const glow = (out && me.msgStyle) ? (" " + me.msgStyle) : "";
+    return `<div class="m ${out ? "out" : "in"}"><div class="bub${glow}">${esc(m.text)}</div><time>${new Date(m.ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></div>`;
+  }).join("");
+  $("#msgs").scrollTop = $("#msgs").scrollHeight;
+}
+
+$("#msgs").onclick = e => {
+  const t = chats[cur]; if (!t) return;
+  const acc = e.target.dataset.acceptduel;
+  if (acc) { const m = t.messages.find(x => x.id === acc); if (m) { m.accepted = true; saveChats(); renderThread(); toast("Challenge accepted!"); } return; }
+  const st = e.target.dataset.startduel;
+  if (st) { const m = t.messages.find(x => x.id === st); if (m && m.accepted && !m.settled) startTimedDuel(m, t.uid); }
+};
+
+function sendMessage() {
+  const inp = $("#msgIn"), text = inp.value.trim(); if (!text) return;
+  if (hasBadWord(text)) return toast("Error: Bad language is not allowed");
+  inp.value = "";
+
+  if (cur === "world") {
+    const id = mid(), item = { id, uid, name: me.name, text, msgStyle: me.msgStyle || "", ts: Date.now() };
+    worldMsgs = [...worldMsgs, item].slice(-100);
+    ls.set("sg_world_msgs", worldMsgs);
+    dbOp(() => client.setDoc(client.docRef("world_chat", id), item));
+    renderThread(); return;
+  }
+
+  const t = chats[cur]; if (!t) return;
+  t.messages = t.messages || [];
+  if (!t.dev && consecutiveOutgoingCount(t.messages) >= 3) {
+    return toast("3 messages sent without reply");
+  }
+
+  const msgId = mid(), ts = Date.now();
+  t.messages.push({ id: msgId, from: "me", type: "text", text, ts });
+  saveChats(); renderThread();
+
+  if (t.uid && !t.dev) {
+    dbOp(() => client.setDoc(client.docRef("dm_messages", msgId), { id: msgId, from: uid, to: t.uid, text, msgStyle: me.msgStyle || "", ts }));
+  }
+}
+
+$("#sendBtn").onclick = sendMessage;
+$("#msgIn").onkeydown = e => { if (e.key === "Enter") sendMessage(); };
+
+$("#chBtn").onclick = () => {
+  const t = chats[cur]; if (!t || t.dev) return;
+  const m = modal("Send 60s MCQ Duel", DUEL_GAMES.map((g, i) => `<button class="btn ghost full" data-d="${i}">${g.icon} ${esc(g.name)} (20 🪙)</button>`).join(""));
+  m.onclick = e => {
+    const d = e.target.dataset.d; if (d === undefined) return;
+    t.messages = t.messages || [];
+    t.messages.push({ id: mid(), from: "me", type: "duel", gi: +d, accepted: false, settled: false, ts: Date.now() });
+    saveChats(); m.close(); renderThread();
+  };
+};
+
+$("#addFriendBtn").onclick = () => {
+  const m = modal("Add Friend", `<label>Friend UID</label><input id="fU" placeholder="SG... or ACC_..." autocomplete="off"><button class="btn full" id="fS">Add &amp; Chat</button>`);
+  $("#fS", m).onclick = () => {
+    const fid = $("#fU", m).value.trim().toUpperCase();
+    if (!fid || fid === uid) return toast("Enter valid UID");
+    if (!me.friends.includes(fid)) { me.friends.push(fid); saveMe(); }
+    if (!chats[fid]) { chats[fid] = { id: fid, name: fid, uid: fid, messages: [] }; saveChats(); }
+    m.close(); renderChats(); openThread(fid);
+  };
+};
+
+$("#backHomeBtn").onclick = () => openCleanPage("index.html", "chat");
+
+if (client.ready) {
+  client.onSnapshot(client.col("users"), snap => {
+    users = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    ls.set("sg_users_cache", users);
+    const mine = users.find(u => u.uid === uid);
+    if (mine) { me = normalizeProfile({ ...me, ...mine }, uid, guestUid); devMode = isDevAccount(me); saveMe(); }
+    renderChats();
+  }, () => {});
+
+  client.onSnapshot(client.col("world_chat"), snap => {
+    let list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    if (list.length > 100) {
+      list.slice(0, list.length - 100).forEach(old => dbOp(() => client.deleteDoc(client.docRef("world_chat", old.id))));
+      list = list.slice(-100);
+    }
+    worldMsgs = list; ls.set("sg_world_msgs", worldMsgs);
+    if (cur === "world") renderThread(); else renderChats();
+  }, () => {});
+
+  client.onSnapshot(client.col("dm_messages"), snap => {
+    const now = Date.now();
+    let changed = false;
+    snap.docs.forEach(d => {
+      const item = { id: d.id, ...d.data() };
+      const ts = Number(item.ts || now);
+      if ((now - ts) >= TWENTY_FOUR_HOURS_MS) {
+        dbOp(() => client.deleteDoc(client.docRef("dm_messages", item.id)));
+        return;
+      }
+      if (item.to !== uid && item.from !== uid) return;
+      const peerId = item.from === uid ? item.to : item.from;
+      if (!peerId || peerId === uid) return;
+      if (!chats[peerId]) chats[peerId] = { id: peerId, name: peerId, uid: peerId, messages: [] };
+      const th = chats[peerId]; th.messages = th.messages || [];
+      if (!th.messages.some(m => m.id === item.id)) {
+        const isMe = item.from === uid;
+        th.messages.push({ id: item.id, from: isMe ? "me" : "them", type: "text", text: item.text, msgStyle: item.msgStyle || "", ts });
+        th.messages.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        if (!isMe && cur !== peerId) me.unreadFrom[peerId] = true;
+        changed = true;
+      }
+    });
+    if (changed) { saveMe(); saveChats(); if (cur && cur !== "world") renderThread(); else renderChats(); }
+  }, () => {});
+}
+
+renderChats();
+</script>
+</body>
+</html>
