@@ -44,12 +44,12 @@ function consecutiveOutgoingCount(msgs){let c=0;for(let i=msgs.length-1;i>=0;i--
 function renderChats(){
   updateUnreadDots();
   const worldHtml=`<div class="world-card" data-th="world"><div class="av-wrap" style="--s:46px"><div class="av"><span>🌍</span></div></div><div class="mid"><b>World Chat</b><small>${worldMsgs.length}/100 msgs · No duels</small></div></div>`;
-  const devHtml=`<div class="dev" data-th="developer">${av({uid:DEV_UID,avatar:DEV_AVATAR,frame:'dev'},46)}<div class="mid"><b>Developer</b><div class="tags"><span class="tg d">DEV</span><span class="tg l">LVL 99</span></div></div></div>`;
+  const devHtml=`<div class="dev" data-th="developer">${av({uid:DEV_UID,avatar:DEV_AVATAR,frame:DEV_FRAME},46)}<div class="mid"><b>Developer</b><div class="tags"><span class="tg d">DEV</span><span class="tg l">LVL 99</span></div></div></div>`;
 
   if(devMode){
     $('#chatList').innerHTML=worldHtml+devHtml+Object.values(devInbox).filter(x=>x&&x.uid).map(th=>{
       const dot=(me.unreadFrom&&me.unreadFrom[th.uid])?'<span class="red-dot"></span>':'';
-      return `<div class="th" data-th="inbox:${esc(th.uid)}">${av(th,40)}<div class="mid"><b>${esc(th.name||th.uid)}</b><small>${esc(th.uid)}</small></div>${dot}</div>`;
+      return `<div class="th" data-th="inbox:${esc(th.uid)}">${av(th,42)}<div class="mid"><b>${esc(th.name||th.uid)}</b><small>${esc(th.uid)}</small></div>${dot}</div>`;
     }).join('');
     return;
   }
@@ -58,7 +58,7 @@ function renderChats(){
   $('#chatList').innerHTML=worldHtml+devHtml+(fList.map(t=>{
     const peerUid=t.uid||t.id;
     const dot=(me.unreadFrom&&me.unreadFrom[peerUid])?'<span class="red-dot"></span>':'';
-    return `<div class="th" data-th="${esc(t.id)}">${av(users.find(u=>u.uid===peerUid)||{avatar:'🙂',frame:'none'},40)}<div class="mid"><b>${esc(t.name)}</b><small>${esc(peerUid)}</small></div>${dot}</div>`;
+    return `<div class="th" data-th="${esc(t.id)}">${av(users.find(u=>u.uid===peerUid)||{avatar:'🙂',frame:'none'},42)}<div class="mid"><b>${esc(t.name)}</b><small>${esc(peerUid)}</small></div>${dot}</div>`;
   }).join('')||'<div class="empty">No friend chats yet.</div>');
 }
 $('#clearDevInboxBtn').onclick=()=>{if(!devMode)return;Object.keys(devInbox).forEach(k=>dbOp(()=>F.deleteDoc(F.doc(db,'dev_inbox',k))));devInbox={};ls.set('sg_dev_inbox',devInbox);renderChats();toast('Inbox cleared')};
@@ -99,7 +99,8 @@ function renderThread(){
       else act=`<button class="btn sm" data-startduel="${m.id}">Start 60s Match (20 🪙)</button>`;
       return `<div class="m ${out?'out':'in'}"><div class="chal"><b>${g.icon} ${esc(g.name)}</b><p>Bet 20+20 = 40 🪙 · Winner <span class="rw">36 🪙</span> (4 🪙 fee) · +4 right / −2 wrong</p>${act}</div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
     }
-    const cls=(t.dev&&(out||devMode)||isInbox)?' fire-border':(out&&me.msgStyle?' '+me.msgStyle:'');
+    const styleCls=m.msgStyle||(out&&me.msgStyle?me.msgStyle:'');
+    const cls=(t.dev&&(out||devMode)||isInbox)?' fire-border':(styleCls?' '+esc(styleCls):'');
     return `<div class="m ${out?'out':'in'}"><div class="bub${cls}">${linkify(esc(m.text))}</div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
   }).join('');
   $('#msgs').scrollTop=$('#msgs').scrollHeight;
@@ -138,8 +139,8 @@ function sendMsgText(){
   const t=chats[cur];if(!t)return;t.messages=t.messages||[];
   if(!t.dev&&consecutiveOutgoingCount(t.messages)>=3)return toast('3 messages sent without reply');
 
-  const msgId=mid(), nowTs=Date.now();
-  const mObj={id:msgId,from:'me',type:'text',text,ts:nowTs};
+  const msgId=mid(), nowTs=Date.now(), curMsgStyle=me.msgStyle||'';
+  const mObj={id:msgId,from:'me',type:'text',text,msgStyle:curMsgStyle,ts:nowTs};
   t.messages.push(mObj);saveChats();renderThread();
 
   if(t.dev){
@@ -148,7 +149,7 @@ function sendMsgText(){
     entry.messages.push({...mObj,from:'user'});
     devInbox[uid]=entry;syncDevInboxToCloud(uid,entry);
   }else if(t.uid){
-    dbOp(()=>F.setDoc(F.doc(db,'dm_messages',msgId),{id:msgId,from:uid,to:t.uid,text,msgStyle:me.msgStyle||'',ts:nowTs}));
+    dbOp(()=>F.setDoc(F.doc(db,'dm_messages',msgId),{id:msgId,from:uid,to:t.uid,text,msgStyle:curMsgStyle,ts:nowTs}));
   }
 }
 $('#sendBtn').onclick=sendMsgText;$('#msgIn').onkeydown=e=>{if(e.key==='Enter')sendMsgText()};
