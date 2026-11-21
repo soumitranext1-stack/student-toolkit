@@ -30,7 +30,7 @@ h4{margin:14px 2px 8px;font-size:13px;color:var(--mu);font-weight:700}
   <main>
     <div class="card">
       <h3>Sawal likho, phir AI chuno</h3>
-      <p class="mu" style="margin-bottom:8px">Sawal likho (zaruri nahi). Neeche kisi AI par tap karo. Kuch AI me sawal seedha bhar jata hai, baaki me copy ho jata hai, bas paste kar dena.</p>
+      <p class="mu" style="margin-bottom:8px">Sawal likho ya prompt chuno (zaruri nahi). Neeche kisi AI par tap karo. Kuch AI me sawal seedha bhar jata hai, baaki me copy ho jata hai, bas paste kar dena.</p>
       <textarea id="q" placeholder="Apna sawal ya topic yahan likho…"></textarea>
       <label>Study prompt (optional)</label>
       <div class="chips sc" id="pr"></div>
@@ -44,9 +44,6 @@ h4{margin:14px 2px 8px;font-size:13px;color:var(--mu);font-weight:700}
 <script src="gamekit.js"></script>
 <script>
 "use strict";
-/* ===== EDIT HERE: add / remove AI sites =====
-   [id, name, category, url, queryUrl ('' = copy prompt instead), domain (for logo), emoji fallback]
-   {q} in queryUrl is replaced with the encoded prompt */
 const AIS=[
  ['chatgpt','ChatGPT','chat','https://chatgpt.com/','https://chatgpt.com/?q={q}','chatgpt.com','💬'],
  ['gemini','Gemini','chat','https://gemini.google.com/app','','gemini.google.com','✨'],
@@ -75,7 +72,6 @@ const AIS=[
 ];
 const CATS=[['all','All'],['fav','⭐ Favourites'],['chat','Chat'],['search','Search'],['study','Study'],['code','Coding'],['image','Image']];
 const CAT_NAME={chat:'Chat',search:'Search',study:'Study',code:'Coding',image:'Image'};
-/* study prompts: [label, text put before your question] */
 const PROMPTS=[
  ['Normal',''],
  ['Simple me samjhao','Explain this in very simple Hinglish like I am a school student, with an easy example:'],
@@ -88,7 +84,6 @@ const PROMPTS=[
 ];
 let cat='all',pr=0;
 
-/* storage helpers (never crash if storage is blocked) */
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 let favs=LS.get('ai_fav',[]),recent=LS.get('ai_recent',[]);
 
@@ -116,7 +111,6 @@ function draw(){
   html+=list.length?`<div class="grid">${list.map(card).join('')}</div>`:`<div class="empty">${cat==='fav'?'Kisi AI ke ☆ par tap karke favourite banao':'Koi AI nahi mila'}</div>`;
   $('#list').innerHTML=html;
 }
-/* if a logo fails to load, show the emoji instead */
 $('#list').addEventListener('error',e=>{
   const im=e.target;if(im.tagName!=='IMG')return;
   const p=im.parentNode;p.textContent=im.dataset.fb||'🤖';
@@ -126,9 +120,10 @@ $('#pr').onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;pr=+b.dat
 $('#cat').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;cat=b.dataset.c;drawChips();draw()};
 
 function buildPrompt(){
-  const q=$('#q').value.trim(),pre=PROMPTS[pr][1];
-  if(!q)return '';
-  return pre?pre+'\n\n'+q:q;
+  const q=$('#q').value.trim(),pre=PROMPTS[pr][1].trim();
+  if(!q&&!pre)return '';
+  if(q&&pre)return pre+'\n\n'+q;
+  return q||pre;
 }
 function openAI(a){
   const p=buildPrompt();
