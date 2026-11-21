@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14182b">
+<title>AI Assistant Hub</title>
+<link rel="stylesheet" href="gamekit.css">
+<style>
+textarea{width:100%;min-height:78px;background:var(--s2);border:1px solid var(--ln);border-radius:12px;padding:11px 12px;font:inherit;font-size:15px;outline:none;resize:vertical;color:var(--tx)}
+.chips.sc{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-top:8px}
+.chips.sc::-webkit-scrollbar{display:none}
+.chips.sc button{flex:none;white-space:nowrap}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ai{position:relative;background:var(--s1);border:1px solid var(--ln);border-radius:16px;padding:14px 6px 10px;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
+.ai:active{transform:scale(.96)}
+.ai .ic{width:48px;height:48px;border-radius:14px;background:var(--s2);border:1px solid var(--ln);display:grid;place-items:center;font-size:24px;overflow:hidden}
+.ai .ic img{width:30px;height:30px;object-fit:contain;border-radius:6px}
+.ai b{font-size:12.5px;line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai small{font-size:10.5px;color:var(--mu)}
+.st{position:absolute;top:4px;right:4px;width:28px;height:28px;border:0;background:none;font-size:16px;cursor:pointer;opacity:.45;line-height:1}
+.st.on{opacity:1}
+h4{margin:14px 2px 8px;font-size:13px;color:var(--mu);font-weight:700}
+.empty{text-align:center;color:var(--mu);padding:20px 0}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><button class="ib" id="back">←</button><b class="ttl">✨ AI Assistant</b><div class="coin">🪙 <span id="coins">0</span></div></header>
+  <main>
+    <div class="card">
+      <h3>Sawal likho, phir AI chuno</h3>
+      <p class="mu" style="margin-bottom:8px">Sawal likho (zaruri nahi). Neeche kisi AI par tap karo. Kuch AI me sawal seedha bhar jata hai, baaki me copy ho jata hai, bas paste kar dena.</p>
+      <textarea id="q" placeholder="Apna sawal ya topic yahan likho…"></textarea>
+      <label>Study prompt (optional)</label>
+      <div class="chips sc" id="pr"></div>
+    </div>
+
+    <div class="chips sc" id="cat" style="margin:0 0 4px"></div>
+    <div id="list"></div>
+    <p class="mu" style="text-align:center;margin:14px 0 4px">Ye sab unki official websites hain. Free limit aur login har site ka apna hota hai, kuch me account banana pad sakta hai.</p>
+  </main>
+</div>
+<script src="gamekit.js"></script>
+<script>
+"use strict";
+/* ===== EDIT HERE: add / remove AI sites =====
+   [id, name, category, url, queryUrl ('' = copy prompt instead), domain (for logo), emoji fallback]
+   {q} in queryUrl is replaced with the encoded prompt */
+const AIS=[
+ ['chatgpt','ChatGPT','chat','https://chatgpt.com/','https://chatgpt.com/?q={q}','chatgpt.com','💬'],
+ ['gemini','Gemini','chat','https://gemini.google.com/app','','gemini.google.com','✨'],
+ ['claude','Claude','chat','https://claude.ai/new','https://claude.ai/new?q={q}','claude.ai','🧡'],
+ ['copilot','Copilot','chat','https://copilot.microsoft.com/','','copilot.microsoft.com','🪁'],
+ ['deepseek','DeepSeek','chat','https://chat.deepseek.com/','','deepseek.com','🐋'],
+ ['grok','Grok','chat','https://grok.com/','','grok.com','🤖'],
+ ['metaai','Meta AI','chat','https://www.meta.ai/','','meta.ai','♾️'],
+ ['mistral','Le Chat','chat','https://chat.mistral.ai/chat','','mistral.ai','🌬️'],
+ ['qwen','Qwen','chat','https://chat.qwen.ai/','','qwen.ai','🟣'],
+ ['kimi','Kimi','chat','https://www.kimi.com/','','kimi.com','🌙'],
+ ['zai','Z.ai (GLM)','chat','https://chat.z.ai/','','z.ai','🔷'],
+ ['hugchat','HuggingChat','chat','https://huggingface.co/chat/','','huggingface.co','🤗'],
+ ['pplx','Perplexity','search','https://www.perplexity.ai/','https://www.perplexity.ai/search?q={q}','perplexity.ai','🔎'],
+ ['gaimode','Google AI Mode','search','https://www.google.com/search?udm=50','https://www.google.com/search?udm=50&q={q}','google.com','🌐'],
+ ['wolfram','Wolfram Alpha','study','https://www.wolframalpha.com/','https://www.wolframalpha.com/input?i={q}','wolframalpha.com','🧮'],
+ ['notebooklm','NotebookLM','study','https://notebooklm.google.com/','','notebooklm.google.com','📓'],
+ ['quillbot','QuillBot','study','https://quillbot.com/','','quillbot.com','✍️'],
+ ['aistudio','Google AI Studio','code','https://aistudio.google.com/','','aistudio.google.com','🧪'],
+ ['blackbox','Blackbox AI','code','https://www.blackbox.ai/','','blackbox.ai','⬛'],
+ ['bingimg','Image Creator','image','https://www.bing.com/images/create','https://www.bing.com/images/create?q={q}','bing.com','🎨'],
+ ['ideogram','Ideogram','image','https://ideogram.ai/','','ideogram.ai','🖼️'],
+ ['leonardo','Leonardo','image','https://leonardo.ai/','','leonardo.ai','🦁'],
+ ['canva','Canva Magic','image','https://www.canva.com/ai-image-generator/','','canva.com','🟦'],
+ ['playground','Playground','image','https://playground.com/','','playground.com','🎡']
+];
+const CATS=[['all','All'],['fav','⭐ Favourites'],['chat','Chat'],['search','Search'],['study','Study'],['code','Coding'],['image','Image']];
+const CAT_NAME={chat:'Chat',search:'Search',study:'Study',code:'Coding',image:'Image'};
+/* study prompts: [label, text put before your question] */
+const PROMPTS=[
+ ['Normal',''],
+ ['Simple me samjhao','Explain this in very simple Hinglish like I am a school student, with an easy example:'],
+ ['Notes banao','Make short, clear exam notes (bullet points, key terms bold) on:'],
+ ['10 MCQ','Create 10 multiple choice questions with 4 options each and the answer key on:'],
+ ['Step by step','Solve this step by step and explain each step clearly:'],
+ ['Summary','Summarise this in 5 short points:'],
+ ['Hindi me','Explain this in simple Hindi:'],
+ ['Essay','Write a well-structured short essay (intro, body, conclusion) on:']
+];
+let cat='all',pr=0;
+
+/* storage helpers (never crash if storage is blocked) */
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+let favs=LS.get('ai_fav',[]),recent=LS.get('ai_recent',[]);
+
+function chipRow(el,items,cur,attr){
+  el.innerHTML=items.map((x,i)=>`<button ${attr}="${i}" class="${i===cur?'on':''}">${esc(x[1]??x[0])}</button>`).join('');
+}
+function drawChips(){
+  chipRow($('#pr'),PROMPTS.map(p=>[p[0],p[0]]),pr,'data-p');
+  $('#cat').innerHTML=CATS.map(c=>`<button data-c="${c[0]}" class="${c[0]===cat?'on':''}">${esc(c[1])}</button>`).join('');
+}
+function card(a){
+  const f=favs.includes(a[0]);
+  return `<div class="ai" data-id="${a[0]}"><button class="st ${f?'on':''}" data-star="${a[0]}" aria-label="Favourite">${f?'⭐':'☆'}</button>
+    <div class="ic"><img loading="lazy" referrerpolicy="no-referrer" alt="" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(a[5])}&sz=64" data-fb="${esc(a[6])}"></div>
+    <b>${esc(a[1])}</b><small>${esc(CAT_NAME[a[2]]||'')}</small></div>`;
+}
+function draw(){
+  const byId=Object.fromEntries(AIS.map(a=>[a[0],a]));
+  let html='';
+  const inCat=a=>cat==='all'||(cat==='fav'?favs.includes(a[0]):a[2]===cat);
+  if(cat==='all'&&recent.length){
+    html+=`<h4>🕘 Recent</h4><div class="grid">${recent.map(id=>byId[id]).filter(Boolean).map(card).join('')}</div><h4>All AI</h4>`;
+  }
+  const list=AIS.filter(inCat).sort((a,b)=>(favs.includes(b[0])?1:0)-(favs.includes(a[0])?1:0));
+  html+=list.length?`<div class="grid">${list.map(card).join('')}</div>`:`<div class="empty">${cat==='fav'?'Kisi AI ke ☆ par tap karke favourite banao':'Koi AI nahi mila'}</div>`;
+  $('#list').innerHTML=html;
+}
+/* if a logo fails to load, show the emoji instead */
+$('#list').addEventListener('error',e=>{
+  const im=e.target;if(im.tagName!=='IMG')return;
+  const p=im.parentNode;p.textContent=im.dataset.fb||'🤖';
+},true);
+
+$('#pr').onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;pr=+b.dataset.p;drawChips()};
+$('#cat').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;cat=b.dataset.c;drawChips();draw()};
+
+function buildPrompt(){
+  const q=$('#q').value.trim(),pre=PROMPTS[pr][1];
+  if(!q)return '';
+  return pre?pre+'\n\n'+q:q;
+}
+function openAI(a){
+  const p=buildPrompt();
+  let url=a[3],msg='';
+  if(p){
+    if(a[4])url=a[4].replace('{q}',encodeURIComponent(p));
+    else{
+      if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(p).then(()=>{},()=>{});
+      msg='Sawal copy ho gaya. Wahan paste kar dena';
+    }
+  }
+  recent=[a[0],...recent.filter(x=>x!==a[0])].slice(0,4);LS.set('ai_recent',recent);
+  if(msg)toast(msg);
+  window.open(url,'_blank','noopener');
+  draw();
+}
+$('#list').onclick=e=>{
+  const s=e.target.closest('[data-star]');
+  if(s){
+    const id=s.dataset.star;
+    favs=favs.includes(id)?favs.filter(x=>x!==id):[...favs,id];
+    LS.set('ai_fav',favs);draw();return;
+  }
+  const c=e.target.closest('.ai');if(!c)return;
+  const a=AIS.find(x=>x[0]===c.dataset.id);if(a)openAI(a);
+};
+drawChips();draw();
+</script>
+</body>
+</html>
