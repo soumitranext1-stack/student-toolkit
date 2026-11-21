@@ -195,10 +195,11 @@ let worldMsgs=ls.get('sg_world_msgs',[]);
 let poems=ls.get('sg_poems_cache',[]);
 let poemRequests=ls.get('sg_poem_requests_cache',[]);
 
-const USER_FRAMES=[['none','Plain'],['top1_glow','No.1 Glow'],['flame','Fire Ring'],['wings','Royal Wings'],['crown','Crown'],['star','Starlight'],['neon','Neon'],['ice','Frost'],['rainbow','Rainbow']];
-const BANNERS=[['bn-aurora','Aurora'],['bn-crimson','Crimson'],['bn-galaxy','Galaxy'],['bn-solar','Solar'],['bn-emerald','Emerald'],['bn-midnight','Midnight'],['bn-rose','Rose'],['bn-ocean','Ocean'],['bn-sunrise','Sunrise'],['bn-candy','Candy']];
-const TEXTS=[['','Normal'],['anim-firetxt','Fire'],['anim-royal-txt','Royal'],['anim-neon-txt','Neon'],['anim-gold-txt','Gold'],['anim-ice-txt','Ice'],['anim-berry-txt','Berry'],['anim-mint-txt','Mint'],['anim-sunset-txt','Sunset'],['anim-lava-txt','Lava'],['anim-aqua-txt','Aqua']];
-const MSGS=[['','Normal Msg'],['msg-glow-gold','Gold'],['msg-glow-cyan','Cyan'],['msg-glow-rose','Rose'],['msg-glow-violet','Violet'],['msg-glow-green','Green'],['msg-glow-orange','Orange']];
+const FX_L=typeof FX_USER_LISTS!=='undefined'?FX_USER_LISTS:{};
+const USER_FRAMES=[['none','Plain'],['top1_glow','No.1 Glow'],['flame','Fire Ring'],['wings','Royal Wings'],['crown','Crown'],['star','Starlight'],['neon','Neon'],['ice','Frost'],['rainbow','Rainbow'],...(FX_L.frame||[])];
+const BANNERS=[['bn-aurora','Aurora'],['bn-crimson','Crimson'],['bn-galaxy','Galaxy'],['bn-solar','Solar'],['bn-emerald','Emerald'],['bn-midnight','Midnight'],['bn-rose','Rose'],['bn-ocean','Ocean'],['bn-sunrise','Sunrise'],['bn-candy','Candy'],...(FX_L.banner||[])];
+const TEXTS=[['','Normal'],['anim-firetxt','Fire'],['anim-royal-txt','Royal'],['anim-neon-txt','Neon'],['anim-gold-txt','Gold'],['anim-ice-txt','Ice'],['anim-berry-txt','Berry'],['anim-mint-txt','Mint'],['anim-sunset-txt','Sunset'],['anim-lava-txt','Lava'],['anim-aqua-txt','Aqua'],...(FX_L.text||[])];
+const MSGS=[['','Normal Msg'],['msg-glow-gold','Gold'],['msg-glow-cyan','Cyan'],['msg-glow-rose','Rose'],['msg-glow-violet','Violet'],['msg-glow-green','Green'],['msg-glow-orange','Orange'],...(FX_L.msg||[])];
 const BIOS=[['','Normal'],['bio-gold','Gold'],['bio-cyan','Cyan'],['bio-pink','Pink'],['bio-rainbow','Rainbow']];
 const USER_AVATARS=['🦊','🐼','🐯','🦉','🐙','🚀','🧠','🎮','⚡','🔥','🌟','🐲'];
 
@@ -217,7 +218,13 @@ function frameSvg(fr){
   if(fr==='rainbow')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100" fill="none" stroke-width="3.6"><circle cx="50" cy="50" r="45" stroke="#ff4d6a" stroke-dasharray="70.7 212"/><circle cx="50" cy="50" r="45" stroke="#ffd43b" stroke-dasharray="70.7 212" stroke-dashoffset="-70.7"/><circle cx="50" cy="50" r="45" stroke="#2dd4bf" stroke-dasharray="70.7 212" stroke-dashoffset="-141.4"/><circle cx="50" cy="50" r="45" stroke="#a855f7" stroke-dasharray="70.7 212" stroke-dashoffset="-212.1"/></svg>`;
   return frameSvgBase(fr);
 }
-const av=(rawU,s=44)=>{const isDev=isDevAccount(rawU),u=isDev?{...sanitizeUserAppearance(rawU||{}),avatar:DEV_AVATAR,frame:DEV_FRAME,banner:DEV_BANNER}:sanitizeUserAppearance(rawU||{});return `<div class="av-wrap ${u.frame==='top1_glow'?'top1-glow-wrap':''}" style="--s:${s}px">${frameSvg(u.frame||'none')}<div class="av"><span>${esc(u.avatar||'🙂')}</span></div></div>`};
+const av=(rawU,s=44)=>{
+  const isDev=isDevAccount(rawU),u=isDev?{...sanitizeUserAppearance(rawU||{}),avatar:DEV_AVATAR,frame:DEV_FRAME,banner:DEV_BANNER}:sanitizeUserAppearance(rawU||{});
+  const fr=u.frame||'none';
+  const useFx=typeof fxFrameHtml==='function'&&typeof isFxFrame==='function'&&isFxFrame(fr);
+  const ringMarkup=useFx?fxFrameHtml(fr,s):frameSvg(fr);
+  return `<div class="av-wrap ${fr==='top1_glow'?'top1-glow-wrap':''}" style="--s:${s}px">${ringMarkup}<div class="av"><span>${esc(u.avatar||'🙂')}</span></div></div>`;
+};
 const styledName=(u)=>`<span class="${esc(u.textStyle||'')}">${esc(u.name||'Player')}</span>`;
 function renderTags(tags){
   const list=Array.isArray(tags)&&tags.length?tags:['Study Boy'];
