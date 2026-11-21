@@ -7,7 +7,13 @@
 <title>AI Assistant Hub</title>
 <link rel="stylesheet" href="gamekit.css">
 <style>
-textarea{width:100%;min-height:78px;background:var(--s2);border:1px solid var(--ln);border-radius:12px;padding:11px 12px;font:inherit;font-size:15px;outline:none;resize:vertical;color:var(--tx)}
+textarea{width:100%;min-height:92px;background:var(--s2);border:1px solid var(--ln);border-radius:12px;padding:11px 12px;font:inherit;font-size:14.5px;outline:none;resize:vertical;color:var(--tx)}
+.file-bar{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.file-btn{display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--ln);color:var(--tx);border-radius:10px;padding:7px 11px;font-size:12.5px;font-weight:700;cursor:pointer}
+.file-btn:active{transform:scale(.97)}
+.file-status{font-size:12px;color:var(--mu);margin-top:6px;display:none}
+.file-status.on{display:block}
+.lang-btn{background:var(--s2);border:1px solid var(--ln);color:var(--tx);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
 .chips.sc{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-top:8px}
 .chips.sc::-webkit-scrollbar{display:none}
 .chips.sc button{flex:none;white-space:nowrap}
@@ -26,24 +32,43 @@ h4{margin:14px 2px 8px;font-size:13px;color:var(--mu);font-weight:700}
 </head>
 <body>
 <div id="app">
-  <header><button class="ib" id="back">←</button><b class="ttl">✨ AI Assistant</b><div class="coin">🪙 <span id="coins">0</span></div></header>
+  <header>
+    <button class="ib" id="back">←</button>
+    <b class="ttl" id="hdrTitle">✨ AI Assistant</b>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button class="lang-btn" id="langBtn" title="Switch Language">🌐 <span id="langCode">EN</span></button>
+      <div class="coin">🪙 <span id="coins">0</span></div>
+    </div>
+  </header>
   <main>
     <div class="card">
-      <h3>Sawal likho, phir AI chuno</h3>
-      <p class="mu" style="margin-bottom:8px">Sawal likho ya prompt chuno (zaruri nahi). Neeche kisi AI par tap karo. Kuch AI me sawal seedha bhar jata hai, baaki me copy ho jata hai, bas paste kar dena.</p>
-      <textarea id="q" placeholder="Apna sawal ya topic yahan likho…"></textarea>
-      <label>Study prompt (optional)</label>
+      <h3 id="cardTitle">Enter Question or Upload File</h3>
+      <p class="mu" id="cardSub" style="margin-bottom:8px">Type a question, upload a JPG/PDF to extract text, or pick a study mode below. Some AI platforms auto-fill your prompt, while others copy it to your clipboard ready to paste.</p>
+      <textarea id="q" placeholder="Type your question, topic, or extracted text here…"></textarea>
+
+      <div class="file-bar">
+        <button type="button" class="file-btn" id="imgPickBtn">🖼️ <span id="imgBtnTxt">JPG / PNG</span></button>
+        <button type="button" class="file-btn" id="pdfPickBtn">📄 <span id="pdfBtnTxt">PDF File</span></button>
+        <button type="button" class="file-btn" id="clearBtn" style="margin-left:auto">🗑️ <span id="clrBtnTxt">Clear</span></button>
+        <input type="file" id="imgInput" accept="image/*" hidden>
+        <input type="file" id="pdfInput" accept=".pdf,application/pdf" hidden>
+      </div>
+      <div class="file-status" id="fileStatus"></div>
+
+      <label id="promptLbl">Study Mode (Optional)</label>
       <div class="chips sc" id="pr"></div>
     </div>
 
     <div class="chips sc" id="cat" style="margin:0 0 4px"></div>
     <div id="list"></div>
-    <p class="mu" style="text-align:center;margin:14px 0 4px">Ye sab unki official websites hain. Free limit aur login har site ka apna hota hai, kuch me account banana pad sakta hai.</p>
+    <p class="mu" id="footNote" style="text-align:center;margin:14px 0 4px">All links open official AI platforms. Free usage limits and sign-in requirements depend on each provider.</p>
   </main>
 </div>
+
 <script src="gamekit.js"></script>
 <script>
 "use strict";
+
 const AIS=[
  ['chatgpt','ChatGPT','chat','https://chatgpt.com/','https://chatgpt.com/?q={q}','chatgpt.com','💬'],
  ['gemini','Gemini','chat','https://gemini.google.com/app','','gemini.google.com','✨'],
@@ -70,61 +95,259 @@ const AIS=[
  ['canva','Canva Magic','image','https://www.canva.com/ai-image-generator/','','canva.com','🟦'],
  ['playground','Playground','image','https://playground.com/','','playground.com','🎡']
 ];
-const CATS=[['all','All'],['fav','⭐ Favourites'],['chat','Chat'],['search','Search'],['study','Study'],['code','Coding'],['image','Image']];
-const CAT_NAME={chat:'Chat',search:'Search',study:'Study',code:'Coding',image:'Image'};
-const PROMPTS=[
- ['Normal',''],
- ['Simple me samjhao','Explain this in very simple Hinglish like I am a school student, with an easy example:'],
- ['Notes banao','Make short, clear exam notes (bullet points, key terms bold) on:'],
- ['10 MCQ','Create 10 multiple choice questions with 4 options each and the answer key on:'],
- ['Step by step','Solve this step by step and explain each step clearly:'],
- ['Summary','Summarise this in 5 short points:'],
- ['Hindi me','Explain this in simple Hindi:'],
- ['Essay','Write a well-structured short essay (intro, body, conclusion) on:']
-];
-let cat='all',pr=0;
 
-const LS={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const I18N={
+  en:{
+    code:'EN',
+    title:'✨ AI Assistant',
+    cardTitle:'Enter Question or Upload File',
+    cardSub:'Type a question, upload a JPG/PDF to extract text, or pick a study mode below. Some AI platforms auto-fill your prompt, while others copy it to your clipboard ready to paste.',
+    placeholder:'Type your question, topic, or extracted text here…',
+    imgBtn:'JPG / PNG',
+    pdfBtn:'PDF File',
+    clrBtn:'Clear',
+    promptLbl:'Study Mode (Optional)',
+    footNote:'All links open official AI platforms. Free usage limits and sign-in requirements depend on each provider.',
+    recent:'🕘 Recent',
+    allAi:'All AI Platforms',
+    emptyFav:'Tap ☆ on any AI card to add it to Favourites',
+    emptyList:'No AI platform found',
+    copied:'Prompt copied! Paste it in the AI chat box.',
+    readingImg:'Extracting text from image (first load may take 10–15s)…',
+    readingPdf:'Extracting text from PDF…',
+    doneExtract:'Text extracted and added to the box.',
+    noText:'No readable text found in the file.',
+    errFile:'Could not read this file. Please try a clearer file.',
+    cats:[['all','All'],['fav','⭐ Favourites'],['chat','Chat'],['search','Search'],['study','Study'],['code','Coding'],['image','Image']],
+    catNames:{chat:'Chat',search:'Search',study:'Study',code:'Coding',image:'Image'},
+    prompts:[
+      ['Standard',''],
+      ['Explain Simply','Explain the following topic clearly in simple, well-structured English with a practical example:'],
+      ['Exam Notes','Create concise, well-organized exam revision notes with bullet points and bold key terms for:'],
+      ['10 MCQs','Generate 10 multiple-choice questions (4 options each) along with the correct answer key based on:'],
+      ['Step-by-Step','Solve and explain the following problem step by step in a clear, structured manner:'],
+      ['Summary','Provide a clear 5-point executive summary of the following content:'],
+      ['Long Answer','Write a comprehensive, exam-ready long answer (Introduction, Key Points, Conclusion) on:'],
+      ['Short Essay','Write a well-structured short essay with a clear introduction, body, and conclusion on:']
+    ]
+  },
+  hi:{
+    code:'हिन्दी',
+    title:'✨ एआई असिस्टेंट',
+    cardTitle:'सवाल लिखें या फ़ाइल अपलोड करें',
+    cardSub:'अपना सवाल लिखें, JPG/PDF से टेक्स्ट निकालें या नीचे से स्टडी मोड चुनें। कुछ एआई में सवाल अपने-आप भर जाता है, बाक़ी में क्लिपबोर्ड पर कॉपी हो जाता है।',
+    placeholder:'अपना सवाल, विषय या फ़ाइल से निकला टेक्स्ट यहाँ लिखें…',
+    imgBtn:'JPG / PNG',
+    pdfBtn:'PDF फ़ाइल',
+    clrBtn:'साफ़ करें',
+    promptLbl:'स्टडी मोड (वैकल्पिक)',
+    footNote:'ये सभी आधिकारिक एआई वेबसाइट्स हैं। मुफ़्त उपयोग सीमा और लॉगिन नियम हर प्लेटफ़ॉर्म के अनुसार अलग होते हैं।',
+    recent:'🕘 हाल ही में प्रयुक्त',
+    allAi:'सभी एआई प्लेटफ़ॉर्म',
+    emptyFav:'पसंदीदा बनाने के लिए किसी भी एआई के ☆ पर टैप करें',
+    emptyList:'कोई एआई प्लेटफ़ॉर्म नहीं मिला',
+    copied:'प्रॉम्प्ट कॉपी हो गया है! एआई चैट में पेस्ट करें।',
+    readingImg:'फ़ोटो से टेक्स्ट निकाला जा रहा है (पहली बार 10–15 सेकंड लग सकते हैं)…',
+    readingPdf:'PDF से टेक्स्ट निकाला जा रहा है…',
+    doneExtract:'टेक्स्ट निकालकर बॉक्स में जोड़ दिया गया है।',
+    noText:'फ़ाइल में पढ़ने योग्य टेक्स्ट नहीं मिला।',
+    errFile:'फ़ाइल पढ़ी नहीं जा सकी। कृपया स्पष्ट फ़ाइल चुनें।',
+    cats:[['all','सभी'],['fav','⭐ पसंदीदा'],['chat','चैट'],['search','सर्च'],['study','अध्ययन'],['code','कोडिंग'],['image','इमेज']],
+    catNames:{chat:'चैट',search:'सर्च',study:'अध्ययन',code:'कोडिंग',image:'इमेज'},
+    prompts:[
+      ['सामान्य',''],
+      ['सरल व्याख्या','निम्नलिखित विषय को शुद्ध, सरल और स्पष्ट हिन्दी में उदाहरण सहित समझाइए:'],
+      ['परीक्षा नोट्स','निम्नलिखित सामग्री के संक्षिप्त और सुव्यवस्थित परीक्षा नोट्स (मुख्य बिंदु बोल्ड करके) बनाइए:'],
+      ['10 MCQ प्रश्न','निम्नलिखित विषय पर 10 बहुविकल्पीय प्रश्न (प्रत्येक के 4 विकल्प और उत्तर कुंजी सहित) तैयार कीजिए:'],
+      ['चरणबद्ध हल','निम्नलिखित प्रश्न को चरण-दर-चरण (Step-by-Step) स्पष्ट व्याख्या के साथ हल कीजिए:'],
+      ['सारांश','निम्नलिखित सामग्री का 5 प्रमुख बिंदुओं में स्पष्ट सारांश लिखिए:'],
+      ['दीर्घ उत्तर','परीक्षा के लिए उपयुक्त विस्तृत दीर्घ उत्तर (भूमिका, मुख्य बिंदु, निष्कर्ष सहित) लिखिए:'],
+      ['संक्षिप्त निबंध','निम्नलिखित विषय पर प्रस्तावना, मुख्य भाग और उपसंहार सहित एक सुगठित निबंध लिखिए:']
+    ]
+  },
+  bn:{
+    code:'বাংলা',
+    title:'✨ এআই অ্যাসিস্ট্যান্ট',
+    cardTitle:'প্রশ্ন লিখুন বা ফাইল আপলোড করুন',
+    cardSub:'আপনার প্রশ্ন লিখুন, JPG/PDF থেকে লেখা বের করুন অথবা নিচ থেকে স্টাডি মোড বেছে নিন। কিছু এআই-তে প্রশ্ন সরাসরি বসে যায়, বাকিগুলোতে কপি হয়ে যায়।',
+    placeholder:'আপনার প্রশ্ন, বিষয় বা ফাইল থেকে নেওয়া লেখা এখানে লিখুন…',
+    imgBtn:'JPG / PNG',
+    pdfBtn:'PDF ফাইল',
+    clrBtn:'মুছুন',
+    promptLbl:'স্টাডি মোড (ঐচ্ছিক)',
+    footNote:'সব লিংক অফিশিয়াল এআই প্ল্যাটফর্মের। ফ্রি লিমিট ও লগইন নিয়ম প্রতিটি সাইটের নিজস্ব।',
+    recent:'🕘 সাম্প্রতিক',
+    allAi:'সব এআই প্ল্যাটফর্ম',
+    emptyFav:'পছন্দের তালিকায় রাখতে যেকোনো এআই-এর ☆ চিহ্নে ট্যাপ করুন',
+    emptyList:'কোনো এআই প্ল্যাটফর্ম পাওয়া যায়নি',
+    copied:'প্রম্পট কপি হয়েছে! এআই চ্যাটে পেস্ট করুন।',
+    readingImg:'ছবি থেকে লেখা বের করা হচ্ছে (প্রথমবার ১০–১৫ সেকেন্ড লাগতে পারে)…',
+    readingPdf:'PDF থেকে লেখা বের করা হচ্ছে…',
+    doneExtract:'লেখা বের করে বক্সে যোগ করা হয়েছে।',
+    noText:'ফাইলে পড়ার মতো কোনো লেখা পাওয়া যায়নি।',
+    errFile:'ফাইলটি পড়া যায়নি। অনুগ্রহ করে স্পষ্ট ফাইল দিন।',
+    cats:[['all','সব'],['fav','⭐ পছন্দের'],['chat','চ্যাট'],['search','সার্চ'],['study','পড়াশোনা'],['code','কোডিং'],['image','ইমেজ']],
+    catNames:{chat:'চ্যাট',search:'সার্চ',study:'পড়াশোনা',code:'কোডিং',image:'ইমেজ'},
+    prompts:[
+      ['সাধারণ',''],
+      ['সহজ ব্যাখ্যা','নিচের বিষয়টি সহজ, প্রাঞ্জল ও স্পষ্ট বাংলায় উদাহরণসহ বুঝিয়ে দিন:'],
+      ['পরীক্ষার নোটস','নিচের বিষয়ের ওপর সংক্ষিপ্ত ও গোছানো পরীক্ষার নোটস (মূল শব্দ বোল্ড করে) তৈরি করুন:'],
+      ['১০টি MCQ','নিচের বিষয়ের ওপর ৪টি বিকল্প ও উত্তরপত্রসহ ১০টি বহুনির্বাচনী প্রশ্ন (MCQ) তৈরি করুন:'],
+      ['ধাপে ধাপে সমাধান','নিচের সমস্যাটি ধাপে ধাপে স্পষ্ট ব্যাখ্যাসহ সমাধান করুন:'],
+      ['সারসংক্ষেপ','নিচের বিষয়বস্তুর ৫টি মূল পয়েন্টে স্পষ্ট সারসংক্ষেপ লিখুন:'],
+      ['বড় প্রশ্নোত্তর','পরীক্ষার উপযোগী একটি পূর্ণাঙ্গ বড় উত্তর (ভূমিকা, মূল আলোচনা, উপসংহারসহ) লিখুন:'],
+      ['সংক্ষিপ্ত রচনা','নিচের বিষয়ের ওপর ভূমিকা, মূল অংশ ও উপসংহারসহ একটি সুগঠিত রচনা লিখুন:']
+    ]
+  }
+};
+
+const LANG_ORDER=['en','hi','bn'];
+const LS={
+  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+};
+
+let lang=LS.get('ai_lang','en');
+if(!I18N[lang])lang='en';
+let cat='all',pr=0;
 let favs=LS.get('ai_fav',[]),recent=LS.get('ai_recent',[]);
 
-function chipRow(el,items,cur,attr){
-  el.innerHTML=items.map((x,i)=>`<button ${attr}="${i}" class="${i===cur?'on':''}">${esc(x[1]??x[0])}</button>`).join('');
+function t(){return I18N[lang]}
+
+function applyLang(){
+  const L=t();
+  document.documentElement.lang=lang;
+  $('#langCode').textContent=L.code;
+  $('#hdrTitle').textContent=L.title;
+  $('#cardTitle').textContent=L.cardTitle;
+  $('#cardSub').textContent=L.cardSub;
+  $('#q').placeholder=L.placeholder;
+  $('#imgBtnTxt').textContent=L.imgBtn;
+  $('#pdfBtnTxt').textContent=L.pdfBtn;
+  $('#clrBtnTxt').textContent=L.clrBtn;
+  $('#promptLbl').textContent=L.promptLbl;
+  $('#footNote').textContent=L.footNote;
+  drawChips();
+  draw();
 }
+
 function drawChips(){
-  chipRow($('#pr'),PROMPTS.map(p=>[p[0],p[0]]),pr,'data-p');
-  $('#cat').innerHTML=CATS.map(c=>`<button data-c="${c[0]}" class="${c[0]===cat?'on':''}">${esc(c[1])}</button>`).join('');
+  const L=t();
+  $('#pr').innerHTML=L.prompts.map((p,i)=>`<button data-p="${i}" class="${i===pr?'on':''}">${esc(p[0])}</button>`).join('');
+  $('#cat').innerHTML=L.cats.map(c=>`<button data-c="${c[0]}" class="${c[0]===cat?'on':''}">${esc(c[1])}</button>`).join('');
 }
+
 function card(a){
-  const f=favs.includes(a[0]);
+  const f=favs.includes(a[0]),L=t();
   return `<div class="ai" data-id="${a[0]}"><button class="st ${f?'on':''}" data-star="${a[0]}" aria-label="Favourite">${f?'⭐':'☆'}</button>
     <div class="ic"><img loading="lazy" referrerpolicy="no-referrer" alt="" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(a[5])}&sz=64" data-fb="${esc(a[6])}"></div>
-    <b>${esc(a[1])}</b><small>${esc(CAT_NAME[a[2]]||'')}</small></div>`;
+    <b>${esc(a[1])}</b><small>${esc(L.catNames[a[2]]||'')}</small></div>`;
 }
+
 function draw(){
+  const L=t();
   const byId=Object.fromEntries(AIS.map(a=>[a[0],a]));
   let html='';
   const inCat=a=>cat==='all'||(cat==='fav'?favs.includes(a[0]):a[2]===cat);
   if(cat==='all'&&recent.length){
-    html+=`<h4>🕘 Recent</h4><div class="grid">${recent.map(id=>byId[id]).filter(Boolean).map(card).join('')}</div><h4>All AI</h4>`;
+    html+=`<h4>${esc(L.recent)}</h4><div class="grid">${recent.map(id=>byId[id]).filter(Boolean).map(card).join('')}</div><h4>${esc(L.allAi)}</h4>`;
   }
   const list=AIS.filter(inCat).sort((a,b)=>(favs.includes(b[0])?1:0)-(favs.includes(a[0])?1:0));
-  html+=list.length?`<div class="grid">${list.map(card).join('')}</div>`:`<div class="empty">${cat==='fav'?'Kisi AI ke ☆ par tap karke favourite banao':'Koi AI nahi mila'}</div>`;
+  html+=list.length?`<div class="grid">${list.map(card).join('')}</div>`:`<div class="empty">${esc(cat==='fav'?L.emptyFav:L.emptyList)}</div>`;
   $('#list').innerHTML=html;
 }
+
 $('#list').addEventListener('error',e=>{
   const im=e.target;if(im.tagName!=='IMG')return;
   const p=im.parentNode;p.textContent=im.dataset.fb||'🤖';
 },true);
 
+$('#langBtn').onclick=()=>{
+  const idx=(LANG_ORDER.indexOf(lang)+1)%LANG_ORDER.length;
+  lang=LANG_ORDER[idx];
+  LS.set('ai_lang',lang);
+  applyLang();
+};
+
 $('#pr').onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;pr=+b.dataset.p;drawChips()};
 $('#cat').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;cat=b.dataset.c;drawChips();draw()};
+$('#clearBtn').onclick=()=>{$('#q').value='';setStatus('')};
+
+function setStatus(msg){
+  const el=$('#fileStatus');
+  if(!msg){el.textContent='';el.classList.remove('on');return}
+  el.textContent=msg;el.classList.add('on');
+}
+
+function appendExtractedText(txt){
+  const clean=txt.replace(/\s+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+  if(!clean){setStatus(t().noText);return}
+  const cur=$('#q').value.trim();
+  $('#q').value=cur?(cur+'\n\n'+clean):clean;
+  setStatus(t().doneExtract);
+  toast(t().doneExtract);
+}
+
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)){res();return}
+    const s=document.createElement('script');
+    s.src=src;s.onload=res;s.onerror=rej;
+    document.head.appendChild(s);
+  });
+}
+
+$('#imgPickBtn').onclick=()=>$('#imgInput').click();
+$('#pdfPickBtn').onclick=()=>$('#pdfInput').click();
+
+$('#imgInput').onchange=async e=>{
+  const file=e.target.files&&e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  setStatus(t().readingImg);
+  try{
+    await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+    const ocrLang=lang==='bn'?'eng+ben':'eng+hin';
+    const res=await window.Tesseract.recognize(file,ocrLang);
+    appendExtractedText(res&&res.data&&res.data.text?res.data.text:'');
+  }catch{
+    setStatus(t().errFile);
+  }
+};
+
+$('#pdfInput').onchange=async e=>{
+  const file=e.target.files&&e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  setStatus(t().readingPdf);
+  try{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    const pdfjs=window.pdfjsLib;
+    pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjs.getDocument({data:buf}).promise;
+    const maxPages=Math.min(pdf.numPages,15);
+    let out='';
+    for(let i=1;i<=maxPages;i++){
+      const page=await pdf.getPage(i);
+      const tc=await page.getTextContent();
+      const line=tc.items.map(it=>it.str).join(' ');
+      if(line.trim())out+=line+'\n\n';
+    }
+    appendExtractedText(out);
+  }catch{
+    setStatus(t().errFile);
+  }
+};
 
 function buildPrompt(){
-  const q=$('#q').value.trim(),pre=PROMPTS[pr][1].trim();
+  const q=$('#q').value.trim();
+  const pre=(t().prompts[pr][1]||'').trim();
   if(!q&&!pre)return '';
   if(q&&pre)return pre+'\n\n'+q;
   return q||pre;
 }
+
 function openAI(a){
   const p=buildPrompt();
   let url=a[3],msg='';
@@ -132,14 +355,16 @@ function openAI(a){
     if(a[4])url=a[4].replace('{q}',encodeURIComponent(p));
     else{
       if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(p).then(()=>{},()=>{});
-      msg='Sawal copy ho gaya. Wahan paste kar dena';
+      msg=t().copied;
     }
   }
-  recent=[a[0],...recent.filter(x=>x!==a[0])].slice(0,4);LS.set('ai_recent',recent);
+  recent=[a[0],...recent.filter(x=>x!==a[0])].slice(0,4);
+  LS.set('ai_recent',recent);
   if(msg)toast(msg);
   window.open(url,'_blank','noopener');
   draw();
 }
+
 $('#list').onclick=e=>{
   const s=e.target.closest('[data-star]');
   if(s){
@@ -150,7 +375,8 @@ $('#list').onclick=e=>{
   const c=e.target.closest('.ai');if(!c)return;
   const a=AIS.find(x=>x[0]===c.dataset.id);if(a)openAI(a);
 };
-drawChips();draw();
+
+applyLang();
 </script>
 </body>
 </html>
