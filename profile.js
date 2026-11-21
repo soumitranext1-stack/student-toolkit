@@ -60,10 +60,32 @@ function openAuthModal(){
   };
 }
 
+function mergePairs(baseList,fxList){
+  const seen=new Set(),out=[];
+  [...(baseList||[]),...(fxList||[])].forEach(item=>{
+    if(!Array.isArray(item)||!item[0]||seen.has(item[0]))return;
+    seen.add(item[0]);out.push(item);
+  });
+  return out;
+}
+
+function getProfileAvatars(){
+  const fxEmojis=typeof FX_AVATAR_PROFILE!=='undefined'?FX_AVATAR_PROFILE.flatMap(c=>c.list||[]):[];
+  const all=[...(typeof USER_AVATARS!=='undefined'?USER_AVATARS:[]),...fxEmojis,me.avatar].filter(Boolean);
+  return [...new Set(all)].filter(em=>(typeof FX_FREE_AVATARS!=='undefined'&&FX_FREE_AVATARS.includes(em))||isUnlocked('avatar:'+em)||em===me.avatar);
+}
+
 function buildProfile(){
   cleanExpiredUnlocks();
   const d={avatar:me.avatar,frame:me.frame,banner:me.banner,textStyle:me.textStyle,msgStyle:me.msgStyle,bioStyle:me.bioStyle||'',tags:[...(me.tags||[])]};
   const invCode=getInviteCode(), daysCount=new Set(me.activeDays||[]).size;
+  const fxLists=typeof FX_USER_LISTS!=='undefined'?FX_USER_LISTS:{};
+  const avList=getProfileAvatars();
+  const frameList=mergePairs(typeof USER_FRAMES!=='undefined'?USER_FRAMES:[],fxLists.frame);
+  const bannerList=mergePairs(typeof BANNERS!=='undefined'?BANNERS:[],fxLists.banner);
+  const textList=mergePairs(typeof TEXTS!=='undefined'?TEXTS:[],fxLists.text);
+  const msgList=mergePairs(typeof MSGS!=='undefined'?MSGS:[],fxLists.msg);
+
   $('#v-profile').innerHTML=`
     <div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">${tr('yp')}</h2><button class="btn ghost sm" id="accBtn">${me.accountType==='account'?'Account · Logout':'Register / Login'}</button></div>
     <div class="bn-box ${esc(d.banner)}" id="pBanner">
@@ -79,12 +101,12 @@ function buildProfile(){
     </div>
     <label>Display Name</label><input id="pn" maxlength="24" value="${esc(me.name)}">
     <label>Bio</label><textarea id="pb" maxlength="160">${esc(me.bio)}</textarea>
-    <label>Avatar</label><div class="pick" id="pa">${USER_AVATARS.map(a=>`<button data-a="${a}" style="font-size:22px">${a}</button>`).join('')}</div>
-    <label>Frames</label><div class="pick" id="pfm">${USER_FRAMES.filter(f=>isUnlocked('frame:'+f[0])).map(f=>`<button data-f="${f[0]}">${av({avatar:'🙂',frame:f[0]},32)}</button>`).join('')}</div>
-    <label>Banners</label><div class="row wrap" id="pbn">${BANNERS.filter(b=>isUnlocked('banner:'+b[0])).map(b=>`<button class="btn ghost sm" data-b="${b[0]}">${b[1]}</button>`).join('')}</div>
-    <label>Glowing Text</label><div class="row wrap" id="ptx">${TEXTS.filter(t=>isUnlocked('text:'+t[0])).map(t=>`<button class="btn ghost sm" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>
-    <label>Message Glow</label><div class="row wrap" id="pmg">${MSGS.filter(mg=>isUnlocked('msg:'+mg[0])).map(mg=>`<button class="btn ghost sm" data-msg="${mg[0]}">${mg[1]}</button>`).join('')}</div>
-    <label>Glowing Bio</label><div class="row wrap" id="pbo">${BIOS.filter(b=>isUnlocked('bio:'+b[0])).map(b=>`<button class="btn ghost sm" data-bio="${b[0]}">${b[1]}</button>`).join('')}</div>
+    <label>Avatar</label><div class="pick" id="pa">${avList.map(a=>`<button data-a="${esc(a)}" style="font-size:22px">${esc(a)}</button>`).join('')}</div>
+    <label>Frames</label><div class="pick" id="pfm">${frameList.filter(f=>isUnlocked('frame:'+f[0])||f[0]===d.frame).map(f=>`<button data-f="${esc(f[0])}">${av({avatar:'🙂',frame:f[0]},34)}</button>`).join('')}</div>
+    <label>Banners</label><div class="row wrap" id="pbn">${bannerList.filter(b=>isUnlocked('banner:'+b[0])||b[0]===d.banner).map(b=>`<button class="btn ghost sm" data-b="${esc(b[0])}">${esc(b[1])}</button>`).join('')}</div>
+    <label>Glowing Text</label><div class="row wrap" id="ptx">${textList.filter(t=>isUnlocked('text:'+t[0])||t[0]===d.textStyle).map(t=>`<button class="btn ghost sm" data-t="${esc(t[0])}">${esc(t[1])}</button>`).join('')}</div>
+    <label>Message Glow</label><div class="row wrap" id="pmg">${msgList.filter(mg=>isUnlocked('msg:'+mg[0])||mg[0]===d.msgStyle).map(mg=>`<button class="btn ghost sm" data-msg="${esc(mg[0])}">${esc(mg[1])}</button>`).join('')}</div>
+    <label>Glowing Bio</label><div class="row wrap" id="pbo">${BIOS.filter(b=>isUnlocked('bio:'+b[0])||b[0]===d.bioStyle).map(b=>`<button class="btn ghost sm" data-bio="${esc(b[0])}">${esc(b[1])}</button>`).join('')}</div>
     ${devMode?'':`<label>Profile Tags (max 3)</label><div class="row wrap" id="ptg">${[...new Set([...FREE_TAGS,...storeItems.filter(i=>i.kind==='tag').map(i=>i.value)])].filter(g=>isUnlocked('tag:'+g)).map(g=>`<button class="btn ghost sm" data-tag="${esc(g)}">${esc(g)}</button>`).join('')}</div>`}
     <button class="btn full" id="psv">Save Profile</button>`;
   const sync=()=>{
