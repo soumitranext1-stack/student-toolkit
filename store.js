@@ -4,20 +4,31 @@ const DURATIONS={'1d':{label:'1 Day',ms:86400000,mult:1},'2d':{label:'2 Days',ms
 const DEFAULT_ITEMS=[];
 (function(){
   const add=(kind,rows)=>rows.forEach(r=>DEFAULT_ITEMS.push({id:kind+'_'+r[0],name:r[1],kind,value:r[0],basePrice:r[2],desc:r[3]}));
-  add('frame',[['top1_glow','No.1 Glowing Avatar + Crown',85,'Golden halo + crown for the #1 look'],['flame','Fire Ring',40,'Animated fire ring'],['wings','Royal Wings',55,'Animated golden wings'],['crown','Crown Halo',65,'Golden crown border'],['star','Starlight Ring',45,'Sparkling star ring'],['neon','Neon Pulse Ring',50,'Pulsing neon ring'],['ice','Frost Ring',48,'Spinning icy ring'],['rainbow','Rainbow Ring',60,'Animated rainbow ring']]);
-  add('banner',[['bn-aurora','Aurora Banner',40,'Teal-blue animated banner'],['bn-crimson','Crimson Banner',45,'Crimson-violet banner'],['bn-galaxy','Galaxy Banner',50,'Cosmic galaxy banner'],['bn-solar','Solar Banner',48,'Warm solar gradient'],['bn-emerald','Emerald Banner',48,'Fresh emerald banner'],['bn-midnight','Midnight Banner',45,'Deep night banner'],['bn-rose','Rose Banner',48,'Vibrant rose banner'],['bn-ocean','Ocean Banner',46,'Flowing ocean waves'],['bn-sunrise','Sunrise Banner',48,'Warm sunrise glow'],['bn-candy','Candy Banner',50,'Sweet candy gradient']]);
-  add('text',[['anim-firetxt','Fire Glow Text',55,'Glowing fire name'],['anim-royal-txt','Royal Glow Text',50,'Glowing royal name'],['anim-neon-txt','Neon Glow Text',50,'Glowing neon name'],['anim-gold-txt','Gold Glow Text',52,'Shining gold name'],['anim-ice-txt','Ice Glow Text',46,'Cool ice-blue name'],['anim-berry-txt','Berry Glow Text',48,'Pink-violet name'],['anim-mint-txt','Mint Glow Text',46,'Fresh mint name'],['anim-sunset-txt','Sunset Glow Text',50,'Warm sunset name'],['anim-lava-txt','Lava Glow Text',54,'Molten lava name'],['anim-aqua-txt','Aqua Glow Text',48,'Flowing aqua name']]);
+  if(typeof FX_STORE_ROWS!=='undefined'){
+    add('frame',FX_STORE_ROWS.frame||[]);
+    add('banner',FX_STORE_ROWS.banner||[]);
+    add('text',FX_STORE_ROWS.text||[]);
+    add('msg',FX_STORE_ROWS.msg||[]);
+  }else{
+    add('frame',[['fx_gold','Royal Gold',65,'Molten gold ring, shine sweep and a crown'],['fx_phoenix','Phoenix Wings',110,'Fire-gold ring with blazing wings']]);
+    add('banner',[['bn-fx-gold','Royal Gold Banner',70,'Moving gold with shine sweep'],['bn-fx-aurora','Aurora Flow Banner',66,'Northern lights banner']]);
+    add('text',[['fxt-aurora','Aurora Name',58,'Flowing northern-lights name'],['fxt-solar','Solar Name',64,'Burning sun gold name']]);
+    add('msg',[['msg-fx-gold','Gold Flow Border',55,'Animated gold chat border'],['msg-fx-aurora','Aurora Flow Border',58,'Animated aurora border']]);
+  }
+  if(typeof FX_AVATAR_STORE_ROWS!=='undefined'){
+    add('avatar',FX_AVATAR_STORE_ROWS);
+  }
   add('bio',[['bio-gold','Gold Bio Glow',42,'Glowing gold bio text'],['bio-cyan','Cyan Bio Glow',42,'Glowing cyan bio text'],['bio-pink','Pink Bio Glow',44,'Glowing pink bio text'],['bio-rainbow','Rainbow Bio Glow',52,'Animated rainbow bio']]);
-  add('msg',[['msg-glow-gold','Gold Message Border',45,'Glowing gold chat bubble'],['msg-glow-cyan','Cyan Message Border',45,'Glowing cyan chat bubble'],['msg-glow-rose','Rose Message Border',48,'Glowing rose chat bubble'],['msg-glow-violet','Violet Message Border',50,'Glowing violet chat bubble'],['msg-glow-green','Green Message Border',46,'Glowing green chat bubble'],['msg-glow-orange','Orange Message Border',46,'Glowing orange chat bubble']]);
   add('tag',[['Study Boy','Study Boy',25,'Profile tag'],['Study Girl','Study Girl',25,'Profile tag'],['School Topper','School Topper',40,'Profile tag'],['Top Challenger','Top Challenger',40,'Profile tag'],['Night Owl','Night Owl',30,'Profile tag'],['Quiz Master','Quiz Master',35,'Profile tag'],['Early Bird','Early Bird',30,'Profile tag']]);
 })();
 let customItems=ls.get('sg_store_custom',[]);
 let storeItems=[...DEFAULT_ITEMS,...customItems];
-const CATS=[['all','All'],['frame','Frames'],['banner','Banners'],['text','Name Glow'],['bio','Bio Glow'],['msg','Msg Border'],['tag','Tags']];
+const CATS=[['all','All'],['avatar','Avatars'],['frame','Frames'],['banner','Banners'],['text','Name Glow'],['bio','Bio Glow'],['msg','Msg Border'],['tag','Tags']];
 let storeCat='all';
 const itemKey=it=>`${it.kind}:${it.value||it.id}`;
 function itemPreview(it){
-  if(it.kind==='frame')return av({avatar:'🦊',frame:it.value},52);
+  if(it.kind==='avatar')return av({avatar:it.value,frame:''},52);
+  if(it.kind==='frame')return av({avatar:'🦊',frame:it.value},56);
   if(it.kind==='banner')return `<div class="bn-box ${esc(it.value)}" style="padding:6px 14px;font-size:12px"><b>${esc(it.name)}</b></div>`;
   if(it.kind==='msg')return `<div class="bub ${esc(it.value)}" style="background:var(--s1);font-size:12px">Glow message</div>`;
   if(it.kind==='bio')return `<span class="${esc(it.value)}" style="font-size:13px">Your glowing bio ✨</span>`;
@@ -40,6 +51,7 @@ $('#storeList').onclick=e=>{
   const it=storeItems.find(x=>x.id===btn.dataset.buy),dur=DURATIONS[btn.dataset.dur];if(!it||!dur)return;
   const cost=Math.max(5,Math.round((it.basePrice||40)*dur.mult));if(me.coins<cost)return toast('Not enough coins');
   me.coins-=cost;const key=itemKey(it);me.tempUnlocks[key]=Math.max(Date.now(),Number(me.tempUnlocks[key]||0))+dur.ms;
+  if(it.kind==='avatar')me.avatar=it.value;
   if(it.kind==='frame'&&it.value!=='dev')me.frame=it.value;
   if(it.kind==='banner')me.banner=it.value;if(it.kind==='text')me.textStyle=it.value;if(it.kind==='msg')me.msgStyle=it.value;if(it.kind==='bio')me.bioStyle=it.value;
   if(it.kind==='tag')me.tags=[...me.tags.filter(x=>x!==it.value&&!FREE_TAGS.includes(x)),it.value].slice(-3);
@@ -47,14 +59,12 @@ $('#storeList').onclick=e=>{
   bumpStat('store_buy');updateHud();buildProfile();renderStore();renderRanking();toast(`${it.name} (${dur.label})`);
 };
 $('#addStoreBtn').onclick=()=>{
-  const m=modal('Add Store Item',`<label>Kind</label><select id="siK"><option>frame</option><option>banner</option><option>text</option><option>msg</option><option>bio</option><option>tag</option></select><label>Name</label><input id="siN" maxlength="40"><label>Value (existing CSS class, frame key, or tag name)</label><input id="siV" maxlength="80"><div class="row"><div style="flex:1"><label>Price (1 day)</label><input id="siP" type="number" value="40"></div></div><label>Description</label><input id="siD" maxlength="100"><label>…or paste JSON</label><textarea id="siJ" placeholder='{"name":"Gold Tag","kind":"tag","value":"Gold Scholar","basePrice":45}'></textarea><button class="btn full" id="siS">Save item</button>`);
+  const m=modal('Add Store Item',`<label>Kind</label><select id="siK"><option>avatar</option><option>frame</option><option>banner</option><option>text</option><option>msg</option><option>bio</option><option>tag</option></select><label>Name</label><input id="siN" maxlength="40"><label>Value (existing CSS class, frame key, avatar emoji, or tag name)</label><input id="siV" maxlength="80"><div class="row"><div style="flex:1"><label>Price (1 day)</label><input id="siP" type="number" value="40"></div></div><label>Description</label><input id="siD" maxlength="100"><label>…or paste JSON</label><textarea id="siJ" placeholder='{"name":"Gold Tag","kind":"tag","value":"Gold Scholar","basePrice":45}'></textarea><button class="btn full" id="siS">Save item</button>`);
   $('#siS',m).onclick=()=>{
     let it;const raw=$('#siJ',m).value.trim();
     try{it=raw?JSON.parse(raw):{kind:$('#siK',m).value,name:$('#siN',m).value.trim(),value:$('#siV',m).value.trim(),basePrice:+$('#siP',m).value||40,desc:$('#siD',m).value.trim()}}catch{return toast('Invalid JSON')}
-    if(!it||!it.name||!it.value||!['frame','banner','text','msg','bio','tag'].includes(it.kind))return toast('Need kind, name and value');
+    if(!it||!it.name||!it.value||!['avatar','frame','banner','text','msg','bio','tag'].includes(it.kind))return toast('Need kind, name and value');
     it={id:'c_'+Date.now().toString(36),name:String(it.name).slice(0,40),kind:it.kind,value:String(it.value).slice(0,80),basePrice:Math.max(5,+it.basePrice||40),desc:String(it.desc||'').slice(0,100)};
     customItems.push(it);ls.set('sg_store_custom',customItems);storeItems=[...DEFAULT_ITEMS,...customItems];dbOp(()=>F.setDoc(F.doc(db,'store_items',it.id),it));m.close();renderStore();toast('Item added');
   };
 };
-
-
