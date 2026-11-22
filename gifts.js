@@ -1,5 +1,5 @@
 "use strict";
-/* ===== Study Game: 72-Gift Multi-Tier Catalog, WePlay-Style Gift Wall, Charm Box & Lucky Coin Drop ===== */
+/* ===== Study Game: 78-Gift Multi-Tier Catalog (1★ to 7★ Sovereign), Gift Wall, Charm Box, Car Drive & Dream Palace Showcase ===== */
 
 const GIFT_TIERS = {
   1: { name: 'Starter', stars: '★', color: '#38bdf8', bg: 'linear-gradient(145deg,#0f2942,#164e63)', border: 'rgba(56,189,248,.45)' },
@@ -7,10 +7,11 @@ const GIFT_TIERS = {
   3: { name: 'Radiant', stars: '★★★', color: '#2dd4bf', bg: 'linear-gradient(145deg,#0f3330,#115e59)', border: 'rgba(45,212,191,.52)' },
   4: { name: 'Epic', stars: '★★★★', color: '#a855f7', bg: 'linear-gradient(145deg,#2e1065,#581c87)', border: 'rgba(168,85,247,.58)' },
   5: { name: 'Legendary', stars: '★★★★★', color: '#f59e0b', bg: 'linear-gradient(145deg,#451a03,#92400e)', border: 'rgba(245,158,11,.66)' },
-  6: { name: 'Mythic', stars: '★★★★★★', color: '#ffd36b', bg: 'linear-gradient(145deg,#3b0764,#9d174d 52%,#b45309)', border: 'rgba(255,211,107,.82)' }
+  6: { name: 'Mythic', stars: '★★★★★★', color: '#ffd36b', bg: 'linear-gradient(145deg,#3b0764,#9d174d 52%,#b45309)', border: 'rgba(255,211,107,.82)' },
+  7: { name: 'Sovereign', stars: '★★★★★★★', color: '#ffe58f', bg: 'linear-gradient(145deg,#31105f,#9f1239 46%,#c27803 100%)', border: 'rgba(255,229,143,.94)' }
 };
 
-/* 72 Distinct Gifts across 6 Tiers (12 per tier) — Custom SVG Artwork, Zero External Links */
+/* 78 Distinct Gifts across 7 Tiers — Custom SVG Artwork, Zero External Links */
 const GIFT_CATALOG = [
   /* Tier 1 — 1★ Starter (12 gifts: 5–20 coins) */
   { id: 'g01_rose', name: 'Red Rose', tier: 1, price: 5, charm: 6, icon: 'rose', c1: '#fb7185', c2: '#e11d48' },
@@ -94,7 +95,15 @@ const GIFT_CATALOG = [
   { id: 'g69_citadel', name: 'Quantum Citadel', tier: 6, price: 7800, charm: 18600, icon: 'citadel', c1: '#67e8f9', c2: '#6d28d9' },
   { id: 'g70_aurora', name: 'Aurora Kingdom', tier: 6, price: 8500, charm: 20800, icon: 'aurora', c1: '#34d399', c2: '#ec4899' },
   { id: 'g71_vault', name: 'Emperor Vault', tier: 6, price: 9200, charm: 23000, icon: 'vault', c1: '#fde047', c2: '#b45309' },
-  { id: 'g72_singularity', name: 'Celestial Core', tier: 6, price: 10000, charm: 26000, icon: 'singularity', c1: '#ffd36b', c2: '#a855f7' }
+  { id: 'g72_singularity', name: 'Celestial Core', tier: 6, price: 10000, charm: 26000, icon: 'singularity', c1: '#ffd36b', c2: '#a855f7' },
+
+  /* Tier 7 — 7★ Sovereign Ultra-Luxury (6 gifts: 50,000–200,000 coins with Car Drive & Dream Palace Showcases) */
+  { id: 'g73_jet', name: 'Royal Private Jet', tier: 7, price: 50000, charm: 140000, icon: 'privatejet', fx: 'palace', c1: '#e0f2fe', c2: '#0284c7' },
+  { id: 'g74_yacht_gold', name: 'Golden Mega Yacht', tier: 7, price: 75000, charm: 220000, icon: 'megayacht', fx: 'palace', c1: '#fde047', c2: '#0f766e' },
+  { id: 'g75_ferrari', name: 'Ferrari Hypercar', tier: 7, price: 100000, charm: 320000, icon: 'ferrari', fx: 'car', c1: '#ef4444', c2: '#991b1b' },
+  { id: 'g76_lambo', name: 'Lamborghini Aventador', tier: 7, price: 130000, charm: 440000, icon: 'lambo', fx: 'car', c1: '#facc15', c2: '#b45309' },
+  { id: 'g77_bugatti', name: 'Bugatti Sovereign', tier: 7, price: 160000, charm: 560000, icon: 'bugatti', fx: 'car', c1: '#38bdf8', c2: '#1e3a8a' },
+  { id: 'g78_dream_palace', name: 'Dream Palace', tier: 7, price: 200000, charm: 750000, icon: 'dreampalace', fx: 'palace', c1: '#ffd36b', c2: '#9333ea' }
 ];
 
 const GIFT_BY_ID = Object.fromEntries(GIFT_CATALOG.map(g => [g.id, g]));
@@ -173,6 +182,12 @@ function giftGlyphPath(icon, c1, c2) {
     case 'citadel': return `<polygon points="24,8 35,16 32,35 16,35 13,16" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><polygon points="24,14 29,22 24,30 19,22" fill="#fff" opacity=".85"/>`;
     case 'aurora': return `<path d="M10 32c4-14 10-20 14-20s10 6 14 20H10z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M13 24c4-5 18-5 22 0" stroke="#fff" stroke-width="2" fill="none"/>`;
     case 'vault': return `<rect x="11" y="12" width="26" height="24" rx="5" fill="${c1}" stroke="${c2}" stroke-width="1.8"/><circle cx="24" cy="24" r="6" fill="#0f172a" stroke="#ffd36b" stroke-width="2"/><path d="M24 19v10M19 24h10" stroke="#ffd36b" stroke-width="1.8"/>`;
+    case 'privatejet': return `<path d="M8 29l12-4 14-12 6-1-9 12 7 3-3 3-9-2-7 8-3-1 3-7-11-1z" fill="${c1}" stroke="${c2}" stroke-width="1.4" stroke-linejoin="round"/><path d="M22 22l12-9" stroke="#ffd36b" stroke-width="1.6" stroke-linecap="round"/>`;
+    case 'megayacht': return `<path d="M7 29h34l-5 8H12l-5-8z" fill="#f8fafc" stroke="${c2}" stroke-width="1.5"/><path d="M13 24h22l-3 5H13v-5z" fill="${c1}" stroke="${c2}" stroke-width="1.3"/><path d="M17 19h13l-2 5H17v-5z" fill="#fef08a"/><path d="M12 32h24" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/>`;
+    case 'ferrari': return `<path d="M6 29l3-6 9-4h11l8 4 5 2v4H6z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><path d="M15 22l5-3h8l4 3H15z" fill="#1e293b" stroke="#fde047" stroke-width=".9"/><circle cx="15" cy="30.5" r="4" fill="#0f172a" stroke="#ffd36b" stroke-width="1.6"/><circle cx="34" cy="30.5" r="4" fill="#0f172a" stroke="#ffd36b" stroke-width="1.6"/><path d="M39 26h3" stroke="#fef08a" stroke-width="2" stroke-linecap="round"/>`;
+    case 'lambo': return `<path d="M6 30l6-6 9-5h8l13 6 1 5H6z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><polygon points="15,23 22,19 29,19 34,23" fill="#0f172a"/><circle cx="15" cy="31" r="4" fill="#111827" stroke="#fff" stroke-width="1.5"/><circle cx="34" cy="31" r="4" fill="#111827" stroke="#fff" stroke-width="1.5"/><path d="M9 26h5" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/>`;
+    case 'bugatti': return `<path d="M6 29c2-5 8-9 17-9h8c5 0 9 3 11 6v3H6z" fill="${c1}" stroke="${c2}" stroke-width="1.5"/><path d="M16 21c3-2 9-2 13 0l3 3H14l2-3z" fill="#0f172a"/><path d="M21 24c4 0 6 4 2 6" fill="none" stroke="#ffd36b" stroke-width="1.6"/><circle cx="15" cy="30.5" r="4" fill="#0f172a" stroke="#7dd3fc" stroke-width="1.6"/><circle cx="34" cy="30.5" r="4" fill="#0f172a" stroke="#7dd3fc" stroke-width="1.6"/>`;
+    case 'dreampalace': return `<path d="M8 36V23h5v-5l4-4 4 4v5h6v-5l4-4 4 4v5h5v13H8z" fill="${c2}" stroke="${c1}" stroke-width="1.4" stroke-linejoin="round"/><path d="M16 23c0-7 4-12 8-14 4 2 8 7 8 14H16z" fill="${c1}" stroke="#fff" stroke-width="1.1"/><path d="M24 6v4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><rect x="20.5" y="27" width="7" height="9" rx="3.5" fill="#fef08a"/><circle cx="13" cy="11" r="1.4" fill="#fff"/><circle cx="35" cy="11" r="1.4" fill="#fff"/>`;
     default: return `<circle cx="24" cy="24" r="11" fill="${c2}" stroke="${c1}" stroke-width="2.2"/><circle cx="24" cy="24" r="5" fill="#fff"/><ellipse cx="24" cy="24" rx="16" ry="5" fill="none" stroke="${c1}" stroke-width="1.8" transform="rotate(-25 24 24)"/>`;
   }
 }
@@ -185,6 +200,144 @@ function giftSvg(giftOrId, size = 44) {
     <circle cx="24" cy="24" r="21" fill="${g.c1}" fill-opacity="0.14" stroke="${tier.color}" stroke-opacity="0.42" stroke-width="1.3"/>
     <circle cx="24" cy="24" r="16.5" fill="${g.c2}" fill-opacity="0.12"/>
     ${giftGlyphPath(g.icon, g.c1, g.c2)}
+  </svg>`;
+}
+
+/* Panoramic Multi-Layer Showcase Artwork for Tier 7 Luxury Gifts (Ferrari, Lamborghini, Bugatti, Dream Palace, Mega Yacht, Private Jet) */
+function luxuryShowcaseSvg(gift) {
+  if (!gift) return '';
+  if (gift.fx === 'car') {
+    const isLambo = gift.id === 'g76_lambo';
+    const isBugatti = gift.id === 'g77_bugatti';
+    const bodyGradA = isLambo ? '#fde047' : (isBugatti ? '#38bdf8' : '#ff3b3b');
+    const bodyGradB = isLambo ? '#ca8a04' : (isBugatti ? '#1d4ed8' : '#991b1b');
+    const accent = isLambo ? '#111827' : (isBugatti ? '#0f172a' : '#ffd36b');
+    const rim = isLambo ? '#f8fafc' : (isBugatti ? '#7dd3fc' : '#ffd36b');
+    const bodyPath = isLambo
+      ? 'M26 88 L46 66 L102 48 L170 46 L236 62 L288 74 L296 88 L292 98 L28 98 Z'
+      : (isBugatti
+        ? 'M26 88 C36 62 78 46 138 46 L186 46 C224 46 258 60 288 74 L296 88 L290 98 L28 98 Z'
+        : 'M24 88 L36 72 L96 52 L166 48 L228 62 L288 74 L296 88 L290 98 L26 98 Z');
+    return `<svg class="lux-svg lux-car-svg" viewBox="0 0 340 130" aria-hidden="true">
+      <defs>
+        <linearGradient id="carBody_${gift.id}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${bodyGradA}"/>
+          <stop offset="100%" stop-color="${bodyGradB}"/>
+        </linearGradient>
+        <linearGradient id="headBeam_${gift.id}" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#fff8c4" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="#fff8c4" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="exhaust_${gift.id}" x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0%" stop-color="#fb923c" stop-opacity="0.95"/>
+          <stop offset="55%" stop-color="#f43f5e" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#f43f5e" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <polygon points="292,76 340,62 340,98 292,86" fill="url(#headBeam_${gift.id})"/>
+      <polygon points="28,88 0,80 0,98 28,94" fill="url(#exhaust_${gift.id})"/>
+      <ellipse cx="164" cy="108" rx="134" ry="9" fill="rgba(0,0,0,0.52)"/>
+      <path d="${bodyPath}" fill="url(#carBody_${gift.id})" stroke="rgba(255,255,255,0.45)" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M96 68 L126 52 L178 52 L212 68 Z" fill="#0f172a" stroke="${rim}" stroke-width="1.5"/>
+      <path d="M128 55 L172 55 L196 66 L108 66 Z" fill="rgba(186,230,253,0.28)"/>
+      <path d="M52 80 L256 80" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-linecap="round"/>
+      <rect x="26" y="75" width="16" height="6" rx="3" fill="#ff2d55"/>
+      <rect x="276" y="75" width="18" height="6" rx="3" fill="#fef08a"/>
+      <circle cx="152" cy="76" r="5" fill="${accent}" stroke="#fff" stroke-width="1"/>
+      <g class="lux-wheel" style="transform-origin:84px 96px">
+        <circle cx="84" cy="96" r="20" fill="#0b1020" stroke="#334155" stroke-width="3"/>
+        <circle cx="84" cy="96" r="12" fill="none" stroke="${rim}" stroke-width="2.5"/>
+        <path d="M84 84v24M72 96h24M75.5 87.5l17 17M92.5 87.5l-17 17" stroke="${rim}" stroke-width="1.8"/>
+        <circle cx="84" cy="96" r="4" fill="${bodyGradA}"/>
+      </g>
+      <g class="lux-wheel" style="transform-origin:236px 96px">
+        <circle cx="236" cy="96" r="20" fill="#0b1020" stroke="#334155" stroke-width="3"/>
+        <circle cx="236" cy="96" r="12" fill="none" stroke="${rim}" stroke-width="2.5"/>
+        <path d="M236 84v24M224 96h24M227.5 87.5l17 17M244.5 87.5l-17 17" stroke="${rim}" stroke-width="1.8"/>
+        <circle cx="236" cy="96" r="4" fill="${bodyGradA}"/>
+      </g>
+    </svg>`;
+  }
+
+  if (gift.id === 'g74_yacht_gold') {
+    return `<svg class="lux-svg lux-palace-svg" viewBox="0 0 340 165" aria-hidden="true">
+      <defs>
+        <linearGradient id="yachtGold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#fef08a"/><stop offset="55%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#b45309"/>
+        </linearGradient>
+      </defs>
+      <ellipse cx="170" cy="140" rx="145" ry="14" fill="rgba(56,189,248,0.28)"/>
+      <path d="M36 106 L306 106 L278 134 L62 134 Z" fill="#f8fafc" stroke="#fde047" stroke-width="2.4"/>
+      <path d="M56 118 L286 118" stroke="url(#yachtGold)" stroke-width="4" stroke-linecap="round"/>
+      <path d="M74 82 L254 82 L272 106 L64 106 Z" fill="url(#yachtGold)" stroke="#fff" stroke-width="1.6"/>
+      <path d="M108 58 L220 58 L236 82 L96 82 Z" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.6"/>
+      <rect x="122" y="65" width="84" height="10" rx="5" fill="#0f172a"/>
+      <rect x="86" y="89" width="154" height="10" rx="5" fill="#1e293b"/>
+      <path d="M166 28 L166 58 M166 32 L198 44 L166 48" stroke="#fde047" stroke-width="2.5" fill="rgba(253,224,71,0.4)"/>
+    </svg>`;
+  }
+
+  if (gift.id === 'g73_jet') {
+    return `<svg class="lux-svg lux-palace-svg" viewBox="0 0 340 165" aria-hidden="true">
+      <defs>
+        <linearGradient id="jetBody" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#bae6fd"/>
+        </linearGradient>
+      </defs>
+      <path d="M16 116 Q110 100 210 86" stroke="rgba(255,211,107,0.55)" stroke-width="6" stroke-linecap="round" fill="none"/>
+      <path d="M56 96 L140 78 L272 56 C296 52 310 58 310 66 C310 74 294 82 270 86 L128 106 L52 110 Z" fill="url(#jetBody)" stroke="#38bdf8" stroke-width="2"/>
+      <path d="M168 82 L104 38 L128 36 L210 74 Z" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.6"/>
+      <path d="M178 96 L124 136 L148 136 L216 90 Z" fill="#bae6fd" stroke="#0284c7" stroke-width="1.6"/>
+      <path d="M62 96 L38 56 L58 54 L88 92 Z" fill="#ffd36b" stroke="#b45309" stroke-width="1.6"/>
+      <path d="M116 90 L264 66" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+      <path d="M266 59 L286 58 L280 68 L262 69 Z" fill="#0f172a"/>
+    </svg>`;
+  }
+
+  /* Dream Palace (200,000 Coins Sovereign Showcase) */
+  return `<svg class="lux-svg lux-palace-svg" viewBox="0 0 340 175" aria-hidden="true">
+    <defs>
+      <radialGradient id="palaceHalo" cx="50%" cy="46%" r="52%">
+        <stop offset="0%" stop-color="#fde047" stop-opacity="0.55"/>
+        <stop offset="55%" stop-color="#a855f7" stop-opacity="0.22"/>
+        <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="palaceGold" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#fff4b8"/><stop offset="55%" stop-color="#ffd36b"/><stop offset="100%" stop-color="#d97706"/>
+      </linearGradient>
+      <linearGradient id="palaceWall" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#6d28d9"/><stop offset="100%" stop-color="#31105f"/>
+      </linearGradient>
+    </defs>
+    <circle cx="170" cy="84" r="82" fill="url(#palaceHalo)"/>
+    <ellipse cx="170" cy="154" rx="142" ry="14" fill="rgba(255,211,107,0.22)"/>
+    <!-- Twin Outer Minarets -->
+    <rect x="44" y="74" width="20" height="76" rx="3" fill="url(#palaceWall)" stroke="#ffd36b" stroke-width="1.6"/>
+    <path d="M40 74 Q54 44 68 74 Z" fill="url(#palaceGold)"/>
+    <path d="M54 40v12" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <rect x="276" y="74" width="20" height="76" rx="3" fill="url(#palaceWall)" stroke="#ffd36b" stroke-width="1.6"/>
+    <path d="M272 74 Q286 44 300 74 Z" fill="url(#palaceGold)"/>
+    <path d="M286 40v12" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <!-- Main Palace Body -->
+    <rect x="74" y="84" width="192" height="66" rx="6" fill="url(#palaceWall)" stroke="#ffd36b" stroke-width="2"/>
+    <!-- Inner Side Domes -->
+    <path d="M84 84 Q108 46 132 84 Z" fill="url(#palaceGold)" stroke="#fff" stroke-width="1"/>
+    <path d="M208 84 Q232 46 256 84 Z" fill="url(#palaceGold)" stroke="#fff" stroke-width="1"/>
+    <!-- Grand Central Golden Dome -->
+    <path d="M124 84 C124 38 150 22 170 14 C190 22 216 38 216 84 Z" fill="url(#palaceGold)" stroke="#fff" stroke-width="1.8"/>
+    <path d="M170 4v14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="170" cy="6" r="3" fill="#fff"/>
+    <!-- Illuminated Royal Arches -->
+    <path d="M148 150 V112 C148 96 192 96 192 112 V150 Z" fill="#fef08a" stroke="#f59e0b" stroke-width="2"/>
+    <path d="M158 150 V118 C158 107 182 107 182 118 V150 Z" fill="#fffbeb"/>
+    <rect x="94" y="106" width="24" height="32" rx="12" fill="#fde047" opacity="0.9"/>
+    <rect x="222" y="106" width="24" height="32" rx="12" fill="#fde047" opacity="0.9"/>
+    <!-- Royal Steps & Sparkles -->
+    <rect x="58" y="148" width="224" height="8" rx="4" fill="url(#palaceGold)"/>
+    <circle cx="96" cy="34" r="2.8" fill="#fff"/>
+    <circle cx="244" cy="32" r="2.8" fill="#fff"/>
+    <circle cx="136" cy="24" r="2" fill="#fde047"/>
+    <circle cx="206" cy="24" r="2" fill="#fde047"/>
   </svg>`;
 }
 
@@ -204,6 +357,8 @@ function getGiftWallStatsForUser(targetUserOrUid) {
     if (n > 0 && GIFT_BY_ID[gid]) counts[gid] = n;
   });
 
+  const resetAt = Number(targetUser?.giftResetAt || 0);
+  const devUpdatedAt = Number(targetUser?.devStatsUpdatedAt || 0);
   const receivedLog = [];
   const countedByEvent = {};
   const unmergedCounts = {};
@@ -211,26 +366,37 @@ function getGiftWallStatsForUser(targetUserOrUid) {
 
   (giftEvents || []).forEach(ev => {
     if (!ev || ev.toUid !== targetUid || !GIFT_BY_ID[ev.giftId]) return;
+    const evTs = Number(ev.ts || 0);
+    if (resetAt > 0 && evTs <= resetAt) return;
     receivedLog.push(ev);
     const qty = clampSafeInt(ev.qty || 1, 1, 99);
     countedByEvent[ev.giftId] = (countedByEvent[ev.giftId] || 0) + qty;
-    if (!ev.claimedByRecipient) {
+    if (!ev.claimedByRecipient && evTs > devUpdatedAt) {
       unmergedCounts[ev.giftId] = (unmergedCounts[ev.giftId] || 0) + qty;
       unmergedCharm += clampSafeInt(ev.charm || 0, 0, MAX_COINS);
     }
   });
 
-  Object.entries(countedByEvent).forEach(([gid, evQty]) => {
-    const baseCnt = Number(counts[gid] || 0);
-    const pendingCnt = Number(unmergedCounts[gid] || 0);
-    counts[gid] = Math.max(baseCnt + pendingCnt, evQty);
-  });
+  if (devUpdatedAt > 0) {
+    /* Authoritative developer edits: only layer truly newer unclaimed gifts on top */
+    Object.entries(unmergedCounts).forEach(([gid, pendingCnt]) => {
+      counts[gid] = clampSafeInt(Number(counts[gid] || 0) + pendingCnt, 0, MAX_COINS);
+    });
+  } else {
+    Object.entries(countedByEvent).forEach(([gid, evQty]) => {
+      const baseCnt = Number(counts[gid] || 0);
+      const pendingCnt = Number(unmergedCounts[gid] || 0);
+      counts[gid] = Math.max(baseCnt + pendingCnt, evQty);
+    });
+  }
 
   const collectedIds = Object.keys(counts).filter(k => counts[k] > 0);
   const totalReceivedCount = Object.values(counts).reduce((sum, n) => sum + n, 0);
   const storedCharm = clampSafeInt(targetUser?.charm || 0, 0, MAX_COINS);
   const eventTotalCharm = receivedLog.reduce((sum, ev) => sum + clampSafeInt(ev.charm || 0, 0, MAX_COINS), 0);
-  const totalCharm = Math.max(storedCharm + unmergedCharm, eventTotalCharm, storedCharm);
+  const totalCharm = devUpdatedAt > 0
+    ? clampSafeInt(storedCharm + unmergedCharm, 0, MAX_COINS)
+    : Math.max(storedCharm + unmergedCharm, eventTotalCharm, storedCharm);
   const sentCharm = clampSafeInt(targetUser?.charmSent || 0, 0, MAX_COINS);
 
   receivedLog.sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
@@ -255,6 +421,7 @@ function getGiftBadgesForStats(st) {
     { id: 'b_epic', title: 'Epic Patron', desc: 'Collect 2 Epic (4★) gifts', cur: tierOwned(4), goal: 2, color: '#a855f7', icon: 'g37_crown' },
     { id: 'b_leg', title: 'Legend Collector', desc: 'Collect 1 Legendary (5★) gift', cur: tierOwned(5), goal: 1, color: '#f59e0b', icon: 'g51_dragon' },
     { id: 'b_myth', title: 'Mythic Sovereign', desc: 'Collect 1 Mythic (6★) gift', cur: tierOwned(6), goal: 1, color: '#ffd36b', icon: 'g63_universe' },
+    { id: 'b_sov', title: 'Sovereign Tycoon', desc: 'Collect 1 Sovereign (7★) luxury gift', cur: tierOwned(7), goal: 1, color: '#ffe58f', icon: 'g78_dream_palace' },
     { id: 'b_ch1', title: 'Charm Rising', desc: 'Reach 500 Charm in Charm Box', cur: st.totalCharm, goal: 500, color: '#fb7185', icon: 'g08_heart' },
     { id: 'b_ch2', title: 'Charm Superstar', desc: 'Reach 10,000 Charm in Charm Box', cur: st.totalCharm, goal: 10000, color: '#fde047', icon: 'g66_supernova' }
   ];
@@ -283,7 +450,8 @@ function rollGiftTransactionRewards(gift, qty) {
     pct = 0.08 + Math.random() * 0.1;
     luckLabel = 'Lucky Drop';
   }
-  const luckyCoins = Math.max(1, clampSafeInt(Math.round(totalCost * pct * tierBoost), 1, 50000));
+  const maxLuckyCap = gift.tier >= 7 ? 250000 : 50000;
+  const luckyCoins = Math.max(1, clampSafeInt(Math.round(totalCost * pct * tierBoost), 1, maxLuckyCap));
   return { totalCost, recipientCharm, senderCharm, luckyCoins, luckLabel };
 }
 
@@ -310,6 +478,69 @@ function showGiftBroadcastAnim(ev) {
   }, 3400);
 }
 
+/* Full-Stage Luxury Showcase Overlay (Car Drive-Across + Engine SFX & Grand Dream Palace Reveal) */
+function showLuxuryGiftShowcase(ev, giftArg) {
+  const g = giftArg || GIFT_BY_ID[ev?.giftId];
+  if (!g) return;
+  const isCar = g.fx === 'car';
+  const tier = GIFT_TIERS[g.tier] || GIFT_TIERS[7];
+  $$('.lux-showcase').forEach(el => el.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = `lux-showcase ${isCar ? 'lux-mode-car' : 'lux-mode-palace'}`;
+  overlay.setAttribute('role', 'status');
+  overlay.setAttribute('aria-live', 'polite');
+  overlay.dataset.luxGift = g.id;
+
+  const qty = clampSafeInt(ev?.qty || 1, 1, 99);
+  const fromName = esc(ev?.fromName || ev?.name || 'Player');
+  const toName = esc(ev?.toName || 'Player');
+  const charmTxt = fmtNum(ev?.charm || g.charm * qty);
+  const luckyTxt = fmtNum(ev?.luckyCoins || 0);
+
+  overlay.innerHTML = `
+    <div class="lux-stage">
+      <button type="button" class="lux-close" aria-label="Close showcase">✕</button>
+      <div class="lux-kicker">${esc(tier.stars)} ${esc(tier.name)} ULTRA-LUXURY ARRIVAL</div>
+      ${isCar ? `
+        <div class="lux-car-track">
+          <div class="lux-speed-lines" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="lux-car-mover">${luxuryShowcaseSvg(g)}</div>
+          <div class="lux-road-line" aria-hidden="true"></div>
+        </div>
+      ` : `
+        <div class="lux-palace-wrap">
+          <div class="lux-sparkles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="lux-palace-rise">${luxuryShowcaseSvg(g)}</div>
+        </div>
+      `}
+      <div class="lux-caption">
+        <div class="lux-title">${esc(g.name)} <span>×${qty}</span></div>
+        <div class="lux-sub"><b>${fromName}</b> gifted <b>${toName}</b> · <em style="color:#f9a8d4">+${charmTxt} Charm</em>${luckyTxt && Number(ev?.luckyCoins) > 0 ? ` · <em style="color:#fde047">+${luckyTxt} Lucky 🪙</em>` : ''}</div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('in'));
+
+  if (typeof playSfx === 'function') {
+    playSfx(isCar ? 'carDrive' : 'palaceReveal', { model: g.id });
+  }
+
+  let closed = false;
+  const dismiss = () => {
+    if (closed) return;
+    closed = true;
+    overlay.classList.remove('in');
+    setTimeout(() => overlay.remove(), 320);
+  };
+  overlay.onclick = e => {
+    if (e.target.closest('.lux-close') || e.target === overlay) dismiss();
+  };
+  setTimeout(dismiss, isCar ? 4300 : 4500);
+}
+
 /* Recipient Auto-Ingest for Incoming Gifts (adds to Gift Wallet, Charm Box, and Lucky Coins once) */
 function ingestIncomingGiftEvents(list) {
   if (!Array.isArray(list)) return;
@@ -319,9 +550,11 @@ function ingestIncomingGiftEvents(list) {
   let changedMe = false;
   let totalNewLucky = 0;
   let latestIncoming = null;
+  const resetAt = Number(me.giftResetAt || 0);
 
   giftEvents.forEach(ev => {
     if (!ev || !ev.id || ev.toUid !== uid || !GIFT_BY_ID[ev.giftId]) return;
+    if (resetAt > 0 && Number(ev.ts || 0) <= resetAt) return;
     const doneKey = 'gift_rx_' + ev.id;
     if (me.done[doneKey]) return;
 
@@ -330,7 +563,9 @@ function ingestIncomingGiftEvents(list) {
     me.giftWallet[ev.giftId] = clampSafeInt((me.giftWallet[ev.giftId] || 0) + clampSafeInt(ev.qty || 1, 1, 99), 0, MAX_COINS);
     me.charm = clampSafeInt((me.charm || 0) + clampSafeInt(ev.charm || 0, 0, MAX_COINS), 0, MAX_COINS);
 
-    const lucky = clampSafeInt(ev.luckyCoins || 0, 0, 50000);
+    const gObj = GIFT_BY_ID[ev.giftId];
+    const maxLucky = gObj && gObj.tier >= 7 ? 250000 : 50000;
+    const lucky = clampSafeInt(ev.luckyCoins || 0, 0, maxLucky);
     if (lucky > 0) {
       me.coins = clampCoins(me.coins + lucky);
       const d = today();
@@ -354,29 +589,47 @@ function ingestIncomingGiftEvents(list) {
     if (typeof buildProfile === 'function') buildProfile();
     if (typeof renderRanking === 'function') renderRanking();
     if (latestIncoming) {
-      showGiftBroadcastAnim(latestIncoming);
-      if (typeof playSfx === 'function') {
-        playSfx('giftReceive');
-        if (totalNewLucky > 0) setTimeout(() => playSfx('luckyDrop'), 220);
+      const gLatest = GIFT_BY_ID[latestIncoming.giftId];
+      if (gLatest && gLatest.tier >= 7) {
+        showLuxuryGiftShowcase(latestIncoming, gLatest);
+      } else {
+        showGiftBroadcastAnim(latestIncoming);
+        if (typeof playSfx === 'function') {
+          playSfx('giftReceive');
+          if (totalNewLucky > 0) setTimeout(() => playSfx('luckyDrop'), 220);
+        }
       }
       toast(`Received gift! +${fmtNum(totalNewLucky)} Lucky Coins & Charm added!`);
     }
   }
 }
 
-/* Render World Chat Gift Broadcast Card */
+/* Render World Chat / DM Gift Broadcast Card (with Clickable Player Profiles & Tier 7 Replay Show) */
 function renderWorldGiftCard(m) {
   const g = GIFT_BY_ID[m.giftId] || GIFT_CATALOG[0];
   const tier = GIFT_TIERS[g.tier] || GIFT_TIERS[1];
+  const senderUid = m.uid || m.fromUid || '';
+  const recipUid = m.toUid || '';
+  const senderHtml = senderUid
+    ? `<button type="button" class="wc-prof-link" data-wprof="${esc(senderUid)}">${esc(m.fromName || m.name || 'Player')}</button>`
+    : `<b>${esc(m.fromName || m.name || 'Player')}</b>`;
+  const recipHtml = recipUid
+    ? `<button type="button" class="wc-prof-link" data-wprof="${esc(recipUid)}">${esc(m.toName || 'Player')}</button>`
+    : `<b>${esc(m.toName || 'Player')}</b>`;
+  const replayBtn = g.tier >= 7
+    ? `<button type="button" class="btn gold sm wc-replay-btn" data-replaygift="${esc(g.id)}" data-replayfrom="${esc(m.fromName || m.name || 'Player')}" data-replayto="${esc(m.toName || 'Player')}" data-replayqty="${clampSafeInt(m.qty || 1, 1, 99)}" data-replaycharm="${clampSafeInt(m.charm || g.charm, 0, MAX_COINS)}" data-replaylucky="${clampSafeInt(m.luckyCoins || 0, 0, 250000)}">${g.fx === 'car' ? 'Replay Drive' : 'Replay Show'}</button>`
+    : '';
+
   return `<div class="wc-gift-card gift-tier-${g.tier}" style="border-color:${tier.border};background:${tier.bg}">
     <div class="wc-gift-art">${giftSvg(g, 58)}</div>
     <div class="wc-gift-meta">
       <div class="wc-gift-kicker">${esc(tier.stars)} ${esc(tier.name)} Gift Broadcast · ${esc(m.luckLabel || 'Lucky Drop')}</div>
-      <div class="wc-gift-title"><b>${esc(m.fromName || m.name || 'Player')}</b> sent <span>${esc(g.name)} x${clampSafeInt(m.qty || 1, 1, 99)}</span> to <b>${esc(m.toName || 'Player')}</b></div>
+      <div class="wc-gift-title">${senderHtml} sent <span>${esc(g.name)} x${clampSafeInt(m.qty || 1, 1, 99)}</span> to ${recipHtml}</div>
       <div class="wc-gift-stats">
         <span class="gw-stat-charm">+${fmtNum(m.charm || g.charm)} Charm</span>
         <span aria-hidden="true">·</span>
         <span class="gw-stat-lucky">+${fmtNum(m.luckyCoins || 1)} Lucky Coins</span>
+        ${replayBtn}
       </div>
     </div>
   </div>`;
@@ -470,7 +723,7 @@ function executeSendGift(targetUid, giftId, qty, contextOpts) {
       const dmId = 'dg_' + evId;
       chats[targetUid].messages = chats[targetUid].messages || [];
       chats[targetUid].messages.push({
-        id: dmId, from: 'me', type: 'gift', giftId: gift.id, qty: safeQty,
+        id: dmId, from: 'me', fromUid: uid, toUid: targetUid, type: 'gift', giftId: gift.id, qty: safeQty,
         fromName: me.name, toName: targetUser.name, charm: rewards.recipientCharm,
         luckyCoins: rewards.luckyCoins, luckLabel: rewards.luckLabel, ts: nowTs
       });
@@ -487,11 +740,18 @@ function executeSendGift(targetUid, giftId, qty, contextOpts) {
       appendMultiplayerRoomGift(contextOpts.inRoom, evObj);
     }
 
-    showGiftBroadcastAnim(evObj);
-    if (typeof playSfx === 'function') {
-      playSfx('giftSend', { tier: gift.tier, qty: safeQty });
-      if (rewards.luckLabel !== 'Lucky Drop') {
-        setTimeout(() => playSfx('luckyDrop'), 240);
+    if (gift.tier >= 7) {
+      showLuxuryGiftShowcase(evObj, gift);
+      if (typeof playSfx === 'function' && rewards.luckLabel !== 'Lucky Drop') {
+        setTimeout(() => playSfx('luckyDrop'), 1200);
+      }
+    } else {
+      showGiftBroadcastAnim(evObj);
+      if (typeof playSfx === 'function') {
+        playSfx('giftSend', { tier: gift.tier, qty: safeQty });
+        if (rewards.luckLabel !== 'Lucky Drop') {
+          setTimeout(() => playSfx('luckyDrop'), 240);
+        }
       }
     }
     if (typeof buildProfile === 'function') buildProfile();
@@ -562,7 +822,7 @@ function bindGiftWallEvents(rootEl, targetUser, isSelf, onAfterGiftSent) {
     if (activeTab === 'wall') {
       const tierBtns = [
         `<button type="button" class="gw-tbtn ${activeTier === 0 ? 'on' : ''}" data-gw-tier="0">All (${GIFT_CATALOG.length})</button>`,
-        ...[1, 2, 3, 4, 5, 6].map(t => `<button type="button" class="gw-tbtn ${activeTier === t ? 'on' : ''}" data-gw-tier="${t}">${t}★ ${GIFT_TIERS[t].name}</button>`)
+        ...[1, 2, 3, 4, 5, 6, 7].map(t => `<button type="button" class="gw-tbtn ${activeTier === t ? 'on' : ''}" data-gw-tier="${t}">${t}★ ${GIFT_TIERS[t].name}</button>`)
       ].join('');
 
       const list = GIFT_CATALOG
@@ -712,14 +972,15 @@ function openGiftSendModal(targetUid, opts) {
     const totalCost = g.price * qty;
     const totalCharm = g.charm * qty;
     const minLucky = Math.max(1, Math.round(totalCost * 0.08));
-    const maxLucky = Math.min(50000, Math.max(2, Math.round(totalCost * (1.25 * (1 + (g.tier - 1) * 0.04)))));
+    const maxLuckyCap = g.tier >= 7 ? 250000 : 50000;
+    const maxLucky = Math.min(maxLuckyCap, Math.max(2, Math.round(totalCost * (1.25 * (1 + (g.tier - 1) * 0.04)))));
 
     $('#gsRecip', m).innerHTML = `${av(target, 34)}<div><small>Sending to</small><b>${styledName(target)}</b></div>`;
     $('#gsBal', m).textContent = fmtNum(me.coins);
 
     $('#gsTiers', m).innerHTML = [
-      `<button type="button" class="gw-tbtn ${selectedTier === 0 ? 'on' : ''}" data-gst="0">All (72)</button>`,
-      ...[1, 2, 3, 4, 5, 6].map(t => `<button type="button" class="gw-tbtn ${selectedTier === t ? 'on' : ''}" data-gst="${t}">${t}★ ${GIFT_TIERS[t].name}</button>`)
+      `<button type="button" class="gw-tbtn ${selectedTier === 0 ? 'on' : ''}" data-gst="0">All (${GIFT_CATALOG.length})</button>`,
+      ...[1, 2, 3, 4, 5, 6, 7].map(t => `<button type="button" class="gw-tbtn ${selectedTier === t ? 'on' : ''}" data-gst="${t}">${t}★ ${GIFT_TIERS[t].name}</button>`)
     ].join('');
 
     const list = GIFT_CATALOG.filter(item => selectedTier === 0 || item.tier === selectedTier);

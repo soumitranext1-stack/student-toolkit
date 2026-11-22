@@ -115,8 +115,9 @@ function getUnlockedAvatars(){
   const free=typeof FX_FREE_AVATARS!=='undefined'?FX_FREE_AVATARS:USER_AVATARS;
   const fxEmojis=typeof FX_AVATAR_PROFILE!=='undefined'?FX_AVATAR_PROFILE.flatMap(c=>c.list||[]):[];
   const lbAvs=typeof LB_EXCLUSIVE_AVATARS!=='undefined'?Object.keys(LB_EXCLUSIVE_AVATARS):[];
-  const all=[...free,...fxEmojis,...lbAvs,me.avatar].filter(Boolean);
-  return [...new Set(all)].filter(em=>isUnlocked('avatar:'+em)||em===me.avatar);
+  const all=[...free,...fxEmojis,...lbAvs].filter(Boolean);
+  const allowed=[...new Set(all)].filter(em=>isUnlocked('avatar:'+em));
+  return allowed.length?allowed:['🦊'];
 }
 
 function labelForPair(list, val, fallback){
@@ -136,7 +137,7 @@ function persistProfileChanges(msg){
 }
 
 function openBannerPicker(bannerList){
-  const unlocked=bannerList.filter(b=>isUnlocked('banner:'+b[0])||b[0]===me.banner);
+  const unlocked=bannerList.filter(b=>isUnlocked('banner:'+b[0]));
   const m=modal('Choose Banner',`
     <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Tap a banner to equip it immediately. Unlock more in the Store or Leaderboard Top 1–3.</p>
     <div class="bn-pick-grid">
@@ -169,9 +170,9 @@ function openAvatarPicker(){
 }
 
 function openFramePicker(frameList){
-  const unlocked=frameList.filter(f=>isUnlocked('frame:'+f[0])||f[0]===me.frame);
+  const unlocked=frameList.filter(f=>isUnlocked('frame:'+f[0]));
   const m=modal('Choose Avatar Frame',`
-    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Tap any unlocked frame to apply.</p>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Tap any unlocked frame to apply. Top 1–3 frames unlock exclusively for verified Top 1–3 Leaderboard finishers or Developer grants.</p>
     <div class="pick">
       ${unlocked.map(f=>`<button type="button" class="${f[0]===me.frame?'on':''}" data-pickfr="${esc(f[0])}" style="min-width:74px;padding:8px 6px">${av({avatar:me.avatar,frame:f[0]},40)}<small style="font-size:10px;max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f[1])}</small></button>`).join('')}
     </div>
@@ -184,7 +185,7 @@ function openFramePicker(frameList){
 }
 
 function openStylePicker(title, list, currentVal, keyPrefix, fieldName, previewType){
-  const unlocked=list.filter(item=>isUnlocked(keyPrefix+item[0])||item[0]===currentVal);
+  const unlocked=list.filter(item=>isUnlocked(keyPrefix+item[0]));
   const m=modal(title,`
     <div class="list">
       ${unlocked.map(item=>{
@@ -258,18 +259,23 @@ function buildProfile(){
   const curMsgLabel=labelForPair(msgList,me.msgStyle,'Normal Msg');
   const curBioLabel=labelForPair(BIOS,me.bioStyle,'Normal');
 
-  const devWalletHtml=devMode?`
+  const devWalletHtml=(typeof isDevSession==='function'?isDevSession():devMode)?`
     <div class="card pf-dev-wallet">
       <div class="row" style="justify-content:space-between">
-        <b style="color:var(--gold)">Developer Wallet Controls</b>
+        <b style="color:var(--gold)">Developer Wallet &amp; Player Manager</b>
         <span class="p-tag p-tag-dev-sig" style="font-size:10px;padding:2px 8px">DEV ONLY</span>
       </div>
-      <p style="font-size:12px;color:var(--mu);margin-top:4px">Adjust your own Developer ID coins or reset Coins / EXP to 0 cleanly.</p>
+      <p style="font-size:12px;color:var(--mu);margin-top:4px">Adjust your own Developer coins, or inspect &amp; manage any player's Coins, Charm, Gift Wall, and Top 1–3 access.</p>
       <div class="row" style="margin-top:8px">
-        <input id="devSelfCoin" type="number" placeholder="± coins (e.g. 500 or -100)" style="flex:1">
+        <input id="devSelfCoin" type="number" placeholder="± my coins (e.g. 200000 or -100)" style="flex:1">
         <button type="button" class="btn sm gold" id="devSelfApply">Apply</button>
       </div>
       <button type="button" class="btn ghost full" id="devSelfReset" style="margin-top:8px">${UI_SVG.reset} Reset My Coins / EXP to 0</button>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)">
+        <label for="devPmSearch" style="margin-top:0">Inspect Players (Total Coins · Charm · Gifts)</label>
+        <input id="devPmSearch" type="text" placeholder="Search player by name or UID..." autocomplete="off">
+        <div class="dev-pm-list" id="devPmList"></div>
+      </div>
     </div>
   `:'';
 
@@ -400,14 +406,48 @@ function buildProfile(){
   $('#pickBioRow').onclick=()=>openStylePicker('Bio Glow',BIOS,me.bioStyle,'bio:','bioStyle','bio');
   $('#pickTagsRow').onclick=()=>openTagPicker();
 
-  /* Developer-only Self Wallet Controls */
-  if(devMode&&$('#devSelfApply')){
+  /* Developer-only Self Wallet Controls + Player Manager */
+  if((typeof isDevSession==='function'?isDevSession():devMode)&&$('#devSelfApply')){
     $('#devSelfApply').onclick=()=>{
       const delta=Math.trunc(+$('#devSelfCoin').value);
       if(!delta)return toast('Enter a valid coin amount');
       devAdjustUserCoins(uid,delta);
     };
     $('#devSelfReset').onclick=()=>devResetUserProgress(uid);
+
+    const renderDevPm=(q='')=>{
+      const box=$('#devPmList');
+      if(!box)return;
+      const term=String(q||'').trim().toLowerCase();
+      const players=allUsers()
+        .filter(u=>u&&u.uid&&u.uid!==uid)
+        .filter(u=>!term||String(u.name||'').toLowerCase().includes(term)||String(u.uid||'').toLowerCase().includes(term))
+        .sort((a,b)=>clampCoins(b.coins)-clampCoins(a.coins))
+        .slice(0,20);
+      box.innerHTML=players.map(u=>{
+        const gst=typeof getGiftWallStatsForUser==='function'?getGiftWallStatsForUser(u):{totalCharm:Number(u.charm||0),totalReceivedCount:0};
+        return `<div class="dev-pm-row">
+          ${av(u,34)}
+          <div class="mid">
+            <b>${styledName(u)}</b>
+            <div class="dev-pm-stats">
+              <span class="dev-pm-coin">🪙 ${fmtNum(u.coins)}</span>
+              <span>·</span>
+              <span style="color:#f9a8d4">✨ ${fmtNum(gst.totalCharm)}</span>
+              <span>·</span>
+              <span>🎁 ${fmtNum(gst.totalReceivedCount)}</span>
+            </div>
+          </div>
+          <button type="button" class="btn sm gold" data-devpm="${esc(u.uid)}">Manage</button>
+        </div>`;
+      }).join('')||'<div class="mp-empty">No other players found.</div>';
+    };
+    renderDevPm();
+    if($('#devPmSearch'))$('#devPmSearch').oninput=e=>renderDevPm(e.target.value);
+    if($('#devPmList'))$('#devPmList').onclick=e=>{
+      const btn=e.target.closest('[data-devpm]');
+      if(btn&&btn.dataset.devpm)openPublicProfile(btn.dataset.devpm);
+    };
   }
 
   $('#pn').oninput=()=>{const prev=$('#pnamePrev');if(prev)prev.textContent=$('#pn').value.trim()||me.name};

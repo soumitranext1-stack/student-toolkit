@@ -72,11 +72,22 @@ function tagClassFor(tagName){
   return TAG_STYLE_MAP[raw]||'tag-fx-classic';
 }
 
-function getActiveRankBadge(u){
-  const tu=(u&&u.tempUnlocks&&typeof u.tempUnlocks==='object')?u.tempUnlocks:{};
+function canWearExclusiveAsset(u, key){
+  if(typeof isRankExclusiveKey!=='function'||!isRankExclusiveKey(key))return true;
+  if(!u)return false;
   const now=Date.now();
+  const grants=(u.devGrants&&typeof u.devGrants==='object')?u.devGrants:{};
+  if(Number(grants[key]||0)>now)return true;
+  if(u.accountType!=='account')return false;
+  const tu=(u.tempUnlocks&&typeof u.tempUnlocks==='object')?u.tempUnlocks:{};
+  const rv=(u.rankVerified&&typeof u.rankVerified==='object')?u.rankVerified:{};
+  return Number(tu[key]||0)>now && Number(rv[key]||0)>now;
+}
+
+function getActiveRankBadge(u){
+  if(!u)return null;
   for(const rk of [1,2,3]){
-    if(Number(tu['badge:lb_top'+rk]||0)>now && typeof LB_EXCLUSIVE_ASSETS!=='undefined' && LB_EXCLUSIVE_ASSETS[rk]){
+    if(canWearExclusiveAsset(u,'badge:lb_top'+rk) && typeof LB_EXCLUSIVE_ASSETS!=='undefined' && LB_EXCLUSIVE_ASSETS[rk]){
       return LB_EXCLUSIVE_ASSETS[rk];
     }
   }
@@ -176,9 +187,9 @@ function freshDefaultProfile(targetUid, isGuest){
     tags:[isGuest?'Guest Pass':'Newbie'],
     accountType:isGuest?'guest':'account',accountId:'',authProvider:isGuest?'anonymous':'google.com',
     coins:50,exp:0,charm:0,charmSent:0,giftWallet:{},
-    dailyCoinsByDay:{},claimedByDay:{},friends:[],tempUnlocks:{},done:{},bioStyle:'',
+    dailyCoinsByDay:{},claimedByDay:{},friends:[],tempUnlocks:{},rankVerified:{},devGrants:{},done:{},bioStyle:'',
     unreadFrom:{},activeDays:[today()],referredBy:'',referralRewardClaimed:false,
-    lastLoginBonusDay:'',poemReqDay:'',usageSec:0,banned:false,resetAt:0,lastRewardedLevel:1,lastSeen:Date.now()
+    lastLoginBonusDay:'',poemReqDay:'',usageSec:0,banned:false,resetAt:0,devStatsUpdatedAt:0,giftResetAt:0,lastRewardedLevel:1,lastSeen:Date.now()
   };
 }
 
@@ -198,7 +209,7 @@ function sanitizeDailyMap(rawMap){
 function normalizeProfile(p,targetUid){
   const isGuest=targetUid===guestUid && (!p || p.accountType!=='account');
   const o={...freshDefaultProfile(targetUid,isGuest),...JSON.parse(JSON.stringify(p||{})),uid:targetUid};
-  ['dailyCoinsByDay','claimedByDay','tempUnlocks','unreadFrom','done','giftWallet'].forEach(k=>{if(!o[k]||typeof o[k]!=='object'||Array.isArray(o[k]))o[k]={}});
+  ['dailyCoinsByDay','claimedByDay','tempUnlocks','rankVerified','devGrants','unreadFrom','done','giftWallet'].forEach(k=>{if(!o[k]||typeof o[k]!=='object'||Array.isArray(o[k]))o[k]={}});
   o.friends=Array.isArray(o.friends)?o.friends:[];
   o.activeDays=Array.isArray(o.activeDays)?o.activeDays:[];
   if(!o.activeDays.includes(today()))o.activeDays.push(today());
@@ -210,15 +221,26 @@ function normalizeProfile(p,targetUid){
   o.charmSent=clampSafeInt(o.charmSent||0,0,MAX_COINS);
   o.streakDays=calcStreak(o.activeDays);
   o.resetAt=Number(o.resetAt||0);
+  o.devStatsUpdatedAt=Number(o.devStatsUpdatedAt||0);
+  o.giftResetAt=Number(o.giftResetAt||0);
   o.lastRewardedLevel=Math.max(1,clampSafeInt(o.lastRewardedLevel||calcLevel(o.exp),1,MAX_LEVEL));
   o.lastSeen=Date.now();
 
-  const live=k=>Number(o.tempUnlocks[k]||0)>Date.now();
+  const live=k=>{
+    if(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(k))return canWearExclusiveAsset(o,k);
+    return Number(o.tempUnlocks[k]||0)>Date.now();
+  };
   const isFreeAvatar=a=>(typeof FX_FREE_AVATARS!=='undefined'?FX_FREE_AVATARS:USER_AVATARS).includes(a);
 
+  /* Clean leaked unverified Top 1-3 tempUnlocks immediately */
+  Object.keys(o.tempUnlocks).forEach(k=>{
+    if(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(k)&&!canWearExclusiveAsset(o,k)){
+      delete o.tempUnlocks[k];
+    }
+  });
+
   if(isDevAccount(o)){
-    /* Developer Profile Rules: do NOT force or pre-equip random/unpurchased cosmetics!
-       Keep Developer profile clean and controllable, only keeping items owned/free. */
+    /* Developer Profile Rules: keep Developer profile clean and controllable, only keeping items owned/free. */
     if(!o.avatar || (!isFreeAvatar(o.avatar) && !live('avatar:'+o.avatar)))o.avatar='🦊';
     if(o.frame && o.frame!=='none' && !live('frame:'+o.frame))o.frame='none';
     if(o.banner && o.banner!=='bn-aurora' && !live('banner:'+o.banner))o.banner='bn-aurora';
@@ -251,11 +273,22 @@ function getUserTodayPts(u){
 }
 
 let devMode=isDevAccount(me);
+let usersHydrated=false;
+function isDevSession(){
+  if(devMode||isDevAccount(me))return true;
+  try{
+    if(typeof auth!=='undefined'&&auth&&auth.currentUser&&!auth.currentUser.isAnonymous){
+      const em=String(auth.currentUser.email||'').trim().toLowerCase();
+      if(em===DEV_LOGIN_ID){devMode=true;return true}
+    }
+  }catch{}
+  return false;
+}
 function refreshDevMode(){
-  devMode=isDevAccount(me);
+  devMode=isDevAccount(me)||isDevSession();
   return devMode;
 }
-function needLogin(what){if(devMode||me.accountType==='account')return false;toast('Sign in with Google to use '+what);return true}
+function needLogin(what){if(isDevSession()||me.accountType==='account')return false;toast('Sign in with Google to use '+what);return true}
 
 function sanitizeUserAppearance(u){
   const copy={...(u||{})};
@@ -266,11 +299,24 @@ function sanitizeUserAppearance(u){
     if(copy.frame==='dev')copy.frame='none';
     if(copy.banner==='bn-dev')copy.banner='bn-aurora';
   }
+  /* Strictly block leaked Top 1-3 exclusive assets on any player without verified eligibility or dev grant */
+  if(copy.frame && typeof isRankExclusiveKey==='function' && isRankExclusiveKey('frame:'+copy.frame) && !canWearExclusiveAsset(copy,'frame:'+copy.frame)){
+    copy.frame='none';
+  }
+  if(copy.banner && typeof isRankExclusiveKey==='function' && isRankExclusiveKey('banner:'+copy.banner) && !canWearExclusiveAsset(copy,'banner:'+copy.banner)){
+    copy.banner='bn-aurora';
+  }
+  if(copy.avatar && typeof isRankExclusiveKey==='function' && isRankExclusiveKey('avatar:'+copy.avatar) && !canWearExclusiveAsset(copy,'avatar:'+copy.avatar)){
+    copy.avatar='🦊';
+  }
   return copy;
 }
 
 function isUnlocked(key){
   if(['frame:none','banner:bn-aurora','text:','msg:','bio:'].includes(key))return true;
+  if(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(key)){
+    return canWearExclusiveAsset(me,key);
+  }
   if(key.startsWith('avatar:')){
     const em=key.slice(7);
     if((typeof FX_FREE_AVATARS!=='undefined'?FX_FREE_AVATARS:USER_AVATARS).includes(em))return true;
@@ -278,7 +324,7 @@ function isUnlocked(key){
   if(key.startsWith('tag:')){
     const tg=key.slice(4);
     if(FREE_TAGS.includes(tg))return true;
-    if(devMode && (tg==='Developer'||tg==='LVL 99'))return true;
+    if(isDevSession() && (tg==='Developer'||tg==='LVL 99'))return true;
   }
   return Number(me.tempUnlocks[key]||0)>Date.now();
 }
@@ -376,7 +422,8 @@ const base=()=>({
   exp:clampExp(me.exp),charm:clampSafeInt(me.charm||0,0,MAX_COINS),charmSent:clampSafeInt(me.charmSent||0,0,MAX_COINS),
   giftWallet:me.giftWallet||{},
   dailyCoinsByDay:sanitizeDailyMap(me.dailyCoinsByDay),claimedByDay:me.claimedByDay,
-  friends:me.friends,tempUnlocks:me.tempUnlocks,resetAt:Number(me.resetAt||0),lastSeen:Date.now()
+  friends:me.friends,tempUnlocks:me.tempUnlocks,rankVerified:me.rankVerified||{},devGrants:me.devGrants||{},
+  resetAt:Number(me.resetAt||0),devStatsUpdatedAt:Number(me.devStatsUpdatedAt||0),giftResetAt:Number(me.giftResetAt||0),lastSeen:Date.now()
 });
 
 function patchUser(id,obj){let u=users.find(x=>x.uid===id);if(!u){u={uid:id};users.push(u)}Object.assign(u,obj);ls.set('sg_users_cache',users)}
@@ -507,35 +554,168 @@ function addReward(coinsDelta, expDelta, taskId, noLb, opts){
 
 /* Developer-only Reset Coins & EXP to 0 (also cleans today's leaderboard points) */
 function devResetUserProgress(targetUid){
-  if(!devMode)return toast('Developer only');
+  if(!isDevSession())return toast('Developer only');
   const d=today();
   const ts=Date.now();
   const cleanDaily={[d]:0};
   if(targetUid===uid){
-    me.coins=0;me.exp=0;me.dailyCoinsByDay=cleanDaily;me.resetAt=ts;me.lastRewardedLevel=1;
+    me.coins=0;me.exp=0;me.dailyCoinsByDay=cleanDaily;me.resetAt=ts;me.devStatsUpdatedAt=ts;me.lastRewardedLevel=1;
     saveMe();updateHud();
     if(typeof buildProfile==='function')buildProfile();
   }
-  patchUser(targetUid,{coins:0,exp:0,dailyCoinsByDay:cleanDaily,resetAt:ts});
-  dbOp(()=>F.setDoc(userRef(targetUid),{coins:0,exp:0,dailyCoinsByDay:cleanDaily,resetAt:ts},{merge:true}),()=>toast('Sync failed — check Firestore rules'));
+  patchUser(targetUid,{coins:0,exp:0,dailyCoinsByDay:cleanDaily,resetAt:ts,devStatsUpdatedAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{coins:0,exp:0,dailyCoinsByDay:cleanDaily,resetAt:ts,devStatsUpdatedAt:ts},{merge:true}),()=>toast('Sync failed — check Firestore rules'));
   renderAll();
   toast('Coins, EXP & Today points reset to 0');
 }
 
 function devAdjustUserCoins(targetUid, delta){
-  if(!devMode)return toast('Developer only');
+  if(!isDevSession())return toast('Developer only');
   const n=clampSafeInt(delta,-MAX_COINS,MAX_COINS);
   if(!n)return toast('Enter a valid non-zero amount');
+  const ts=Date.now();
   const existing=allUsers().find(x=>x.uid===targetUid)||{coins:0};
   const nc=clampCoins(Number(existing.coins||0)+n);
   if(targetUid===uid){
-    me.coins=nc;saveMe();updateHud();
+    me.coins=nc;me.devStatsUpdatedAt=ts;saveMe();updateHud();
     if(typeof buildProfile==='function')buildProfile();
   }
-  patchUser(targetUid,{coins:nc});
-  dbOp(()=>F.setDoc(userRef(targetUid),{coins:nc},{merge:true}),()=>toast('Sync failed — check Firestore rules'));
+  patchUser(targetUid,{coins:nc,devStatsUpdatedAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{coins:nc,devStatsUpdatedAt:ts},{merge:true}),()=>toast('Sync failed — check Firestore rules'));
   renderAll();
   toast('Coins '+(n>0?'+':'')+fmtNum(n)+' (Now: '+fmtNum(nc)+')');
+}
+
+function devAdjustUserCharm(targetUid, delta){
+  if(!isDevSession())return toast('Developer only');
+  const n=clampSafeInt(delta,-MAX_COINS,MAX_COINS);
+  if(!n)return toast('Enter a valid Charm amount');
+  const ts=Date.now();
+  const existing=allUsers().find(x=>x.uid===targetUid)||{uid:targetUid,charm:0,giftWallet:{}};
+  const curStats=typeof getGiftWallStatsForUser==='function'?getGiftWallStatsForUser(existing):{totalCharm:existing.charm||0,counts:existing.giftWallet||{}};
+  const nextCharm=clampSafeInt(Number(curStats.totalCharm||0)+n,0,MAX_COINS);
+  const snapWallet={...(curStats.counts||{})};
+  if(targetUid===uid){
+    me.charm=nextCharm;me.giftWallet=snapWallet;me.devStatsUpdatedAt=ts;me.giftResetAt=ts;saveMe();
+    if(typeof buildProfile==='function')buildProfile();
+  }
+  patchUser(targetUid,{charm:nextCharm,giftWallet:snapWallet,devStatsUpdatedAt:ts,giftResetAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{charm:nextCharm,giftWallet:snapWallet,devStatsUpdatedAt:ts,giftResetAt:ts},{merge:true}),()=>toast('Sync failed — check Firestore rules'));
+  renderAll();
+  toast('Charm '+(n>0?'+':'')+fmtNum(n)+' (Now: '+fmtNum(nextCharm)+')');
+}
+
+function devResetUserCharm(targetUid){
+  if(!isDevSession())return toast('Developer only');
+  const ts=Date.now();
+  const existing=allUsers().find(x=>x.uid===targetUid)||{uid:targetUid,giftWallet:{}};
+  const curStats=typeof getGiftWallStatsForUser==='function'?getGiftWallStatsForUser(existing):{counts:existing.giftWallet||{}};
+  const snapWallet={...(curStats.counts||{})};
+  if(targetUid===uid){
+    me.charm=0;me.giftWallet=snapWallet;me.devStatsUpdatedAt=ts;me.giftResetAt=ts;saveMe();
+    if(typeof buildProfile==='function')buildProfile();
+  }
+  patchUser(targetUid,{charm:0,giftWallet:snapWallet,devStatsUpdatedAt:ts,giftResetAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{charm:0,giftWallet:snapWallet,devStatsUpdatedAt:ts,giftResetAt:ts},{merge:true}),()=>toast('Sync failed — check Firestore rules'));
+  renderAll();
+  toast('Player Charm reset to 0');
+}
+
+function devAdjustUserGift(targetUid, giftId, delta){
+  if(!isDevSession())return toast('Developer only');
+  if(typeof GIFT_BY_ID==='undefined'||!GIFT_BY_ID[giftId])return toast('Gift not found');
+  const n=clampSafeInt(delta,-9999,9999);
+  if(!n)return toast('Enter a valid gift quantity');
+  const ts=Date.now();
+  const existing=allUsers().find(x=>x.uid===targetUid)||{uid:targetUid,charm:0,giftWallet:{}};
+  const curStats=typeof getGiftWallStatsForUser==='function'?getGiftWallStatsForUser(existing):{totalCharm:existing.charm||0,counts:existing.giftWallet||{}};
+  const nextWallet={...(curStats.counts||{})};
+  const nextCnt=clampSafeInt(Number(nextWallet[giftId]||0)+n,0,MAX_COINS);
+  if(nextCnt<=0)delete nextWallet[giftId];
+  else nextWallet[giftId]=nextCnt;
+  const g=GIFT_BY_ID[giftId];
+  const nextCharm=clampSafeInt(Number(curStats.totalCharm||0)+(n*Number(g.charm||0)),0,MAX_COINS);
+
+  if(n<0 && typeof giftEvents!=='undefined' && Array.isArray(giftEvents)){
+    const toRemove=giftEvents.filter(ev=>ev&&ev.toUid===targetUid&&ev.giftId===giftId);
+    toRemove.forEach(ev=>{if(ev.id)dbOp(()=>F.deleteDoc(F.doc(db,'gift_events',ev.id)))});
+    giftEvents=giftEvents.filter(ev=>!(ev&&ev.toUid===targetUid&&ev.giftId===giftId));
+    ls.set('sg_gift_events',giftEvents);
+  }
+  if(targetUid===uid){
+    me.giftWallet=nextWallet;me.charm=nextCharm;me.devStatsUpdatedAt=ts;me.giftResetAt=ts;saveMe();
+    if(typeof buildProfile==='function')buildProfile();
+  }
+  patchUser(targetUid,{giftWallet:nextWallet,charm:nextCharm,devStatsUpdatedAt:ts,giftResetAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{giftWallet:nextWallet,charm:nextCharm,devStatsUpdatedAt:ts,giftResetAt:ts},{merge:true}),()=>toast('Sync failed — check Firestore rules'));
+  renderAll();
+  toast(`${g.name} ${n>0?'+':''}${n} (Now: x${nextCnt})`);
+}
+
+function devClearUserGiftWall(targetUid){
+  if(!isDevSession())return toast('Developer only');
+  const ts=Date.now();
+  if(typeof giftEvents!=='undefined'&&Array.isArray(giftEvents)){
+    const toDelete=giftEvents.filter(ev=>ev&&ev.toUid===targetUid);
+    toDelete.forEach(ev=>{if(ev.id)dbOp(()=>F.deleteDoc(F.doc(db,'gift_events',ev.id)))});
+    giftEvents=giftEvents.filter(ev=>!(ev&&ev.toUid===targetUid));
+    ls.set('sg_gift_events',giftEvents);
+  }
+  if(targetUid===uid){
+    me.giftWallet={};me.charm=0;me.devStatsUpdatedAt=ts;me.giftResetAt=ts;saveMe();
+    if(typeof buildProfile==='function')buildProfile();
+  }
+  patchUser(targetUid,{giftWallet:{},charm:0,devStatsUpdatedAt:ts,giftResetAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{giftWallet:{},charm:0,devStatsUpdatedAt:ts,giftResetAt:ts},{merge:true}),()=>toast('Sync failed — check Firestore rules'));
+  renderAll();
+  toast('Player Gift Wall & Received Gifts cleared');
+}
+
+function devGrantTopRankSet(targetUid, rank, days=1){
+  if(!isDevSession())return toast('Developer only');
+  const rk=Math.max(1,Math.min(3,Number(rank)||1));
+  const def=typeof LB_EXCLUSIVE_ASSETS!=='undefined'&&LB_EXCLUSIVE_ASSETS[rk]?LB_EXCLUSIVE_ASSETS[rk]:null;
+  if(!def)return;
+  const ts=Date.now(), until=ts+Math.max(1,Number(days||1))*864e5;
+  const existing=allUsers().find(x=>x.uid===targetUid)||{uid:targetUid};
+  const nextTemp={...(existing.tempUnlocks||{})};
+  const nextGrants={...(existing.devGrants||{})};
+  ['frame:'+def.frame,'banner:'+def.banner,'avatar:'+def.avatar,'badge:lb_top'+rk].forEach(k=>{
+    nextTemp[k]=until;nextGrants[k]=until;
+  });
+  const payload={tempUnlocks:nextTemp,devGrants:nextGrants,frame:def.frame,devStatsUpdatedAt:ts};
+  if(targetUid===uid){
+    me.tempUnlocks=nextTemp;me.devGrants=nextGrants;me.frame=def.frame;me.devStatsUpdatedAt=ts;saveMe();
+    if(typeof buildProfile==='function')buildProfile();
+  }
+  patchUser(targetUid,payload);
+  dbOp(()=>F.setDoc(userRef(targetUid),payload,{merge:true}));
+  renderAll();
+  toast(`Granted Top #${rk} Exclusive Set (${days}D)`);
+}
+
+function devRevokeTopRankSet(targetUid){
+  if(!isDevSession())return toast('Developer only');
+  const ts=Date.now();
+  const existing=allUsers().find(x=>x.uid===targetUid)||{uid:targetUid};
+  const nextTemp={...(existing.tempUnlocks||{})};
+  const nextVerified={...(existing.rankVerified||{})};
+  const nextGrants={...(existing.devGrants||{})};
+  Object.keys(nextTemp).forEach(k=>{if(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(k))delete nextTemp[k]});
+  Object.keys(nextVerified).forEach(k=>{if(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(k))delete nextVerified[k]});
+  Object.keys(nextGrants).forEach(k=>{if(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(k))delete nextGrants[k]});
+  const nextFrame=typeof isRankExclusiveKey==='function'&&isRankExclusiveKey('frame:'+existing.frame)?'none':(existing.frame||'none');
+  const nextBanner=typeof isRankExclusiveKey==='function'&&isRankExclusiveKey('banner:'+existing.banner)?'bn-aurora':(existing.banner||'bn-aurora');
+  const nextAvatar=typeof isRankExclusiveKey==='function'&&isRankExclusiveKey('avatar:'+existing.avatar)?'🦊':(existing.avatar||'🦊');
+  const payload={tempUnlocks:nextTemp,rankVerified:nextVerified,devGrants:nextGrants,frame:nextFrame,banner:nextBanner,avatar:nextAvatar,devStatsUpdatedAt:ts};
+  if(targetUid===uid){
+    Object.assign(me,payload);saveMe();
+    if(typeof buildProfile==='function')buildProfile();
+  }
+  patchUser(targetUid,payload);
+  dbOp(()=>F.setDoc(userRef(targetUid),payload,{merge:true}));
+  renderAll();
+  toast('Revoked Top 1–3 Exclusive Set');
 }
 
 function getInviteCode(){return me.accountType==='account'?'REF_'+uid.replace(/[^A-Z0-9]/gi,'').slice(-8).toUpperCase():''}
@@ -699,7 +879,49 @@ function toggleFriend(targetUid){
   if(typeof renderChats==='function')renderChats();
 }
 
+function resolvePlayerForProfile(targetUid){
+  if(!targetUid)return null;
+  const direct=allUsers().find(x=>x.uid===targetUid);
+  if(direct)return direct;
+  const wm=(worldMsgs||[]).slice().reverse().find(m=>m&&(m.uid===targetUid||m.fromUid===targetUid));
+  if(wm){
+    return sanitizeUserAppearance({
+      uid:targetUid,name:wm.name||wm.fromName||'Player',avatar:wm.avatar||'🦊',frame:wm.frame||'none',
+      banner:wm.banner||'bn-aurora',textStyle:wm.textStyle||'',tags:wm.tags||['Newbie'],
+      exp:wm.exp||0,coins:0,charm:0,giftWallet:{}
+    });
+  }
+  const wmRecip=(worldMsgs||[]).slice().reverse().find(m=>m&&m.toUid===targetUid);
+  if(wmRecip){
+    return sanitizeUserAppearance({
+      uid:targetUid,name:wmRecip.toName||'Player',avatar:'🦊',frame:'none',
+      banner:'bn-aurora',tags:['Newbie'],exp:0,coins:0,charm:0,giftWallet:{}
+    });
+  }
+  if(typeof chats!=='undefined'&&chats[targetUid]){
+    const c=chats[targetUid];
+    return sanitizeUserAppearance({uid:targetUid,name:c.name||'Player',avatar:'🦊',frame:'none',banner:'bn-aurora',tags:['Newbie'],exp:0,coins:0,charm:0,giftWallet:{}});
+  }
+  if(typeof devInbox!=='undefined'&&devInbox[targetUid]){
+    const d=devInbox[targetUid];
+    return sanitizeUserAppearance({uid:targetUid,name:d.name||'Player',avatar:d.avatar||'🦊',frame:d.frame||'none',banner:'bn-aurora',tags:['Newbie'],exp:0,coins:0,charm:0,giftWallet:{}});
+  }
+  if(typeof giftEvents!=='undefined'&&Array.isArray(giftEvents)){
+    const ge=giftEvents.find(ev=>ev&&(ev.fromUid===targetUid||ev.toUid===targetUid));
+    if(ge){
+      const isFrom=ge.fromUid===targetUid;
+      return sanitizeUserAppearance({
+        uid:targetUid,name:(isFrom?ge.fromName:ge.toName)||'Player',
+        avatar:(isFrom&&ge.fromAvatar)||'🦊',frame:(isFrom&&ge.fromFrame)||'none',
+        banner:'bn-aurora',tags:['Newbie'],exp:0,coins:0,charm:0,giftWallet:{}
+      });
+    }
+  }
+  return null;
+}
+
 function openPublicProfile(targetUid){
+  const devViewer=isDevSession();
   if(targetUid==='developer'||targetUid===DEV_UID){
     const realDev=allUsers().find(x=>isDevAccount(x))||{uid:DEV_UID,name:'Developer',avatar:'🦊',frame:'none',banner:'bn-aurora',tags:['Developer','LVL 99']};
     const isSelfDev=realDev.uid===uid;
@@ -712,17 +934,17 @@ function openPublicProfile(targetUid){
       </div>
       ${gwHtml}
     `,'pub-prof-sheet');
-    $('#pmDev',m).onclick=()=>{m.close();openThread('developer')};
+    $('#pmDev',m).onclick=()=>{m.close();showTab('chat');openThread('developer')};
     if($('#pmDevGift',m))$('#pmDevGift',m).onclick=()=>openGiftSendModal(realDev.uid,{targetName:realDev.name||'Developer'});
     if(typeof bindGiftWallEvents==='function')bindGiftWallEvents(m,realDev,isSelfDev);
     return;
   }
-  const u=allUsers().find(x=>x.uid===targetUid);if(!u)return toast('Player not found');
+  const u=resolvePlayerForProfile(targetUid);if(!u)return toast('Player not found');
   const self=u.uid===uid, fr=isFriend(u.uid);
-  const canSeeWallet=self||devMode;
-  const gwStats=typeof getGiftWallStatsForUser==='function'?getGiftWallStatsForUser(u):{totalCharm:u.charm||0};
+  const canSeeWallet=self||devViewer;
+  const gwStats=typeof getGiftWallStatsForUser==='function'?getGiftWallStatsForUser(u):{totalCharm:u.charm||0,totalReceivedCount:0};
   const walletMarkup=canSeeWallet
-    ? `<span class="chip" data-wallet-visible="1">${UI_SVG.coin} ${self?'Wallet':'Dev View · Wallet'}: ${fmtNum(u.coins)}</span> · `
+    ? `<span class="chip" data-wallet-visible="1">${UI_SVG.coin} ${self?'Wallet':'Total Coins'}: ${fmtNum(u.coins)}</span> · `
     : '';
   const gwHtml=typeof renderGiftWallHtml==='function'?renderGiftWallHtml(u,self):'';
 
@@ -734,6 +956,10 @@ function openPublicProfile(targetUid){
       </div>
       ${renderTags(u.tags,u)}
     </div>
+    ${devViewer&&!self?`<div class="dev-wallet-summary" data-dev-coin-panel="1">
+      <div><small>Developer Private Inspection</small><b>Total Wallet: ${fmtNum(u.coins)} 🪙</b></div>
+      <div class="dev-wallet-pills"><span>EXP: ${fmtNum(u.exp,MAX_EXP)}</span><span>·</span><span>Charm: ${fmtNum(gwStats.totalCharm)}</span><span>·</span><span>Gifts: ${fmtNum(gwStats.totalReceivedCount||0)}</span></div>
+    </div>`:''}
     <div class="card" style="margin-top:10px;font-size:13px"><div><b>Bio:</b> <span class="${esc(u.bioStyle||'')}">${esc(u.bio||'—')}</span></div>${u.streakDays?`<div style="margin-top:4px">🔥 ${u.streakDays} ${tr('streak')}</div>`:''}<div style="margin-top:4px"><b>Hobbies:</b> ${esc(u.hobbies||'—')}</div></div>
     ${!self?`<div class="row wrap" style="margin-top:10px"><button class="btn ${fr?'ghost':''}" id="pfAdd" style="flex:1">${fr?'Friends ✓':'Add Friend'}</button><button class="btn" id="pfMsg" style="flex:1">Message</button><button class="btn gold" id="pfGift" style="flex:1">Send Gift</button></div>`:''}
     ${gwHtml}
@@ -741,12 +967,83 @@ function openPublicProfile(targetUid){
 
   if(typeof bindGiftWallEvents==='function')bindGiftWallEvents(m,u,self);
 
-  if(devMode&&!self){
-    $('.sb',m).insertAdjacentHTML('beforeend',`<div class="card pf-dev-wallet"><b style="color:var(--gold)">Developer Tools</b><div class="row" style="margin-top:8px"><input id="dvCoin" type="number" placeholder="± coins" style="flex:1"><button class="btn sm gold" id="dvAdj">Apply</button></div><button class="btn ghost full" id="dvResetZero" style="margin-top:8px">${UI_SVG.reset} Reset Coins / EXP to 0</button><button class="btn ${u.banned?'ok':'red'} full" id="dvBan" style="margin-top:8px">${u.banned?'Unban':'Ban'} user</button></div>`);
+  if(devViewer&&!self){
+    const giftOpts=typeof GIFT_CATALOG!=='undefined'
+      ? GIFT_CATALOG.slice().reverse().map(g=>`<option value="${esc(g.id)}">${esc(g.name)} (${fmtNum(g.price)} 🪙 · +${fmtNum(g.charm)} Charm)</option>`).join('')
+      : '';
+    $('.sb',m).insertAdjacentHTML('beforeend',`
+      <div class="card pf-dev-wallet" data-dev-controls="1">
+        <div class="row" style="justify-content:space-between;margin-bottom:6px">
+          <b style="color:var(--gold)">Developer Player Controls</b>
+          <span class="p-tag p-tag-dev-sig" style="font-size:10px;padding:2px 8px">DEV ONLY</span>
+        </div>
+
+        <label style="margin-top:6px">Coins (Add or Subtract)</label>
+        <div class="row">
+          <input id="dvCoin" type="number" placeholder="e.g. 50000 or -500" style="flex:1">
+          <button type="button" class="btn sm gold" id="dvAdj">Apply</button>
+        </div>
+
+        <label style="margin-top:10px">Charm (Add, Remove, or Reset)</label>
+        <div class="row">
+          <input id="dvCharm" type="number" placeholder="e.g. 1000 or -500" style="flex:1">
+          <button type="button" class="btn sm" id="dvCharmAdj">Apply</button>
+          <button type="button" class="btn ghost sm" id="dvCharmReset">Reset 0</button>
+        </div>
+
+        ${giftOpts?`
+          <label style="margin-top:10px">Gift Wall (Add or Remove Gifts)</label>
+          <select id="dvGiftSel">${giftOpts}</select>
+          <div class="row" style="margin-top:6px">
+            <input id="dvGiftQty" type="number" value="1" min="1" max="999" style="width:84px" aria-label="Gift quantity">
+            <button type="button" class="btn sm ok" id="dvGiftAdd" style="flex:1">+ Add Gift</button>
+            <button type="button" class="btn sm red" id="dvGiftRem" style="flex:1">− Remove Gift</button>
+          </div>
+          <button type="button" class="btn ghost sm full" id="dvGiftClear" style="margin-top:6px">Clear Entire Gift Wall</button>
+        `:''}
+
+        <label style="margin-top:10px">Exclusive Top 1–3 Access</label>
+        <div class="row wrap" style="gap:6px">
+          <button type="button" class="btn sm gold" id="dvGrant1">Grant Top #1</button>
+          <button type="button" class="btn sm ghost" id="dvGrant2">Top #2</button>
+          <button type="button" class="btn sm ghost" id="dvGrant3">Top #3</button>
+          <button type="button" class="btn sm red" id="dvRevokeTop">Revoke Top Set</button>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <button type="button" class="btn ghost sm" id="dvResetZero" style="flex:1">${UI_SVG.reset} Reset Coins/EXP</button>
+          <button type="button" class="btn ${u.banned?'ok':'red'} sm" id="dvBan" style="flex:1">${u.banned?'Unban':'Ban'} User</button>
+        </div>
+      </div>
+    `);
     $('#dvAdj',m).onclick=()=>{
       const n=Math.trunc(+$('#dvCoin',m).value);if(!n)return toast('Enter coin amount');
       devAdjustUserCoins(u.uid,n);m.close();openPublicProfile(u.uid);
     };
+    $('#dvCharmAdj',m).onclick=()=>{
+      const n=Math.trunc(+$('#dvCharm',m).value);if(!n)return toast('Enter Charm amount');
+      devAdjustUserCharm(u.uid,n);m.close();openPublicProfile(u.uid);
+    };
+    $('#dvCharmReset',m).onclick=()=>{
+      devResetUserCharm(u.uid);m.close();openPublicProfile(u.uid);
+    };
+    if($('#dvGiftAdd',m)){
+      $('#dvGiftAdd',m).onclick=()=>{
+        const gid=$('#dvGiftSel',m).value, q=Math.max(1,Math.trunc(+$('#dvGiftQty',m).value||1));
+        devAdjustUserGift(u.uid,gid,q);m.close();openPublicProfile(u.uid);
+      };
+      $('#dvGiftRem',m).onclick=()=>{
+        const gid=$('#dvGiftSel',m).value, q=Math.max(1,Math.trunc(+$('#dvGiftQty',m).value||1));
+        devAdjustUserGift(u.uid,gid,-q);m.close();openPublicProfile(u.uid);
+      };
+      $('#dvGiftClear',m).onclick=()=>{
+        devClearUserGiftWall(u.uid);m.close();openPublicProfile(u.uid);
+      };
+    }
+    $('#dvGrant1',m).onclick=()=>{devGrantTopRankSet(u.uid,1,1);m.close();openPublicProfile(u.uid)};
+    $('#dvGrant2',m).onclick=()=>{devGrantTopRankSet(u.uid,2,1);m.close();openPublicProfile(u.uid)};
+    $('#dvGrant3',m).onclick=()=>{devGrantTopRankSet(u.uid,3,1);m.close();openPublicProfile(u.uid)};
+    $('#dvRevokeTop',m).onclick=()=>{devRevokeTopRankSet(u.uid);m.close();openPublicProfile(u.uid)};
     $('#dvResetZero',m).onclick=()=>{
       devResetUserProgress(u.uid);m.close();openPublicProfile(u.uid);
     };

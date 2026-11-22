@@ -81,14 +81,82 @@ const SFX = (() => {
         return true;
       }
       case 'giftSend': {
-        const tier = Math.max(1, Math.min(6, Number(opts.tier || 1)));
-        const base = 523.25 * (1 + (tier - 1) * 0.06);
+        const tier = Math.max(1, Math.min(7, Number(opts.tier || 1)));
+        const base = 523.25 * (1 + (tier - 1) * 0.055);
         tone(c, base, 0, 0.1, 'triangle', 0.085);
         tone(c, base * 1.25, 0.065, 0.12, 'sine', 0.09);
         tone(c, base * 1.5, 0.13, 0.18, 'sine', 0.095);
         if (tier >= 4 || Number(opts.qty || 1) >= 5) {
           tone(c, base * 2, 0.2, 0.24, 'triangle', 0.09);
         }
+        return true;
+      }
+      case 'carDrive': {
+        /* Synthesized Supercar Engine Ignition -> Rev -> Gear-Shift Drive-By */
+        try {
+          const isLambo = String(opts.model || '').includes('lambo');
+          const isBugatti = String(opts.model || '').includes('bugatti');
+          const root = isLambo ? 76 : (isBugatti ? 64 : 88);
+          const now = c.currentTime;
+
+          const filter = c.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(340, now);
+          filter.frequency.exponentialRampToValueAtTime(1400, now + 0.55);
+          filter.frequency.exponentialRampToValueAtTime(620, now + 0.72);
+          filter.frequency.exponentialRampToValueAtTime(2200, now + 1.55);
+          filter.frequency.exponentialRampToValueAtTime(420, now + 2.15);
+          filter.Q.value = 3.2;
+
+          const master = c.createGain();
+          master.gain.setValueAtTime(0.001, now);
+          master.gain.exponentialRampToValueAtTime(0.11, now + 0.12);
+          master.gain.setValueAtTime(0.11, now + 1.45);
+          master.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
+
+          const osc1 = c.createOscillator();
+          const osc2 = c.createOscillator();
+          osc1.type = 'sawtooth';
+          osc2.type = 'triangle';
+
+          // Rev 1 -> shift -> high-RPM roar -> Doppler pass
+          osc1.frequency.setValueAtTime(root, now);
+          osc1.frequency.exponentialRampToValueAtTime(root * 2.5, now + 0.52);
+          osc1.frequency.setValueAtTime(root * 1.65, now + 0.62);
+          osc1.frequency.exponentialRampToValueAtTime(root * 3.8, now + 1.5);
+          osc1.frequency.exponentialRampToValueAtTime(root * 1.35, now + 2.15);
+
+          osc2.frequency.setValueAtTime(root * 1.5, now);
+          osc2.frequency.exponentialRampToValueAtTime(root * 3.75, now + 0.52);
+          osc2.frequency.setValueAtTime(root * 2.45, now + 0.62);
+          osc2.frequency.exponentialRampToValueAtTime(root * 5.7, now + 1.5);
+          osc2.frequency.exponentialRampToValueAtTime(root * 2.0, now + 2.15);
+
+          osc1.connect(filter);
+          osc2.connect(filter);
+          filter.connect(master);
+          master.connect(c.destination);
+          osc1.start(now);
+          osc2.start(now);
+          osc1.stop(now + 2.25);
+          osc2.stop(now + 2.25);
+
+          // Crisp luxury chime accent at peak pass
+          tone(c, 1046.5, 1.35, 0.25, 'sine', 0.075);
+          tone(c, 1568, 1.48, 0.35, 'triangle', 0.07);
+        } catch {}
+        return true;
+      }
+      case 'palaceReveal': {
+        /* Grand Dream Palace Orchestral Harp Glissando + Royal Golden Swell */
+        const harp = [392.0, 493.88, 587.33, 783.99, 987.77, 1174.66, 1567.98, 1975.53];
+        harp.forEach((f, i) => tone(c, f, i * 0.085, 0.42, 'sine', 0.075));
+        tone(c, 261.63, 0.2, 1.25, 'triangle', 0.07);
+        tone(c, 392.0, 0.35, 1.25, 'triangle', 0.065);
+        tone(c, 523.25, 0.55, 1.3, 'sine', 0.08);
+        tone(c, 1046.5, 0.85, 0.9, 'sine', 0.075);
+        tone(c, 1318.5, 1.02, 0.85, 'triangle', 0.07);
+        tone(c, 1567.98, 1.18, 0.95, 'sine', 0.085);
         return true;
       }
       case 'giftReceive': {

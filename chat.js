@@ -90,12 +90,14 @@ function ingestRemoteDmDocs(dmDocs){
     };
     if(m.type==='duel'){m.gi=Number(docItem.gi)||0;m.accepted=false}
     if(m.type==='gift'){
+      m.fromUid=docItem.from||'';
+      m.toUid=docItem.to||'';
       m.giftId=docItem.giftId||'g01_rose';
       m.qty=clampSafeInt(docItem.qty||1,1,99);
       m.fromName=docItem.fromName||'Player';
       m.toName=docItem.toName||'Player';
       m.charm=clampSafeInt(docItem.charm||0,0,MAX_COINS);
-      m.luckyCoins=clampSafeInt(docItem.luckyCoins||0,0,50000);
+      m.luckyCoins=clampSafeInt(docItem.luckyCoins||0,0,250000);
       m.luckLabel=docItem.luckLabel||'Lucky Drop';
     }
     if(m.type==='red_packet'){
@@ -132,7 +134,7 @@ function resolveWorldSender(m){
   const live=allUsers().find(u=>u.uid===m.uid);
   if(live){
     return {
-      uid:live.uid,name:live.name||m.name||'Player',
+      uid:live.uid,name:live.name||m.name||m.fromName||'Player',
       avatar:live.avatar||m.avatar||'🦊',frame:live.frame||m.frame||'none',
       banner:live.banner||m.banner||'bn-aurora',textStyle:live.textStyle||m.textStyle||'',
       msgStyle:m.msgStyle||live.msgStyle||'',
@@ -142,7 +144,7 @@ function resolveWorldSender(m){
     };
   }
   return {
-    uid:m.uid||'',name:m.name||'Player',
+    uid:m.uid||m.fromUid||'',name:m.name||m.fromName||'Player',
     avatar:m.avatar||'🦊',frame:m.frame||'none',
     banner:m.banner||'bn-aurora',textStyle:m.textStyle||'',
     msgStyle:m.msgStyle||'',
@@ -185,7 +187,7 @@ function renderChats(){
   updateUnreadDots();
   const realDev=allUsers().find(u=>isDevAccount(u))||{uid:DEV_UID,avatar:'🦊',frame:'none'};
   const worldHtml=`<div class="world-card" data-th="world"><div class="av-wrap" style="--s:46px"><div class="av">${UI_SVG.globe}</div></div><div class="mid"><b>World Chat</b><small>${worldMsgs.length} msgs · 7-day history · Show off your profile</small></div></div>`;
-  const devHtml=`<div class="dev" data-th="developer">${av(realDev,46)}<div class="mid"><b>Developer</b><div class="tags"><span class="p-tag p-tag-dev-sig">Developer</span><span class="p-tag p-tag-lvl99-sig">LVL 99</span></div></div></div>`;
+  const devHtml=`<div class="dev" data-th="developer"><button type="button" class="th-av-btn" data-chatprof="${esc(realDev.uid)}" title="View Developer Profile" aria-label="View Developer Profile">${av(realDev,46)}</button><div class="mid"><b>Developer</b><div class="tags"><span class="p-tag p-tag-dev-sig">Developer</span><span class="p-tag p-tag-lvl99-sig">LVL 99</span></div></div></div>`;
 
   const dmThreads=Object.values(chats).filter(t=>t&&!t.dev&&(t.uid||t.id)&&t.id!==uid).sort((a,b)=>{
     const at=(a.messages&&a.messages.length)?a.messages[a.messages.length-1].ts:0;
@@ -199,13 +201,13 @@ function renderChats(){
     const dot=(me.unreadFrom&&me.unreadFrom[peerUid])?'<span class="red-dot"></span>':'';
     const last=t.messages&&t.messages.length?t.messages[t.messages.length-1]:null;
     const preview=last?(last.type==='red_packet'?'🧧 Red Packet Coin Gift':(last.type==='gift'?'🎁 Sent a Gift':(last.type==='duel'?'🎯 60s MCQ Duel':last.text))):peerUid;
-    return `<div class="th" data-th="${esc(t.id)}">${av(peerUser,44)}<div class="mid"><b>${styledName(peerUser)}</b><small>${esc(preview)}</small></div>${dot}</div>`;
+    return `<div class="th" data-th="${esc(t.id)}"><button type="button" class="th-av-btn" data-chatprof="${esc(peerUid)}" title="View Player Profile" aria-label="View ${esc(peerUser.name||'Player')} Profile">${av(peerUser,44)}</button><div class="mid"><b>${styledName(peerUser)}</b><small>${esc(preview)}</small></div>${dot}</div>`;
   }).join('');
 
   if(devMode){
     const inboxHtml=Object.values(devInbox).filter(x=>x&&x.uid&&x.uid!==uid).map(th=>{
       const dot=(me.unreadFrom&&me.unreadFrom[th.uid])?'<span class="red-dot"></span>':'';
-      return `<div class="th" data-th="inbox:${esc(th.uid)}">${av(th,42)}<div class="mid"><b>[Inbox] ${esc(th.name||th.uid)}</b><small>${esc(th.uid)}</small></div>${dot}</div>`;
+      return `<div class="th" data-th="inbox:${esc(th.uid)}"><button type="button" class="th-av-btn" data-chatprof="${esc(th.uid)}" title="View Player Profile" aria-label="View ${esc(th.name||th.uid)} Profile">${av(th,42)}</button><div class="mid"><b>[Inbox] ${esc(th.name||th.uid)}</b><small>${esc(th.uid)}</small></div>${dot}</div>`;
     }).join('');
     $('#chatList').innerHTML=worldHtml+devHtml+dmHtml+inboxHtml;
     return;
@@ -219,7 +221,16 @@ $('#clearDevInboxBtn').onclick=()=>{
   Object.keys(devInbox).forEach(k=>dbOp(()=>F.deleteDoc(F.doc(db,'dev_inbox',k))));
   devInbox={};ls.set('sg_dev_inbox',devInbox);renderChats();toast('Inbox cleared');
 };
-$('#chatList').onclick=e=>{const c=e.target.closest('[data-th]');if(c)openThread(c.dataset.th)};
+$('#chatList').onclick=e=>{
+  const cp=e.target.closest('[data-chatprof]');
+  if(cp&&cp.dataset.chatprof){
+    e.stopPropagation();
+    openPublicProfile(cp.dataset.chatprof);
+    return;
+  }
+  const c=e.target.closest('[data-th]');
+  if(c)openThread(c.dataset.th);
+};
 
 function openThread(id){
   cur=id;
@@ -272,10 +283,14 @@ function renderThread(){
   const isInbox=cur.startsWith('inbox:');
   const t=isInbox?devInbox[cur.slice(6)]:chats[cur];
   if(!t)return;
-  const peerUser=!t.dev?allUsers().find(u=>u.uid===(t.uid||cur)):null;
+  const realDevUser=allUsers().find(u=>isDevAccount(u))||{uid:DEV_UID,name:'Developer',avatar:'🦊',frame:'none'};
+  const peerUid=t.dev?realDevUser.uid:(t.uid||(isInbox?cur.slice(6):cur));
+  const peerUser=t.dev?realDevUser:(allUsers().find(u=>u.uid===peerUid)||{uid:peerUid,name:t.name||peerUid,avatar:'🦊',frame:'none'});
   $('#thHead').className='thh'+(t.dev?' dv':'');
-  $('#thHead').innerHTML=`<button class="x" id="thBack" aria-label="Back">←</button>${peerUser?av(peerUser,36):''}<div class="mid"><b>${t.dev?'<span class="anim-firetxt">Developer</span>':(peerUser?styledName(peerUser):esc(t.name))}</b><small>${esc(t.uid||'7-day chat history')}</small></div>${devMode&&isInbox?`<button class="btn red sm" id="clrSingle">Clear</button>`:''}`;
+  $('#thHead').innerHTML=`<button class="x" id="thBack" aria-label="Back">←</button><button type="button" class="th-prof-trigger" data-headprof="${esc(peerUid)}" title="Tap to view player profile">${av(peerUser,36)}<div class="mid"><b>${t.dev?'<span class="anim-firetxt">Developer</span>':styledName(peerUser)}</b><small>Tap for profile · ${esc(t.uid||'7-day chat history')}</small></div></button>${devMode&&isInbox?`<button class="btn red sm" id="clrSingle">Clear</button>`:''}`;
   $('#thBack').onclick=()=>{$('#thread').hidden=true;cur=null;renderChats()};
+  const headProfBtn=$('#thHead').querySelector('[data-headprof]');
+  if(headProfBtn)headProfBtn.onclick=()=>openPublicProfile(headProfBtn.dataset.headprof);
   if($('#clrSingle'))$('#clrSingle').onclick=()=>{
     if(!devMode)return;
     const tid=cur.slice(6);delete devInbox[tid];ls.set('sg_dev_inbox',devInbox);
@@ -424,6 +439,21 @@ $('#msgs').onclick=e=>{
   if(jRoom&&jRoom.dataset.joinroomcode){
     $('#thread').hidden=true;cur=null;showTab('games');
     if(typeof joinMultiplayerRoomByCode==='function')joinMultiplayerRoomByCode(jRoom.dataset.joinroomcode);
+    return;
+  }
+  const replayBtn=e.target.closest('[data-replaygift]');
+  if(replayBtn&&replayBtn.dataset.replaygift&&typeof showLuxuryGiftShowcase==='function'){
+    const gObj=typeof GIFT_BY_ID!=='undefined'?GIFT_BY_ID[replayBtn.dataset.replaygift]:null;
+    if(gObj){
+      showLuxuryGiftShowcase({
+        giftId:gObj.id,
+        fromName:replayBtn.dataset.replayfrom||'Player',
+        toName:replayBtn.dataset.replayto||'Player',
+        qty:Number(replayBtn.dataset.replayqty||1),
+        charm:Number(replayBtn.dataset.replaycharm||gObj.charm),
+        luckyCoins:Number(replayBtn.dataset.replaylucky||0)
+      },gObj);
+    }
     return;
   }
   const wprof=e.target.closest('[data-wprof]');

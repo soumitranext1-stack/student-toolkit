@@ -80,29 +80,37 @@ function rewardCardsHtml(){
 }
 
 function claimRankReward(){
-  if(!online||me.banned||devMode)return;
+  if(!online||!usersHydrated||me.banned||isDevSession())return;
+  if(me.accountType!=='account')return;
   const y=new Date(Date.now()-864e5).toISOString().slice(0,10);
   if(me.rankClaimDay===y||inFlightOps.has('rank_'+y))return;
   inFlightOps.add('rank_'+y);
-  me.rankClaimDay=y;
   try{
-    const pool=allUsers().filter(u=>!isDevAccount(u)).map(u=>({uid:u.uid,p:clampSafeInt(((u.uid===uid?me:u).dailyCoinsByDay||{})[y]||0,0,MAX_DAILY_PTS)})).filter(x=>x.p>0).sort((a,b)=>b.p-a.p);
+    /* Require >=2 qualified Google players earning >=25 coins yesterday so solo login bonus never leaks Top #1 */
+    const pool=allUsers()
+      .filter(u=>!isDevAccount(u)&&u.accountType==='account')
+      .map(u=>({uid:u.uid,p:clampSafeInt(((u.uid===uid?me:u).dailyCoinsByDay||{})[y]||0,0,MAX_DAILY_PTS)}))
+      .filter(x=>x.p>=25)
+      .sort((a,b)=>b.p-a.p);
+    me.rankClaimDay=y;
+    if(pool.length<2){saveMe();return}
     const pos=pool.findIndex(x=>x.uid===uid);
     const rk=pos+1;
     const r=pos>=0&&pos<3?(rankRewards.find(x=>x.rank===rk)||buildDefaultRankRewards()[pos]):null;
     if(r){
       const def=defaultRankAsset(rk);
-      const durMs=Math.max(1,Number(r.days||1))*864e5;
+      const durMs=Math.max(1,Math.min(7,Number(r.days||1)))*864e5;
       const until=Date.now()+durMs;
       const fv=r.frameVal||def.frame;
       const bv=r.bannerVal||def.banner;
       const avv=r.avatarVal||def.avatar;
       const bdg='lb_top'+rk;
 
-      me.tempUnlocks['frame:'+fv]=Math.max(Number(me.tempUnlocks['frame:'+fv]||0),until);
-      me.tempUnlocks['banner:'+bv]=Math.max(Number(me.tempUnlocks['banner:'+bv]||0),until);
-      me.tempUnlocks['avatar:'+avv]=Math.max(Number(me.tempUnlocks['avatar:'+avv]||0),until);
-      me.tempUnlocks['badge:'+bdg]=Math.max(Number(me.tempUnlocks['badge:'+bdg]||0),until);
+      me.rankVerified=me.rankVerified&&typeof me.rankVerified==='object'?me.rankVerified:{};
+      ['frame:'+fv,'banner:'+bv,'avatar:'+avv,'badge:'+bdg].forEach(k=>{
+        me.tempUnlocks[k]=Math.max(Number(me.tempUnlocks[k]||0),until);
+        me.rankVerified[k]=Math.max(Number(me.rankVerified[k]||0),until);
+      });
 
       if(!me.frame||me.frame==='none')me.frame=fv;
       addReward(clampCoins(r.rewardCoins||0),0,null,true,{skipLevelUp:false});
@@ -115,24 +123,26 @@ function claimRankReward(){
 }
 
 function renderRanking(){
+  const devViewer=isDevSession();
   const top3=rankableUsers().slice(0,3), podOrder=[top3[1],top3[0],top3[2]], podRanks=[2,1,3];
   $('#podiumSection').innerHTML=`<div class="podium-wrap"><div class="podium">${podOrder.map((u,i)=>{
     const rk=podRanks[i];
     const def=defaultRankAsset(rk);
-    const disp=u||{uid:'',name:'—',avatar:def.avatar,frame:def.frame,todayPts:0};
+    const disp=u||{uid:'',name:'—',avatar:def.avatar,frame:'none',todayPts:0,coins:0};
     return `<div class="pod ${rk===1?'p1':''}" ${u?`data-prof="${esc(u.uid)}"`:''}>
       <span class="lb-badge ${esc(def.badgeClass)}">TOP ${rk}</span>
       <div>${av(disp,rk===1?62:48)}</div>
       <b>${styledName(disp)}</b>
       <div class="pts">${UI_SVG.coin} +${fmtNum(disp.todayPts||0)}</div>
-      <small style="font-size:10px;color:var(--mu)">Today</small>
+      <small style="font-size:10px;color:var(--mu)">Today${devViewer&&u?` · Wallet ${fmtNum(u.coins)}`:''}</small>
     </div>`;
-  }).join('')}</div><div style="text-align:center;font-size:11px;color:var(--mu);margin-top:8px">Ranked by Today's earned coins (00:00 UTC reset) · Full wallet balances stay private</div></div>`;
+  }).join('')}</div><div style="text-align:center;font-size:11px;color:var(--mu);margin-top:8px">${devViewer?"Developer view: Total wallet balances visible alongside Today's earnings":"Ranked by Today's earned coins (00:00 UTC reset) · Full wallet balances stay private"}</div></div>`;
   $('#podiumSection').insertAdjacentHTML('beforeend',rewardCardsHtml());
   $('#rankList').innerHTML=rankableUsers().slice(3,50).map((u,i)=>{
     const rb=getActiveRankBadge(u);
     const giftBtnHtml=u.uid!==uid?`<button type="button" class="btn gold sm rk-gift-btn" data-rkgift="${esc(u.uid)}" aria-label="Send gift to ${esc(u.name||'Player')}">Gift</button>`:'';
-    return `<div class="row rk ${u.uid===uid?'me':''}" data-prof="${esc(u.uid)}"><div class="badge">#${i+4}</div>${av(u,44)}<div class="mid"><b>${styledName(u)} ${rb?`<span class="lb-badge ${esc(rb.badgeClass)}" style="font-size:9px;padding:1px 6px">${esc(rb.badge)}</span>`:''}</b><small>LVL ${fmtNum(calcLevel(u.exp),MAX_LEVEL)} · Charm ${fmtNum(u.charm||0)}</small></div>${giftBtnHtml}<div class="cn" title="Today's earnings">${UI_SVG.coin} +${fmtNum(u.todayPts||0)}</div></div>`;
+    const devWalletMeta=devViewer?` · <span style="color:var(--gold);font-weight:700" data-dev-row-wallet="1">Wallet ${fmtNum(u.coins)} 🪙</span>`:'';
+    return `<div class="row rk ${u.uid===uid?'me':''}" data-prof="${esc(u.uid)}"><div class="badge">#${i+4}</div>${av(u,44)}<div class="mid"><b>${styledName(u)} ${rb?`<span class="lb-badge ${esc(rb.badgeClass)}" style="font-size:9px;padding:1px 6px">${esc(rb.badge)}</span>`:''}</b><small>LVL ${fmtNum(calcLevel(u.exp),MAX_LEVEL)} · Charm ${fmtNum(u.charm||0)}${devWalletMeta}</small></div>${giftBtnHtml}<div class="cn" title="Today's earnings">${UI_SVG.coin} +${fmtNum(u.todayPts||0)}</div></div>`;
   }).join('')||'<div class="empty">Earn coins in Study Tasks &amp; Games to climb the Daily Leaderboard!</div>';
 }
 

@@ -29,21 +29,39 @@ function mergeAppearanceFromCloud(m){
   const localResetAt=Number(me.resetAt||0);
   const wasReset=cloudResetAt>localResetAt;
   const cloudIsStale=localResetAt>cloudResetAt;
+  const cloudDevStatAt=Number(m.devStatsUpdatedAt||0);
+  const localDevStatAt=Number(me.devStatsUpdatedAt||0);
+  const devOverride=cloudDevStatAt>localDevStatAt;
+  const cloudGiftResetAt=Number(m.giftResetAt||0);
+  const localGiftResetAt=Number(me.giftResetAt||0);
+  const giftOverridden=devOverride||cloudGiftResetAt>localGiftResetAt;
 
-  if(!cloudIsStale && typeof m.coins==='number'&&m._hasCoins!==false)me.coins=clampCoins(m.coins);
-  if(!cloudIsStale && typeof m.exp==='number'){
+  if((devOverride||!cloudIsStale) && typeof m.coins==='number'&&m._hasCoins!==false)me.coins=clampCoins(m.coins);
+  if((devOverride||!cloudIsStale) && typeof m.exp==='number'){
     const safeCloudExp=clampExp(m.exp);
-    me.exp=wasReset?safeCloudExp:Math.max(clampExp(me.exp),safeCloudExp);
+    me.exp=(wasReset||devOverride)?safeCloudExp:Math.max(clampExp(me.exp),safeCloudExp);
   }
   if(wasReset){
     me.resetAt=cloudResetAt;
     me.lastRewardedLevel=calcLevel(me.exp);
   }
+  if(devOverride){
+    me.devStatsUpdatedAt=cloudDevStatAt;
+  }
+  if(cloudGiftResetAt>localGiftResetAt){
+    me.giftResetAt=cloudGiftResetAt;
+  }
   if(typeof m.name==='string'&&m.name.trim())me.name=m.name.trim();
   if(typeof m.bio==='string')me.bio=m.bio;
   if(typeof m.hobbies==='string')me.hobbies=m.hobbies;
   if(m.tempUnlocks&&typeof m.tempUnlocks==='object'&&!Array.isArray(m.tempUnlocks)){
-    me.tempUnlocks={...me.tempUnlocks,...m.tempUnlocks};
+    me.tempUnlocks=devOverride?{...m.tempUnlocks}:{...me.tempUnlocks,...m.tempUnlocks};
+  }
+  if(m.rankVerified&&typeof m.rankVerified==='object'&&!Array.isArray(m.rankVerified)){
+    me.rankVerified=devOverride?{...m.rankVerified}:{...(me.rankVerified||{}),...m.rankVerified};
+  }
+  if(m.devGrants&&typeof m.devGrants==='object'&&!Array.isArray(m.devGrants)){
+    me.devGrants={...m.devGrants};
   }
   if(Array.isArray(m.tags)&&m.tags.length)me.tags=m.tags.slice(0,3);
   if(Array.isArray(m.friends))me.friends=m.friends;
@@ -60,8 +78,8 @@ function mergeAppearanceFromCloud(m){
   if(typeof m.textStyle==='string')me.textStyle=m.textStyle;
   if(typeof m.msgStyle==='string')me.msgStyle=m.msgStyle;
   if(typeof m.bioStyle==='string')me.bioStyle=m.bioStyle;
-  if(!cloudIsStale && m.dailyCoinsByDay&&typeof m.dailyCoinsByDay==='object'){
-    if(wasReset){
+  if((devOverride||!cloudIsStale) && m.dailyCoinsByDay&&typeof m.dailyCoinsByDay==='object'){
+    if(wasReset||devOverride){
       me.dailyCoinsByDay=sanitizeDailyMap(m.dailyCoinsByDay);
     }else{
       const o=sanitizeDailyMap(m.dailyCoinsByDay);
@@ -72,12 +90,22 @@ function mergeAppearanceFromCloud(m){
   if(m.claimedByDay&&typeof m.claimedByDay==='object'){
     me.claimedByDay={...m.claimedByDay,...me.claimedByDay};
   }
-  if(typeof m.charm==='number')me.charm=Math.max(clampSafeInt(me.charm||0,0,MAX_COINS),clampSafeInt(m.charm,0,MAX_COINS));
-  if(typeof m.charmSent==='number')me.charmSent=Math.max(clampSafeInt(me.charmSent||0,0,MAX_COINS),clampSafeInt(m.charmSent,0,MAX_COINS));
+  if(typeof m.charm==='number'){
+    me.charm=giftOverridden?clampSafeInt(m.charm,0,MAX_COINS):Math.max(clampSafeInt(me.charm||0,0,MAX_COINS),clampSafeInt(m.charm,0,MAX_COINS));
+  }
+  if(typeof m.charmSent==='number'){
+    me.charmSent=giftOverridden?clampSafeInt(m.charmSent,0,MAX_COINS):Math.max(clampSafeInt(me.charmSent||0,0,MAX_COINS),clampSafeInt(m.charmSent,0,MAX_COINS));
+  }
   if(m.giftWallet&&typeof m.giftWallet==='object'&&!Array.isArray(m.giftWallet)){
-    const gw={...(me.giftWallet||{})};
-    Object.entries(m.giftWallet).forEach(([k,v])=>{gw[k]=Math.max(Number(gw[k]||0),clampSafeInt(v,0,MAX_COINS))});
-    me.giftWallet=gw;
+    if(giftOverridden){
+      const nextGw={};
+      Object.entries(m.giftWallet).forEach(([k,v])=>{const n=clampSafeInt(v,0,MAX_COINS);if(n>0)nextGw[k]=n});
+      me.giftWallet=nextGw;
+    }else{
+      const gw={...(me.giftWallet||{})};
+      Object.entries(m.giftWallet).forEach(([k,v])=>{gw[k]=Math.max(Number(gw[k]||0),clampSafeInt(v,0,MAX_COINS))});
+      me.giftWallet=gw;
+    }
   }
   if(typeof m.banned==='boolean')me.banned=m.banned;
 
@@ -89,12 +117,14 @@ function mergeAppearanceFromCloud(m){
 
 async function adoptAuthUser(u){
   const hasGoogle=Array.isArray(u.providerData)&&u.providerData.some(p=>p&&p.providerId==='google.com');
-  const anon=u.isAnonymous||!hasGoogle;
-  const email=hasGoogle?String(u.email||'').trim().toLowerCase():'';
-  const authProvider=hasGoogle?'google.com':'anonymous';
+  const rawEmail=!u.isAnonymous?String(u.email||'').trim().toLowerCase():'';
+  const isAuthDev=!u.isAnonymous&&rawEmail===DEV_LOGIN_ID;
+  const anon=u.isAnonymous||(!hasGoogle&&!isAuthDev);
+  const email=(hasGoogle||isAuthDev)?rawEmail:'';
+  const authProvider=hasGoogle?'google.com':(isAuthDev?'google.com':'anonymous');
   if(u.uid===uid){
     me.accountType=anon?'guest':'account';me.accountId=email;me.authProvider=authProvider;
-    if(hasGoogle&&u.displayName&&/^guest /i.test(me.name||''))me.name=u.displayName.slice(0,24);
+    if((hasGoogle||isAuthDev)&&u.displayName&&/^guest /i.test(me.name||''))me.name=u.displayName.slice(0,24);
     me=normalizeProfile(me,uid);refreshDevMode();
     saveMe();applyDevUI();checkBan();
     patchUser(uid,base());dbOp(()=>F.setDoc(userRef(uid),base(),{merge:true}));
@@ -169,7 +199,7 @@ async function initFirebase(){
 
     S.onSnapshot(S.collection(db,'users'),snap=>{
       const docs=snap.docs.map(d=>sanitizeUserAppearance({uid:d.id,...d.data()}));
-      cleanupInactiveGuestUsers(docs);users=docs;ls.set('sg_users_cache',users);
+      cleanupInactiveGuestUsers(docs);users=docs;usersHydrated=true;ls.set('sg_users_cache',users);
       const m=users.find(x=>x.uid===uid);
       if(m){mergeAppearanceFromCloud(m);applyDevUI();checkBan()}
       setStatus(true);claimRankReward();checkReferralPayout();updateHud();renderAll();
@@ -193,7 +223,7 @@ async function initFirebase(){
       renderRanking();
     },()=>{});
 
-    /* World Chat with automatic 7-day cleanup + 150 msg cap + live incoming Sound FX */
+    /* World Chat with automatic 7-day cleanup + 150 msg cap + live incoming Sound FX & Luxury Showcase */
     let worldHydrated=false, prevWorldIds=new Set((worldMsgs||[]).map(x=>x.id));
     S.onSnapshot(S.collection(db,'world_chat'),snap=>{
       const now=Date.now();
@@ -211,13 +241,22 @@ async function initFirebase(){
         list.slice(0,list.length-150).forEach(old=>dbOp(()=>F.deleteDoc(F.doc(db,'world_chat',old.id))));
         list=list.slice(-150);
       }
-      if(worldHydrated&&typeof playSfx==='function'){
+      if(worldHydrated){
         const newlyAdded=list.filter(m=>m&&m.id&&!prevWorldIds.has(m.id)&&m.uid!==uid);
         if(newlyAdded.length){
           const lastNew=newlyAdded[newlyAdded.length-1];
-          if(lastNew.type==='red_packet')playSfx('redPacketDrop');
-          else if(lastNew.type==='gift')playSfx('giftReceive');
-          else if(cur==='world')playSfx('chatRecv');
+          if(lastNew.type==='red_packet'){
+            if(typeof playSfx==='function')playSfx('redPacketDrop');
+          }else if(lastNew.type==='gift'){
+            const gObj=(typeof GIFT_BY_ID!=='undefined'&&GIFT_BY_ID[lastNew.giftId])||null;
+            if(gObj&&gObj.tier>=7&&typeof showLuxuryGiftShowcase==='function'){
+              showLuxuryGiftShowcase(lastNew,gObj);
+            }else if(typeof playSfx==='function'){
+              playSfx('giftReceive');
+            }
+          }else if(cur==='world'&&typeof playSfx==='function'){
+            playSfx('chatRecv');
+          }
         }
       }
       worldHydrated=true;

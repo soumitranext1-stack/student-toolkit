@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14182b">
+<title>Trivia Rush</title>
+<link rel="stylesheet" href="gamekit.css">
+</head>
+<body>
+<div id="app">
+  <header><button class="ib" id="back">←</button><b class="ttl">🎓 Trivia Rush</b><div class="coin">🪙 <span id="coins">0</span></div></header>
+  <main id="main"></main>
+</div>
+<script src="gamekit.js"></script>
+<script>
+"use strict";
+const main=$('#main');
+/* Q(category, question, correct, wrong1, wrong2, wrong3) */
+const BANK=[];
+const Q=(c,q,a,...w)=>BANK.push({c,q,a,w});
+Q('Science','Chemical symbol of gold?','Au','Ag','Gd','Go');
+Q('Science','Largest planet ke rings sabse mashhoor kis planet ke hain?','Saturn','Jupiter','Uranus','Mars');
+Q('Science','Hawa me sabse zyada kaunsi gas hoti hai?','Nitrogen','Oxygen','Carbon dioxide','Argon');
+Q('Science','Electric current ki SI unit?','Ampere','Volt','Ohm','Watt');
+Q('Science','Dhoop se kaunsa vitamin milta hai?','Vitamin D','Vitamin A','Vitamin C','Vitamin K');
+Q('Science','Pani ka boiling point (°C)?','100','90','110','120');
+Q('Science','Earthquakes ke study ko kya kehte hain?','Seismology','Geology','Meteorology','Ecology');
+Q('Science','Insan ka sabse bada organ?','Skin','Liver','Heart','Lungs');
+Q('Science','Prakash ki gati lagbhag?','3×10⁸ m/s','3×10⁶ m/s','3×10⁵ m/s','3×10¹⁰ m/s');
+Q('History','Bharat ke pehle Prime Minister?','Jawaharlal Nehru','Sardar Patel','Lal Bahadur Shastri','Rajendra Prasad');
+Q('History','Bharat kis saal azaad hua?','1947','1942','1950','1935');
+Q('History','Bharat ka rashtra gaan kisne likha?','Rabindranath Tagore','Bankim Chandra','Sarojini Naidu','Iqbal');
+Q('History','Mughal samrajya ka sansthapak?','Babur','Akbar','Humayun','Aurangzeb');
+Q('History','Taj Mahal kisne banwaya?','Shah Jahan','Akbar','Jahangir','Babur');
+Q('History','Chand par pehla insan?','Neil Armstrong','Buzz Aldrin','Yuri Gagarin','Michael Collins');
+Q('History','Dusra vishwa yuddh kis saal khatam hua?','1945','1939','1918','1950');
+Q('History','Quit India Movement kis saal shuru hua?','1942','1930','1920','1947');
+Q('History','1492 me America kisne khoja (Europe se)?','Columbus','Vasco da Gama','Magellan','Cook');
+Q('Geography','Japan ki rajdhani?','Tokyo','Kyoto','Osaka','Seoul');
+Q('Geography','Duniya ki sabse lambi nadi?','Nile','Amazon','Ganga','Yangtze');
+Q('Geography','Sabse bada mahasagar?','Pacific','Atlantic','Indian','Arctic');
+Q('Geography','Sabse unchi chotti?','Mount Everest','K2','Kanchenjunga','Mont Blanc');
+Q('Geography','Kshetrafal me sabse bada desh?','Russia','Canada','China','USA');
+Q('Geography','Australia ki rajdhani?','Canberra','Sydney','Melbourne','Perth');
+Q('Geography','Duniya me kitne mahadweep hain?','7','5','6','8');
+Q('Geography','Sahara registan kis mahadweep me hai?','Africa','Asia','Australia','South America');
+Q('Geography','Sabse chhota desh?','Vatican City','Monaco','Malta','Nauru');
+Q('India','Bharat ki rajdhani?','New Delhi','Mumbai','Kolkata','Chennai');
+Q('India','Bharat ka rashtriya pashu?','Bengal Tiger','Lion','Elephant','Leopard');
+Q('India','Bharat ka rashtriya phool?','Lotus','Rose','Marigold','Jasmine');
+Q('India','Bharat ki sabse lambi nadi (Bharat ke andar)?','Ganga','Yamuna','Godavari','Brahmaputra');
+Q('India','Bharat ki mudra?','Rupee','Rupiah','Taka','Dinar');
+Q('India','Kshetrafal me Bharat ka sabse bada rajya?','Rajasthan','Madhya Pradesh','Maharashtra','Uttar Pradesh');
+Q('India','Taj Mahal kis shehar me hai?','Agra','Delhi','Jaipur','Lucknow');
+Q('India','Gateway of India kis shehar me hai?','Mumbai','Kolkata','Chennai','Goa');
+Q('India','Rashtra pita kise kehte hain?','Mahatma Gandhi','Subhash Bose','Bhagat Singh','Nehru');
+Q('GK','Rainbow me kitne rang hote hain?','7','5','6','8');
+Q('GK','Leap year me kitne din?','366','365','364','367');
+Q('GK','Hexagon ki kitni bhujaen hoti hain?','6','5','7','8');
+Q('GK','Sabse tez zameen par chalne wala janwar?','Cheetah','Lion','Horse','Leopard');
+Q('GK','Olympics kitne saal me hote hain?','4','2','3','5');
+Q('GK','HTML ka full form?','HyperText Markup Language','HighText Machine Language','HyperTool Markup Language','Home Text Markup Language');
+Q('GK','Microsoft ka founder?','Bill Gates','Steve Jobs','Elon Musk','Mark Zuckerberg');
+Q('GK','Sabse bada mammal?','Blue Whale','Elephant','Giraffe','Shark');
+Q('GK','Chess me har player ke paas kitne pieces hote hain?','16','12','14','18');
+const CATS=['All','Science','History','Geography','India','GK'];
+let cat='All',iv=0;
+
+function menu(){
+  clearInterval(iv);cat='All';
+  main.innerHTML=`<div class="card"><h3>🎓 Trivia Rush <span class="tag">FREE</span></h3>
+    <p class="mu">10 sawal, har sawal ke liye 15 second. Jaldi sahi jawab do to zyada points (10 + bacha hua time). Lifelines: ✂️ 50-50 aur ⏭ Skip (ek-ek baar).</p>
+    <label>Category</label><div class="chips" id="cat">${CATS.map(c=>`<button data-v="${c}" ${c==='All'?'class="on"':''}>${c}</button>`).join('')}</div>
+    <p class="mu" style="margin-top:10px">🏆 Best: <b>${bestGet('tr_best')}</b></p>
+    <button class="btn full" id="go">Start</button></div>
+    <div class="card"><p class="mu">Coins: max 20 🪙 per din, sirf registered players ko.</p></div>`;
+  pick('#cat',v=>cat=v);$('#go').onclick=play;
+}
+
+function play(){
+  const pool=shuffle(BANK.filter(x=>cat==='All'||x.c===cat)).slice(0,10);
+  let n=0,score=0,correct=0,use5050=false,useSkip=false;
+  const ask=()=>{
+    clearInterval(iv);
+    if(n>=pool.length)return finish();
+    const q=pool[n];n++;
+    const opts=shuffle([q.a,...q.w]);
+    let lock=false;const t0=Date.now(),limit=15000;
+    main.innerHTML=`<div class="hud"><span class="pill">Q ${n}/${pool.length}</span><span class="pill">${esc(q.c)}</span><span class="pill">Score ${score}</span></div>
+      <div class="tbar" id="tbar"><i id="tb"></i></div><div class="qbox sm">${esc(q.q)}</div>
+      <div id="o">${opts.map(o=>`<button class="opt" data-a="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+      <div class="row"><button class="btn ghost sm" style="flex:1" id="l1" ${use5050?'disabled':''}>✂️ 50-50</button><button class="btn ghost sm" style="flex:1" id="l2" ${useSkip?'disabled':''}>⏭ Skip</button></div><div class="fb" id="fb"></div>`;
+    const settle=pick=>{
+      if(lock)return;lock=true;clearInterval(iv);
+      const left=Math.max(0,limit-(Date.now()-t0))/1000,ok=pick===q.a;
+      if(ok){correct++;const p=10+Math.round(left);score+=p;$('#fb').textContent=`✅ Sahi! +${p}`}
+      else $('#fb').textContent=pick==null?'⏰ Time up':'❌ Galat';
+      $$('.opt').forEach(x=>{if(x.dataset.a===q.a)x.classList.add('good');else if(x.dataset.a===pick)x.classList.add('bad');else x.classList.add('off')});
+      setTimeout(ask,1300);
+    };
+    $('#o').onclick=e=>{const b=e.target.closest('.opt');if(b)settle(b.dataset.a)};
+    $('#l1').onclick=()=>{if(lock||use5050)return;use5050=true;$('#l1').disabled=true;shuffle($$('.opt').filter(x=>x.dataset.a!==q.a)).slice(0,2).forEach(x=>x.classList.add('off'))};
+    $('#l2').onclick=()=>{if(lock||useSkip)return;useSkip=true;lock=true;clearInterval(iv);ask()};
+    iv=setInterval(()=>{
+      const left=Math.max(0,limit-(Date.now()-t0));
+      $('#tb').style.width=(left/limit*100)+'%';$('#tbar').classList.toggle('low',left<5000);
+      if(left<=0)settle(null);
+    },100);
+  };
+  async function finish(){
+    const nb=bestSet('tr_best',score);
+    const r=await award('trivia',Math.floor(score/25),score/8);
+    result({emoji:correct>=8?'🏆':'🎓',title:`Score: ${score}`,lines:[`${correct}/${pool.length} sahi`,nb&&score>0?'🎉 Naya best!':`Best: ${bestGet('tr_best')}`],r,again:play,menu});
+  }
+  ask();
+}
+menu();
+</script>
+</body>
+</html>
