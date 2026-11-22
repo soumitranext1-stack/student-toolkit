@@ -27,8 +27,20 @@ function authMsg(e){
 
 function mergeAppearanceFromCloud(m){
   if(!m)return;
-  if(typeof m.coins==='number')me.coins=m.coins;
-  if(typeof m.exp==='number')me.exp=Math.max(me.exp,m.exp);
+  const cloudResetAt=Number(m.resetAt||0);
+  const localResetAt=Number(me.resetAt||0);
+  const wasReset=cloudResetAt>localResetAt;
+  const cloudIsStale=localResetAt>cloudResetAt;
+
+  if(!cloudIsStale && typeof m.coins==='number'&&m._hasCoins!==false)me.coins=clampCoins(m.coins);
+  if(!cloudIsStale && typeof m.exp==='number'){
+    const safeCloudExp=clampExp(m.exp);
+    me.exp=wasReset?safeCloudExp:Math.max(clampExp(me.exp),safeCloudExp);
+  }
+  if(wasReset){
+    me.resetAt=cloudResetAt;
+    me.lastRewardedLevel=calcLevel(me.exp);
+  }
   if(typeof m.name==='string'&&m.name.trim())me.name=m.name.trim();
   if(typeof m.bio==='string')me.bio=m.bio;
   if(typeof m.hobbies==='string')me.hobbies=m.hobbies;
@@ -40,9 +52,7 @@ function mergeAppearanceFromCloud(m){
   if(Array.isArray(m.activeDays)&&m.activeDays.length){
     me.activeDays=[...new Set([...(me.activeDays||[]),...m.activeDays])].slice(-60);
   }
-  if(typeof m.avatar==='string'&&m.avatar){
-    if(isDevAccount(me)||m.avatar!==DEV_AVATAR)me.avatar=m.avatar;
-  }
+  if(typeof m.avatar==='string'&&m.avatar)me.avatar=m.avatar;
   if(typeof m.frame==='string'&&m.frame){
     if(isDevAccount(me)||m.frame!=='dev')me.frame=m.frame;
   }
@@ -52,17 +62,23 @@ function mergeAppearanceFromCloud(m){
   if(typeof m.textStyle==='string')me.textStyle=m.textStyle;
   if(typeof m.msgStyle==='string')me.msgStyle=m.msgStyle;
   if(typeof m.bioStyle==='string')me.bioStyle=m.bioStyle;
-  if(m.dailyCoinsByDay&&typeof m.dailyCoinsByDay==='object'){
-    const o={...m.dailyCoinsByDay};
-    Object.entries(me.dailyCoinsByDay||{}).forEach(([k,v])=>{o[k]=Math.max(Number(o[k]||0),Number(v||0))});
-    me.dailyCoinsByDay=o;
+  if(!cloudIsStale && m.dailyCoinsByDay&&typeof m.dailyCoinsByDay==='object'){
+    if(wasReset){
+      me.dailyCoinsByDay=sanitizeDailyMap(m.dailyCoinsByDay);
+    }else{
+      const o=sanitizeDailyMap(m.dailyCoinsByDay);
+      Object.entries(sanitizeDailyMap(me.dailyCoinsByDay)).forEach(([k,v])=>{o[k]=Math.max(Number(o[k]||0),Number(v||0))});
+      me.dailyCoinsByDay=o;
+    }
   }
   if(m.claimedByDay&&typeof m.claimedByDay==='object'){
     me.claimedByDay={...m.claimedByDay,...me.claimedByDay};
   }
   if(typeof m.banned==='boolean')me.banned=m.banned;
+
   me=normalizeProfile(me,uid);
-  devMode=isDevAccount(me);
+  me.lastRewardedLevel=Math.max(Number(me.lastRewardedLevel||1),calcLevel(me.exp));
+  refreshDevMode();
   saveMe();
 }
 
@@ -70,9 +86,10 @@ async function adoptAuthUser(u){
   const anon=u.isAnonymous,email=(u.email||'').toLowerCase();
   if(u.uid===uid){
     me.accountType=anon?'guest':'account';me.accountId=anon?'':email;
-    me=normalizeProfile(me,uid);devMode=isDevAccount(me);
+    me=normalizeProfile(me,uid);refreshDevMode();
     saveMe();applyDevUI();checkBan();
     patchUser(uid,base());dbOp(()=>F.setDoc(userRef(uid),base(),{merge:true}));
+    renderAll();
     return;
   }
   if(anon){guestUid=u.uid;localStorage.setItem('sg_guest_uid',u.uid)}
@@ -86,6 +103,9 @@ async function adoptAuthUser(u){
   localStorage.setItem('sg_migrated','1');
   const next={...(start||{}),uid:u.uid,accountType:anon?'guest':'account',accountId:anon?'':email};
   switchToIdentity(u.uid,next);
+  if(!cloud){
+    dbOp(()=>F.setDoc(userRef(u.uid),{...base(),coins:clampCoins(me.coins),createdAt:Date.now()},{merge:true}));
+  }
   attachUserListeners();attachDevListeners();
 }
 
@@ -129,27 +149,54 @@ async function initFirebase(){
 
     S.getDoc(userRef(uid)).then(s=>{
       if(!s.exists()){
-        return S.setDoc(userRef(uid),{...base(),createdAt:Date.now()},{merge:true});
+        return S.setDoc(userRef(uid),{...base(),coins:clampCoins(me.coins),createdAt:Date.now()},{merge:true});
       }
-      mergeAppearanceFromCloud(s.data());
+      const d=s.data();
+      mergeAppearanceFromCloud({...d,_hasCoins:typeof d?.coins==='number'});
       applyDevUI();checkBan();updateHud();buildProfile();renderAll();
     }).catch(()=>{});
 
     S.onSnapshot(S.collection(db,'users'),snap=>{
-      const docs=snap.docs.map(d=>({uid:d.id,...d.data()}));
+      const docs=snap.docs.map(d=>sanitizeUserAppearance({uid:d.id,...d.data()}));
       cleanupInactiveZeroFriendUsers(docs);users=docs;ls.set('sg_users_cache',users);
       const m=users.find(x=>x.uid===uid);
       if(m){mergeAppearanceFromCloud(m);applyDevUI();checkBan()}
       setStatus(true);claimRankReward();checkReferralPayout();updateHud();renderAll();
     },()=>{});
 
-    S.onSnapshot(S.collection(db,'store_items'),snap=>{customItems=snap.docs.map(d=>({id:d.id,...d.data()})).filter(c=>!DEFAULT_ITEMS.some(x=>x.id===c.id));ls.set('sg_store_custom',customItems);storeItems=[...DEFAULT_ITEMS,...customItems];renderStore()},()=>{});
-    S.onSnapshot(S.collection(db,'rank_rewards'),snap=>{if(snap.docs.length){rankRewards=snap.docs.map(d=>({id:d.id,...d.data()}));ls.set('sg_rank_rewards',rankRewards)}renderRanking()},()=>{});
+    S.onSnapshot(S.collection(db,'store_items'),snap=>{
+      customItems=snap.docs.map(d=>({id:d.id,...d.data()})).filter(c=>!DEFAULT_ITEMS.some(x=>x.id===c.id) && !(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(`${c.kind}:${c.value}`)));
+      ls.set('sg_store_custom',customItems);storeItems=[...DEFAULT_ITEMS,...customItems];renderStore();
+    },()=>{});
 
+    S.onSnapshot(S.collection(db,'rank_rewards'),snap=>{
+      if(snap.docs.length){
+        rankRewards=snap.docs.map(d=>({id:d.id,...d.data()}));
+        ls.set('sg_rank_rewards',rankRewards);
+      }
+      renderRanking();
+    },()=>{});
+
+    /* World Chat with automatic 7-day cleanup + 150 msg cap */
     S.onSnapshot(S.collection(db,'world_chat'),snap=>{
+      const now=Date.now();
       let list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.ts||0)-(b.ts||0));
-      if(list.length>100){list.slice(0,list.length-100).forEach(old=>dbOp(()=>F.deleteDoc(F.doc(db,'world_chat',old.id))));list=list.slice(-100)}
-      worldMsgs=list;ls.set('sg_world_msgs',worldMsgs);if(cur==='world')renderThread();
+      const fresh=[];
+      list.forEach(msg=>{
+        if(now-Number(msg.ts||0)>=SEVEN_DAYS_MS){
+          dbOp(()=>F.deleteDoc(F.doc(db,'world_chat',msg.id)));
+        }else{
+          fresh.push(msg);
+        }
+      });
+      list=fresh;
+      if(list.length>150){
+        list.slice(0,list.length-150).forEach(old=>dbOp(()=>F.deleteDoc(F.doc(db,'world_chat',old.id))));
+        list=list.slice(-150);
+      }
+      worldMsgs=list;ls.set('sg_world_msgs',worldMsgs);
+      if(cur==='world')renderThread();
+      else renderChats();
     },()=>{});
 
     attachUserListeners();attachDevListeners();
@@ -161,9 +208,15 @@ async function initFirebase(){
 
     S.onSnapshot(S.collection(db,'dev_tasks'),snap=>{devTasks=snap.docs.map(d=>({id:d.id,...d.data()}));ls.set('sg_dev_tasks',devTasks);renderTasks()},()=>{});
     S.onSnapshot(S.doc(db,'config','notice'),sn=>{notice=sn.exists()?sn.data():null;ls.set('sg_notice',notice);renderNotice()},()=>{});
+    S.onSnapshot(S.doc(db,'config','game_slots'),sn=>{
+      customGameSlots=sn.exists()&&Array.isArray(sn.data().slots)?sn.data().slots:[];
+      ls.set('sg_game_slots',customGameSlots);
+      renderGameSlots();
+    },()=>{});
+
     S.onSnapshot(S.collection(db,'referrals'),snap=>{
       const code=getInviteCode();if(!code)return;
-      snap.docs.forEach(d=>{const r=d.data();if(r.code===code&&!r.paid&&d.id!==uid&&!me.done['ref_'+d.id]){me.done['ref_'+d.id]=1;addReward(50,10);saveMe();dbOp(()=>F.setDoc(F.doc(db,'referrals',d.id),{paid:true},{merge:true}));toast('Referral bonus +50 🪙')}});
+      snap.docs.forEach(d=>{const r=d.data();if(r.code===code&&!r.paid&&d.id!==uid&&!me.done['ref_'+d.id]){me.done['ref_'+d.id]=1;addReward(50,10);saveMe();dbOp(()=>F.setDoc(F.doc(db,'referrals',d.id),{paid:true},{merge:true}));toast('Referral bonus +50 coins!')}});
     },()=>{});
   }catch(e){console.warn('firebase init',e);setStatus(false);if(e&&e.code)toast(authMsg(e))}
 }

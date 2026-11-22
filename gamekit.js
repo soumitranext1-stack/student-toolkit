@@ -1,5 +1,5 @@
 "use strict";
-/* Shared helpers for all Study Game mini games (same profile + coin storage as chess-blitz.html) */
+/* Shared helpers for all Study Game mini games (with safe coin/EXP capping) */
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
@@ -9,22 +9,36 @@ function toast(t){$$('.toast').forEach(x=>x.remove());const e=document.createEle
 function modal(html){const m=document.createElement('div');m.className='mb';m.innerHTML=`<div class="sheet">${html}</div>`;document.body.appendChild(m);m.close=()=>m.remove();return m}
 if(localStorage.getItem('sg_theme')==='light')document.body.classList.add('light');
 
-const DAILY_CAP=20;            // max coins one game can pay per day (stops coin farming)
+const MAX_COINS=999999999, MAX_EXP=99999900;
+const DAILY_CAP=20;
 let uid=localStorage.getItem('sg_uid')||('SG'+Math.floor(10000000+Math.random()*89999999));
 let PK='sg_profile_'+uid,isGuest=true,db=null,S=null;
+
+function clampInt(v,min,max){const n=Number(v);if(!Number.isFinite(n))return min;return Math.trunc(Math.min(max,Math.max(min,n)))}
+function fmtCoins(v){
+  const n=clampInt(v,0,MAX_COINS);
+  if(n>=1e9)return (n/1e9).toFixed(1).replace(/\.0$/,'')+'B';
+  if(n>=1e6)return (n/1e6).toFixed(1).replace(/\.0$/,'')+'M';
+  if(n>=1e4)return (n/1e3).toFixed(1).replace(/\.0$/,'')+'K';
+  return String(n);
+}
 
 function getProf(){
   try{const p=JSON.parse(localStorage.getItem(PK)||'null');if(p)return p}catch{}
   const p={uid,name:'Guest '+uid.slice(-4),avatar:'🦊',coins:50,exp:0};
   localStorage.setItem(PK,JSON.stringify(p));return p;
 }
-function showCoins(){const n=Number(getProf().coins||0);const e=$('#coins');if(e)e.textContent=n>=1e6?(n/1e6).toFixed(1)+'M':String(n)}
+function showCoins(){const e=$('#coins');if(e)e.textContent=fmtCoins(getProf().coins)}
 function addReward(coins,exp){
   const p=getProf();
-  p.coins=Math.max(0,Number(p.coins||0)+coins);p.exp=Number(p.exp||0)+exp;
-  if(coins>0){p.dailyCoinsByDay=p.dailyCoinsByDay&&typeof p.dailyCoinsByDay==='object'?p.dailyCoinsByDay:{};p.dailyCoinsByDay[today()]=Number(p.dailyCoinsByDay[today()]||0)+coins}
+  p.coins=clampInt(Number(p.coins||0)+Number(coins||0),0,MAX_COINS);
+  p.exp=clampInt(Number(p.exp||0)+Number(exp||0),0,MAX_EXP);
+  if(coins>0){
+    p.dailyCoinsByDay=p.dailyCoinsByDay&&typeof p.dailyCoinsByDay==='object'?p.dailyCoinsByDay:{};
+    p.dailyCoinsByDay[today()]=clampInt(Number(p.dailyCoinsByDay[today()]||0)+coins,0,MAX_COINS);
+  }
   localStorage.setItem(PK,JSON.stringify(p));
-  if(db&&S){const o={uid,name:p.name,avatar:p.avatar||'🦊',coins:p.coins,exp:Number(p.exp||0)};if(p.dailyCoinsByDay)o.dailyCoinsByDay=p.dailyCoinsByDay;S.setDoc(S.doc(db,'users',uid),o,{merge:true}).catch(()=>{})}
+  if(db&&S){const o={uid,name:p.name,avatar:p.avatar||'🦊',coins:p.coins,exp:p.exp};if(p.dailyCoinsByDay)o.dailyCoinsByDay=p.dailyCoinsByDay;S.setDoc(S.doc(db,'users',uid),o,{merge:true}).catch(()=>{})}
   showCoins();
 }
 function bumpPlayed(){
@@ -45,7 +59,6 @@ async function initFb(){
 }
 const ready=initFb().then(showCoins);
 
-/* Pay a game result. Coins only for registered players, capped per game per day. */
 async function award(gameId,wantCoins,wantExp){
   await ready;
   bumpPlayed();
@@ -55,7 +68,7 @@ async function award(gameId,wantCoins,wantExp){
   addReward(coins,Math.max(0,Math.min(40,wantExp)));
   return {coins,capped:!isGuest&&wantCoins>coins,guest:isGuest&&wantCoins>0};
 }
-function result(o){   // o:{emoji,title,lines:[],r:{coins,capped,guest},again,menu}
+function result(o){
   const r=o.r||{coins:0};
   const coinTxt=r.guest?'🔒 Coins ke liye Register / Login karo':(r.coins>0?`+${r.coins} 🪙 mile`:(r.capped?'Aaj ka coin limit pura ho gaya (20 🪙/game)':'Is baar coin nahi mile'));
   const m=modal(`<div class="big">${o.emoji||'🏁'}</div><h2>${esc(o.title)}</h2>${(o.lines||[]).map(l=>`<p class="mu">${esc(l)}</p>`).join('')}<p style="margin-top:10px;font-weight:700">${esc(coinTxt)}</p><button class="btn full" id="rA">Play again</button><button class="btn ghost full" id="rM">Menu</button><button class="btn ghost full" id="rB">Back to Study Game</button>`);

@@ -1,7 +1,6 @@
 /* =====================================================================
-   FX PACK: FRAMES + NAME GLOW + BANNERS + MESSAGE GLOW  (data + tiny renderer)
-   Needs fx-pack.css appended to style.css.
-   Row format [id, name, price, desc] = same shape store.js `add(kind, rows)` uses.
+   FX PACK: FRAMES + EXCLUSIVE TOP 1-3 LEADERBOARD ASSETS
+   + NAME GLOW + BANNERS + MESSAGE GLOW
    ===================================================================== */
 "use strict";
 
@@ -11,12 +10,9 @@ const FX_RARITY={
   legendary:{label:'Legendary', color:'#ffb020'},
   mythic:   {label:'Mythic',    color:'#ff3d6e'},
   vip:      {label:'VIP',       color:'#ffd700'},
-  rank:     {label:'Rank Reward', color:'#ffe27a'}
+  rank:     {label:'Leaderboard Exclusive', color:'#ffe27a'}
 };
 
-/* mods (CSS layers switched on): pls=glow pulse  orb=orbit dots  sh=shimmer sweep  ray=sun rays  spk=sparkles
-   badges: crown | wings | laurel | diamond      tag: text ribbon under avatar
-   price = coins for 1 day.  rank:true = NOT sold in store, give from ranking.js claimRankReward */
 const FX_FRAMES=[
  /* ---- RARE ---- */
  {id:'fx_silver',   name:'Silver Chrome',   rarity:'rare',      price:40,  mods:'sh',            desc:'Polished chrome ring with a moving shine'},
@@ -46,21 +42,80 @@ const FX_FRAMES=[
  {id:'fx_chaos',    name:'Chaos Throne',    rarity:'mythic',    price:190, mods:'sh orb ray pls spk', badges:['crown'], tag:'CHAOS',   desc:'Crimson, violet and gold rings at war'},
  /* ---- VIP ---- */
  {id:'fx_vip',      name:'VIP Diamond',     rarity:'vip',       price:130, mods:'sh pls spk',    badges:['diamond'], tag:'VIP', desc:'Purple-gold ring with diamond and VIP ribbon'},
- /* ---- RANK REWARD (not in store) ---- */
- {id:'fx_top1',     name:'No.1 Champion',   rarity:'rank',      price:0, rank:1, mods:'sh ray pls spk', badges:['laurel','crown'], tag:'NO.1', desc:'Golden laurel, crown and rays'},
- {id:'fx_top2',     name:'No.2 Silver',     rarity:'rank',      price:0, rank:2, mods:'sh pls spk',     badges:['laurel','crown'], tag:'NO.2', desc:'Silver laurel and crown'},
- {id:'fx_top3',     name:'No.3 Bronze',     rarity:'rank',      price:0, rank:3, mods:'sh pls',         badges:['laurel','crown'], tag:'NO.3', desc:'Bronze laurel and crown'}
+ /* ---- LEADERBOARD TOP 1-3 EXCLUSIVE FRAMES (NOT IN STORE) ---- */
+ {id:'fx_top1',     name:'Top #1 Sovereign Ring', rarity:'rank', price:0, rank:1, mods:'sh ray orb pls spk', badges:['laurel','crown'], tag:'TOP #1', desc:'Exclusive Leaderboard #1 Sovereign gold laurel, rays & crown'},
+ {id:'fx_top2',     name:'Top #2 Celestial Ring', rarity:'rank', price:0, rank:2, mods:'sh orb pls spk',     badges:['laurel','crown'], tag:'TOP #2', desc:'Exclusive Leaderboard #2 Silver laurel, orbit & crown'},
+ {id:'fx_top3',     name:'Top #3 Ember Ring',     rarity:'rank', price:0, rank:3, mods:'sh pls spk',         badges:['laurel','crown'], tag:'TOP #3', desc:'Exclusive Leaderboard #3 Bronze laurel & crown'}
 ];
+
+/* Exclusive Top 1-3 Leaderboard Package (Frames, Banners, Avatars, Badges) - NEVER sold in store */
+const LB_EXCLUSIVE_ASSETS={
+  1:{
+    rank:1,
+    title:'Top #1 Sovereign Champion',
+    frame:'fx_top1',
+    frameLabel:'Top #1 Sovereign Ring',
+    banner:'bn-lb-top1',
+    bannerLabel:'Top #1 Sovereign Throne Banner',
+    avatar:'lb_av_top1',
+    avatarLabel:'Sovereign Crown Crest',
+    badge:'TOP #1 CHAMPION',
+    badgeClass:'lb-badge-1',
+    defaultCoins:100,
+    days:1
+  },
+  2:{
+    rank:2,
+    title:'Top #2 Celestial Elite',
+    frame:'fx_top2',
+    frameLabel:'Top #2 Celestial Ring',
+    banner:'bn-lb-top2',
+    bannerLabel:'Top #2 Celestial Silver Banner',
+    avatar:'lb_av_top2',
+    avatarLabel:'Celestial Silver Crest',
+    badge:'TOP #2 ELITE',
+    badgeClass:'lb-badge-2',
+    defaultCoins:60,
+    days:1
+  },
+  3:{
+    rank:3,
+    title:'Top #3 Ember Master',
+    frame:'fx_top3',
+    frameLabel:'Top #3 Ember Ring',
+    banner:'bn-lb-top3',
+    bannerLabel:'Top #3 Ember Bronze Banner',
+    avatar:'lb_av_top3',
+    avatarLabel:'Ember Bronze Shield',
+    badge:'TOP #3 MASTER',
+    badgeClass:'lb-badge-3',
+    defaultCoins:30,
+    days:1
+  }
+};
+
+const LB_EXCLUSIVE_BANNERS=[
+  ['bn-lb-top1','Top #1 Sovereign Throne'],
+  ['bn-lb-top2','Top #2 Celestial Silver'],
+  ['bn-lb-top3','Top #3 Ember Bronze']
+];
+
+const LB_EXCLUSIVE_KEYS=new Set([
+  'frame:fx_top1','frame:fx_top2','frame:fx_top3',
+  'banner:bn-lb-top1','banner:bn-lb-top2','banner:bn-lb-top3',
+  'avatar:lb_av_top1','avatar:lb_av_top2','avatar:lb_av_top3',
+  'badge:lb_top1','badge:lb_top2','badge:lb_top3'
+]);
+const isRankExclusiveKey=k=>LB_EXCLUSIVE_KEYS.has(String(k||''));
+
 const FX_MAP=Object.fromEntries(FX_FRAMES.map(f=>[f.id,f]));
 const isFxFrame=id=>!!FX_MAP[id];
 
-/* ---------- badge art (inline SVG, colours come from --bd1/--bd2) ---------- */
 const FX_SVG={
  crown:'<fxl class="bd cr"><svg viewBox="0 0 40 26"><path d="M3 22 1 6l10 7L20 2l9 11 10-7-2 16z" fill="var(--bd1)" stroke="var(--bd2)" stroke-width="1.6" stroke-linejoin="round"/><rect x="3" y="22" width="34" height="3.6" rx="1.8" fill="var(--bd1)" stroke="var(--bd2)" stroke-width="1.2"/><circle cx="20" cy="9" r="2" fill="var(--bd2)"/><circle cx="6" cy="9" r="1.4" fill="var(--bd2)"/><circle cx="34" cy="9" r="1.4" fill="var(--bd2)"/></svg></fxl>',
  diamond:'<fxl class="bd dm"><svg viewBox="0 0 30 26"><path d="M8 2h14l7 8-14 15L1 10z" fill="var(--bd1)" stroke="var(--bd2)" stroke-width="1.6" stroke-linejoin="round"/><path d="M1 10h28M8 2l7 8 7-8M15 10v15" fill="none" stroke="var(--bd2)" stroke-width="1.1" stroke-linejoin="round"/></svg></fxl>',
  wings:(function(){
    const w='<path d="M80 44C60 36 34 22 4 6c14 22 36 34 76 44z"/><path d="M80 50C58 46 30 40 8 30c14 16 40 24 72 26z"/><path d="M80 56C60 56 38 56 20 54c12 12 36 12 60 8z"/>';
-   /* wing is shifted left by 40 so its inner edge clears the ring; right wing is the mirror around x=100 */
    return '<fxl class="bd wg"><svg viewBox="-40 0 280 80" preserveAspectRatio="xMidYMid meet"><g fill="var(--bd1)" stroke="var(--bd2)" stroke-width="1.3" stroke-linejoin="round"><g transform="translate(-40 0)">'+w+'</g><g transform="translate(200 0) scale(-1 1)"><g transform="translate(-40 0)">'+w+'</g></g></g></svg></fxl>';
  })(),
  laurel:(function(){
@@ -74,8 +129,6 @@ const FX_SVG={
  })()
 };
 
-/* ---------- renderer: returns the layers HTML for one frame ----------
-   size = avatar size in px. <=44 gets the lighter "lite" version.          */
 function fxFrameHtml(id,size){
   const d=FX_MAP[id];if(!d)return '';
   const lite=(size||44)<=44?' lite':'';
@@ -88,7 +141,6 @@ function fxFrameHtml(id,size){
 }
 const fxRarityPill=r=>{const x=FX_RARITY[r];return x?`<span class="dur-pill" style="color:${x.color};border-color:${x.color}">${x.label}</span>`:''};
 
-/* ---------- name glow / banners / message glow ---------- */
 const FX_TEXTS=[
  ['fxt-aurora','Aurora Name',58,'Flowing northern-lights name'],['fxt-crimson','Crimson Name',56,'Blood-red glowing name'],
  ['fxt-galaxy','Galaxy Name',60,'Violet cosmos name'],['fxt-prism','Prism Name',62,'Rainbow spectrum name'],
@@ -109,16 +161,16 @@ const FX_MSGS=[
  ['msg-fx-frost','Frost Flow Border',55,'Animated icy border'],['msg-fx-toxic','Toxic Flow Border',55,'Animated lime border']
 ];
 
-/* ---------- ready-made rows for store.js / profile.js ---------- */
-/* store.js: add('frame', FX_STORE_ROWS.frame) ... (rank frames are excluded on purpose) */
+/* Strictly excludes rank:1/2/3 exclusive frames & banners from Store */
 const FX_STORE_ROWS={
   frame:FX_FRAMES.filter(f=>!f.rank).map(f=>[f.id,f.name,f.price,f.desc]),
   text:FX_TEXTS, banner:FX_BANNERS, msg:FX_MSGS
 };
-/* profile.js / core.js pick lists, same [value,label] shape as USER_FRAMES, TEXTS, BANNERS, MSGS */
+
+/* Profile pick lists (exclusive Top 1-3 banners/frames included only for lookup; Profile filters by active unlock!) */
 const FX_USER_LISTS={
   frame:FX_FRAMES.map(f=>[f.id,f.name]),
   text:FX_TEXTS.map(t=>[t[0],t[1].replace(' Name','')]),
-  banner:FX_BANNERS.map(b=>[b[0],b[1].replace(' Banner','')]),
+  banner:[...FX_BANNERS.map(b=>[b[0],b[1].replace(' Banner','')]),...LB_EXCLUSIVE_BANNERS],
   msg:FX_MSGS.map(m=>[m[0],m[1].replace(' Flow Border','')])
 };

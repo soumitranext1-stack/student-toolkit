@@ -1,11 +1,20 @@
 "use strict";
-function applyDevUI(){$('#devBadge').hidden=!devMode;$$('.dev-only').forEach(el=>el.hidden=!devMode)}
+
+function applyDevUI(){
+  refreshDevMode();
+  const dbBadge=$('#devBadge');
+  if(dbBadge)dbBadge.hidden=!devMode;
+  $$('.dev-only').forEach(el=>el.hidden=!devMode);
+  const rpBtn=$('#rpBtn');
+  if(rpBtn)rpBtn.hidden=!devMode;
+}
+
 function switchToIdentity(nextUid,nextProfileObj){
   $$('#modals .mb').forEach(b=>b.remove());
   cur=null;$('#thread').hidden=true;
   uid=nextUid;localStorage.setItem('sg_uid',uid);
   me=normalizeProfile(nextProfileObj,nextUid);
-  devMode=isDevAccount(me);
+  refreshDevMode();
   stats={calc_open:0,pdf_open:0,tool_open:0,profile_save:0,games_played:0,store_buy:0,ad_watch:0,...ls.get('sg_stats_'+uid,{})};
   chats=ls.get('sg_chats_'+uid,{});ensureDevChat();
   saveMe();saveStats();applyDevUI();checkBan();checkDailyLoginBonus();
@@ -63,91 +72,289 @@ function openAuthModal(){
 function mergePairs(baseList,fxList){
   const seen=new Set(),out=[];
   [...(baseList||[]),...(fxList||[])].forEach(item=>{
-    if(!Array.isArray(item)||!item[0]||seen.has(item[0]))return;
+    if(!Array.isArray(item)||seen.has(item[0]))return;
     seen.add(item[0]);out.push(item);
   });
   return out;
 }
 
-function getProfileAvatars(){
+function getUnlockedAvatars(){
+  const free=typeof FX_FREE_AVATARS!=='undefined'?FX_FREE_AVATARS:USER_AVATARS;
   const fxEmojis=typeof FX_AVATAR_PROFILE!=='undefined'?FX_AVATAR_PROFILE.flatMap(c=>c.list||[]):[];
-  const all=[...(typeof USER_AVATARS!=='undefined'?USER_AVATARS:[]),...fxEmojis,me.avatar].filter(Boolean);
-  return [...new Set(all)].filter(em=>(typeof FX_FREE_AVATARS!=='undefined'&&FX_FREE_AVATARS.includes(em))||isUnlocked('avatar:'+em)||em===me.avatar);
+  const lbAvs=typeof LB_EXCLUSIVE_AVATARS!=='undefined'?Object.keys(LB_EXCLUSIVE_AVATARS):[];
+  const all=[...free,...fxEmojis,...lbAvs,me.avatar].filter(Boolean);
+  return [...new Set(all)].filter(em=>isUnlocked('avatar:'+em)||em===me.avatar);
+}
+
+function labelForPair(list, val, fallback){
+  const found=(list||[]).find(x=>x[0]===val);
+  return found?found[1]:(fallback||val||'Default');
+}
+
+function persistProfileChanges(msg){
+  me=normalizeProfile(me,uid);
+  saveMe();
+  patchUser(uid,base());
+  dbOp(()=>F.setDoc(userRef(uid),base(),{merge:true}));
+  updateHud();
+  buildProfile();
+  renderAll();
+  if(msg)toast(msg);
+}
+
+function openBannerPicker(bannerList){
+  const unlocked=bannerList.filter(b=>isUnlocked('banner:'+b[0])||b[0]===me.banner);
+  const m=modal('Choose Banner',`
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Tap a banner to equip it immediately. Unlock more in the Store or Leaderboard Top 1–3.</p>
+    <div class="bn-pick-grid">
+      ${unlocked.map(b=>`<button type="button" class="bn-pick-item bn-box ${esc(b[0])} ${b[0]===me.banner?'on':''}" data-pickbn="${esc(b[0])}">${esc(b[1])}</button>`).join('')}
+    </div>
+  `);
+  m.onclick=e=>{
+    const btn=e.target.closest('[data-pickbn]');if(!btn)return;
+    me.banner=btn.dataset.pickbn;
+    m.close();persistProfileChanges('Banner updated');
+  };
+}
+
+function openAvatarPicker(){
+  const unlocked=getUnlockedAvatars();
+  const m=modal('Choose Avatar',`
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Tap an avatar to equip it. Unlock more in the Store or earn Exclusive Crests in Leaderboard Top 1–3.</p>
+    <div class="pick">
+      ${unlocked.map(em=>{
+        const isLb=typeof LB_EXCLUSIVE_AVATARS!=='undefined'&&LB_EXCLUSIVE_AVATARS[em];
+        return `<button type="button" class="${em===me.avatar?'on':''}" data-pickav="${esc(em)}" title="${esc(isLb?isLb.name:em)}" style="width:56px;height:56px">${typeof renderAvatarGlyph==='function'?renderAvatarGlyph(em):esc(em)}</button>`;
+      }).join('')}
+    </div>
+  `);
+  m.onclick=e=>{
+    const btn=e.target.closest('[data-pickav]');if(!btn)return;
+    me.avatar=btn.dataset.pickav;
+    m.close();persistProfileChanges('Avatar updated');
+  };
+}
+
+function openFramePicker(frameList){
+  const unlocked=frameList.filter(f=>isUnlocked('frame:'+f[0])||f[0]===me.frame);
+  const m=modal('Choose Avatar Frame',`
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Tap any unlocked frame to apply.</p>
+    <div class="pick">
+      ${unlocked.map(f=>`<button type="button" class="${f[0]===me.frame?'on':''}" data-pickfr="${esc(f[0])}" style="min-width:74px;padding:8px 6px">${av({avatar:me.avatar,frame:f[0]},40)}<small style="font-size:10px;max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f[1])}</small></button>`).join('')}
+    </div>
+  `);
+  m.onclick=e=>{
+    const btn=e.target.closest('[data-pickfr]');if(!btn)return;
+    me.frame=btn.dataset.pickfr;
+    m.close();persistProfileChanges('Frame updated');
+  };
+}
+
+function openStylePicker(title, list, currentVal, keyPrefix, fieldName, previewType){
+  const unlocked=list.filter(item=>isUnlocked(keyPrefix+item[0])||item[0]===currentVal);
+  const m=modal(title,`
+    <div class="list">
+      ${unlocked.map(item=>{
+        const active=item[0]===currentVal;
+        let preview='';
+        if(previewType==='text')preview=`<span class="${esc(item[0])}" style="font-weight:800">${esc(me.name)}</span>`;
+        else if(previewType==='msg')preview=`<span class="bub ${esc(item[0])}" style="padding:5px 10px;font-size:12px">Sample chat message</span>`;
+        else preview=`<span class="${esc(item[0])}" style="font-size:12.5px">Your glowing bio style</span>`;
+        return `<button type="button" class="pf-pick-row ${active?'on':''}" style="${active?'border-color:var(--gold)':''}" data-pickst="${esc(item[0])}">
+          <div class="pf-pick-meta"><b>${esc(item[1])}</b><div style="margin-top:3px">${preview}</div></div>
+          <span class="dur-pill">${active?'Equipped':'Use'}</span>
+        </button>`;
+      }).join('')}
+    </div>
+  `);
+  m.onclick=e=>{
+    const btn=e.target.closest('[data-pickst]');if(!btn)return;
+    me[fieldName]=btn.dataset.pickst;
+    m.close();persistProfileChanges(title+' updated');
+  };
+}
+
+function openTagPicker(){
+  const storeTagValues=(typeof storeItems!=='undefined'?storeItems:[]).filter(i=>i.kind==='tag').map(i=>i.value);
+  const devTags=devMode?['Developer','LVL 99']:[];
+  const allTags=[...new Set([...devTags,...FREE_TAGS,...storeTagValues,...(me.tags||[])])].filter(g=>isUnlocked('tag:'+g));
+  let selected=[...(me.tags||[])];
+
+  const m=modal('Choose Profile Tags (Max 3)',`
+    <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Select up to 3 glowing tags to display on your Profile &amp; World Chat.</p>
+    <div class="row wrap" id="tgPickBox" style="gap:8px"></div>
+    <button class="btn full" id="tgPickSave">Apply Tags</button>
+  `);
+  const renderChoices=()=>{
+    $('#tgPickBox',m).innerHTML=allTags.map(g=>{
+      const on=selected.includes(g);
+      return `<button type="button" class="p-tag ${tagClassFor(g)}" data-ptg="${esc(g)}" style="cursor:pointer;padding:6px 12px;font-size:12px;outline:${on?'2px solid var(--gold)':'none'};opacity:${on?'1':'.65'}">${on?'✓ ':''}${esc(g)}</button>`;
+    }).join('');
+  };
+  renderChoices();
+  $('#tgPickBox',m).onclick=e=>{
+    const btn=e.target.closest('[data-ptg]');if(!btn)return;
+    const g=btn.dataset.ptg;
+    if(selected.includes(g)){
+      selected=selected.filter(x=>x!==g);
+    }else{
+      selected=[...selected,g].slice(-3);
+    }
+    renderChoices();
+  };
+  $('#tgPickSave',m).onclick=()=>{
+    if(!selected.length)selected=devMode?['Developer','LVL 99']:[me.accountType==='account'?'Newbie':'Guest Pass'];
+    me.tags=selected.slice(0,3);
+    m.close();persistProfileChanges('Tags updated');
+  };
 }
 
 function buildProfile(){
   cleanExpiredUnlocks();
-  const d={avatar:me.avatar,frame:me.frame,banner:me.banner,textStyle:me.textStyle,msgStyle:me.msgStyle,bioStyle:me.bioStyle||'',tags:[...(me.tags||[])]};
+  refreshDevMode();
   const invCode=getInviteCode(), daysCount=new Set(me.activeDays||[]).size;
   const fxLists=typeof FX_USER_LISTS!=='undefined'?FX_USER_LISTS:{};
-  const avList=getProfileAvatars();
   const frameList=mergePairs(typeof USER_FRAMES!=='undefined'?USER_FRAMES:[],fxLists.frame);
   const bannerList=mergePairs(typeof BANNERS!=='undefined'?BANNERS:[],fxLists.banner);
   const textList=mergePairs(typeof TEXTS!=='undefined'?TEXTS:[],fxLists.text);
   const msgList=mergePairs(typeof MSGS!=='undefined'?MSGS:[],fxLists.msg);
 
-  $('#v-profile').innerHTML=`
-    <div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">${tr('yp')}</h2><button class="btn ghost sm" id="accBtn">${me.accountType==='account'?'Account · Logout':'Register / Login'}</button></div>
-    <div class="bn-box ${esc(d.banner)}" id="pBanner">
-      <div class="pf"><div id="pav"></div><b id="pnamePrev" class="${esc(d.textStyle)}" style="font-size:18px">${esc(me.name)}</b>
-      <div class="row"><span class="lvl-pill">LVL ${calcLevel(me.exp)} · ${fmtNum(me.exp)} EXP</span><div class="coin">🪙 <span class="coinval"></span></div></div>
-      <small style="opacity:.85">UID: ${esc(uid)}</small><span class="streak">🔥 ${calcStreak(me.activeDays)} ${tr('streak')}</span>${me.bio?`<div class="${esc(me.bioStyle||'')}" style="font-size:13px;text-align:center">${esc(me.bio)}</div>`:''}</div>
-      ${renderTags(me.tags)}
+  const curFrameLabel=labelForPair(frameList,me.frame,'Plain');
+  const curBannerLabel=labelForPair(bannerList,me.banner,'Aurora');
+  const curTextLabel=labelForPair(textList,me.textStyle,'Normal');
+  const curMsgLabel=labelForPair(msgList,me.msgStyle,'Normal Msg');
+  const curBioLabel=labelForPair(BIOS,me.bioStyle,'Normal');
+
+  const devWalletHtml=devMode?`
+    <div class="card pf-dev-wallet">
+      <div class="row" style="justify-content:space-between">
+        <b style="color:var(--gold)">Developer Wallet Controls</b>
+        <span class="p-tag p-tag-dev-sig" style="font-size:10px;padding:2px 8px">DEV ONLY</span>
+      </div>
+      <p style="font-size:12px;color:var(--mu);margin-top:4px">Adjust your own Developer ID coins or reset Coins / EXP to 0 cleanly.</p>
+      <div class="row" style="margin-top:8px">
+        <input id="devSelfCoin" type="number" placeholder="± coins (e.g. 500 or -100)" style="flex:1">
+        <button type="button" class="btn sm gold" id="devSelfApply">Apply</button>
+      </div>
+      <button type="button" class="btn ghost full" id="devSelfReset" style="margin-top:8px">${UI_SVG.reset} Reset My Coins / EXP to 0</button>
     </div>
+  `:'';
+
+  $('#v-profile').innerHTML=`
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">${tr('yp')}</h2>
+      <button class="btn ghost sm" id="accBtn">${me.accountType==='account'?'Account · Logout':'Register / Login'}</button>
+    </div>
+
+    <div class="bn-box pf-banner-tap ${esc(me.banner||'bn-aurora')}" id="pBanner" title="Tap to change Banner">
+      <button type="button" class="pf-banner-edit-btn" id="tapBannerBtn">${UI_SVG.banner} Change Banner</button>
+      <div class="pf">
+        <button type="button" class="pf-av-btn" id="tapAvatarBtn" aria-label="Change Avatar">
+          ${av(me,78)}
+          <span class="pf-av-edit-dot">${UI_SVG.edit}</span>
+        </button>
+        <b id="pnamePrev" class="${esc(me.textStyle||'')}" style="font-size:19px">${esc(me.name)}</b>
+        <div class="row wrap" style="justify-content:center">
+          <span class="lvl-pill">LVL ${fmtNum(calcLevel(me.exp),MAX_LEVEL)} · ${fmtNum(me.exp,MAX_EXP)} EXP</span>
+          <div class="coin">${UI_SVG.coin} <span class="coinval"></span></div>
+        </div>
+        <small style="opacity:.86">UID: ${esc(uid)}</small>
+        <span class="streak">🔥 ${calcStreak(me.activeDays)} ${tr('streak')}</span>
+        ${me.bio?`<div class="${esc(me.bioStyle||'')}" style="font-size:13px;text-align:center;max-width:440px">${esc(me.bio)}</div>`:''}
+      </div>
+      ${renderTags(me.tags,me)}
+    </div>
+
+    ${devWalletHtml}
+
+    <div class="pf-picker-grid" aria-label="Customize Appearance">
+      <button type="button" class="pf-pick-row" id="pickBannerRow">
+        <div class="pf-pick-left"><span class="pf-pick-ico">${UI_SVG.banner}</span><div class="pf-pick-meta"><b>Banner</b><small>${esc(curBannerLabel)}</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
+      <button type="button" class="pf-pick-row" id="pickAvatarRow">
+        <div class="pf-pick-left"><span class="pf-pick-ico">${typeof renderAvatarGlyph==='function'?renderAvatarGlyph(me.avatar):esc(me.avatar)}</span><div class="pf-pick-meta"><b>Avatar</b><small>Tap to pick unlocked avatar</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
+      <button type="button" class="pf-pick-row" id="pickFrameRow">
+        <div class="pf-pick-left"><span class="pf-pick-ico">${UI_SVG.frame}</span><div class="pf-pick-meta"><b>Avatar Frame</b><small>${esc(curFrameLabel)}</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
+      <button type="button" class="pf-pick-row" id="pickTextRow">
+        <div class="pf-pick-left"><span class="pf-pick-ico">${UI_SVG.spark}</span><div class="pf-pick-meta"><b>Name Glow</b><small>${esc(curTextLabel)}</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
+      <button type="button" class="pf-pick-row" id="pickMsgRow">
+        <div class="pf-pick-left"><span class="pf-pick-ico">${UI_SVG.chat}</span><div class="pf-pick-meta"><b>Message Glow</b><small>${esc(curMsgLabel)}</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
+      <button type="button" class="pf-pick-row" id="pickBioRow">
+        <div class="pf-pick-left"><span class="pf-pick-ico">${UI_SVG.bio}</span><div class="pf-pick-meta"><b>Bio Glow</b><small>${esc(curBioLabel)}</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
+      <button type="button" class="pf-pick-row" id="pickTagsRow">
+        <div class="pf-pick-left"><span class="pf-pick-ico">${UI_SVG.tag}</span><div class="pf-pick-meta"><b>Profile Tags (Max 3)</b><small>${esc((me.tags||[]).join(' · '))}</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Profile Details</h3>
+      <label for="pn">Display Name</label>
+      <input id="pn" maxlength="24" value="${esc(me.name)}">
+      <label for="pb">Bio</label>
+      <textarea id="pb" maxlength="160" placeholder="Write a short bio...">${esc(me.bio)}</textarea>
+      <label for="ph">Hobbies</label>
+      <input id="ph" maxlength="80" value="${esc(me.hobbies||'')}" placeholder="Math, coding, chess...">
+      <button class="btn full" id="psv">Save Profile Details</button>
+    </div>
+
     <div class="card" style="margin-top:10px">
       <b>Refer &amp; Earn (Logged-In Only · 3 Days)</b>
-      <p style="color:var(--mu);font-size:12px;margin-top:3px">Active days: <b>${daysCount}/3</b> · Referrer gets +50 🪙</p>
+      <p style="color:var(--mu);font-size:12px;margin-top:3px">Active days: <b>${daysCount}/3</b> · Referrer gets +50 coins</p>
       ${invCode?`<div class="row wrap" style="margin-top:8px"><span class="dur-pill">${esc(invCode)}</span><button class="btn sm" id="refShare">Share Link</button></div>`:`<button class="btn ghost sm" style="margin-top:8px" id="refLogin">Login for Invite Code</button>`}
     </div>
-    <label>Display Name</label><input id="pn" maxlength="24" value="${esc(me.name)}">
-    <label>Bio</label><textarea id="pb" maxlength="160">${esc(me.bio)}</textarea>
-    <label>Avatar</label><div class="pick" id="pa">${avList.map(a=>`<button data-a="${esc(a)}" style="font-size:22px">${esc(a)}</button>`).join('')}</div>
-    <label>Frames</label><div class="pick" id="pfm">${frameList.filter(f=>isUnlocked('frame:'+f[0])||f[0]===d.frame).map(f=>`<button data-f="${esc(f[0])}">${av({avatar:'🙂',frame:f[0]},34)}</button>`).join('')}</div>
-    <label>Banners</label><div class="row wrap" id="pbn">${bannerList.filter(b=>isUnlocked('banner:'+b[0])||b[0]===d.banner).map(b=>`<button class="btn ghost sm" data-b="${esc(b[0])}">${esc(b[1])}</button>`).join('')}</div>
-    <label>Glowing Text</label><div class="row wrap" id="ptx">${textList.filter(t=>isUnlocked('text:'+t[0])||t[0]===d.textStyle).map(t=>`<button class="btn ghost sm" data-t="${esc(t[0])}">${esc(t[1])}</button>`).join('')}</div>
-    <label>Message Glow</label><div class="row wrap" id="pmg">${msgList.filter(mg=>isUnlocked('msg:'+mg[0])||mg[0]===d.msgStyle).map(mg=>`<button class="btn ghost sm" data-msg="${esc(mg[0])}">${esc(mg[1])}</button>`).join('')}</div>
-    <label>Glowing Bio</label><div class="row wrap" id="pbo">${BIOS.filter(b=>isUnlocked('bio:'+b[0])||b[0]===d.bioStyle).map(b=>`<button class="btn ghost sm" data-bio="${esc(b[0])}">${esc(b[1])}</button>`).join('')}</div>
-    ${devMode?'':`<label>Profile Tags (max 3)</label><div class="row wrap" id="ptg">${[...new Set([...FREE_TAGS,...storeItems.filter(i=>i.kind==='tag').map(i=>i.value)])].filter(g=>isUnlocked('tag:'+g)).map(g=>`<button class="btn ghost sm" data-tag="${esc(g)}">${esc(g)}</button>`).join('')}</div>`}
-    <button class="btn full" id="psv">Save Profile</button>`;
-  const sync=()=>{
-    $('#pav').innerHTML=av({uid,avatar:d.avatar,frame:d.frame},74);$('#pBanner').className='bn-box '+d.banner;
-    $('#pnamePrev').className=d.textStyle;$('#pnamePrev').textContent=$('#pn').value.trim()||me.name;
-    $$('#pa button').forEach(b=>b.classList.toggle('on',b.dataset.a===d.avatar));
-    $$('#pfm button').forEach(b=>b.classList.toggle('on',b.dataset.f===d.frame));
-    $$('#pbn button').forEach(b=>b.classList.toggle('on',b.dataset.b===d.banner));
-    $$('#ptx button').forEach(b=>b.classList.toggle('on',b.dataset.t===d.textStyle));
-    $$('#pmg button').forEach(b=>b.classList.toggle('on',b.dataset.msg===d.msgStyle));$$('#pbo button').forEach(b=>b.classList.toggle('on',b.dataset.bio===d.bioStyle));$$('#ptg button').forEach(b=>b.classList.toggle('on',d.tags.includes(b.dataset.tag)));
-  };
-  sync();updateHud();
+  `;
+
+  updateHud();
   $('#accBtn').onclick=openAuthModal;
   if($('#refLogin'))$('#refLogin').onclick=openAuthModal;
   if($('#refShare'))$('#refShare').onclick=shareInvite;
-  $('#pn').oninput=sync;
-  $('#pa').onclick=e=>{const b=e.target.closest('[data-a]');if(b){d.avatar=b.dataset.a;sync()}};
-  $('#pfm').onclick=e=>{const b=e.target.closest('[data-f]');if(b){d.frame=b.dataset.f;sync()}};
-  $('#pbn').onclick=e=>{const b=e.target.closest('[data-b]');if(b){d.banner=b.dataset.b;sync()}};
-  $('#ptx').onclick=e=>{const b=e.target.closest('[data-t]');if(b){d.textStyle=b.dataset.t;sync()}};
-  $('#pmg').onclick=e=>{const b=e.target.closest('[data-msg]');if(b){d.msgStyle=b.dataset.msg;sync()}};
-  $('#pbo').onclick=e=>{const b=e.target.closest('[data-bio]');if(b){d.bioStyle=b.dataset.bio;sync()}};
-  if($('#ptg'))$('#ptg').onclick=e=>{const b=e.target.closest('[data-tag]');if(!b)return;const g=b.dataset.tag;d.tags=d.tags.includes(g)?d.tags.filter(x=>x!==g):[...d.tags,g].slice(-3);sync()};
+
+  /* Tap Banner -> Banner Picker; Tap Avatar -> Avatar Picker */
+  $('#pBanner').onclick=e=>{
+    if(e.target.closest('#tapAvatarBtn'))return;
+    openBannerPicker(bannerList);
+  };
+  $('#tapBannerBtn').onclick=e=>{e.stopPropagation();openBannerPicker(bannerList)};
+  $('#tapAvatarBtn').onclick=e=>{e.stopPropagation();openAvatarPicker()};
+
+  /* Tap-to-Pick rows */
+  $('#pickBannerRow').onclick=()=>openBannerPicker(bannerList);
+  $('#pickAvatarRow').onclick=()=>openAvatarPicker();
+  $('#pickFrameRow').onclick=()=>openFramePicker(frameList);
+  $('#pickTextRow').onclick=()=>openStylePicker('Name Glow',textList,me.textStyle,'text:','textStyle','text');
+  $('#pickMsgRow').onclick=()=>openStylePicker('Message Glow',msgList,me.msgStyle,'msg:','msgStyle','msg');
+  $('#pickBioRow').onclick=()=>openStylePicker('Bio Glow',BIOS,me.bioStyle,'bio:','bioStyle','bio');
+  $('#pickTagsRow').onclick=()=>openTagPicker();
+
+  /* Developer-only Self Wallet Controls */
+  if(devMode&&$('#devSelfApply')){
+    $('#devSelfApply').onclick=()=>{
+      const delta=Math.trunc(+$('#devSelfCoin').value);
+      if(!delta)return toast('Enter a valid coin amount');
+      devAdjustUserCoins(uid,delta);
+    };
+    $('#devSelfReset').onclick=()=>devResetUserProgress(uid);
+  }
+
+  $('#pn').oninput=()=>{const prev=$('#pnamePrev');if(prev)prev.textContent=$('#pn').value.trim()||me.name};
   $('#psv').onclick=()=>{
     me.name=$('#pn').value.trim()||'Player '+uid.slice(-4);
     me.bio=$('#pb').value.trim();
-    me.avatar=d.avatar;
-    me.frame=d.frame;
-    me.banner=d.banner;
-    me.textStyle=d.textStyle;
-    me.msgStyle=d.msgStyle;
-    me.bioStyle=d.bioStyle;
-    if(!devMode)me.tags=d.tags.length?d.tags:[me.accountType==='account'?'Newbie':'Guest Pass'];
-    me=normalizeProfile(me,uid);
-    saveMe();
-    patchUser(uid,base());
-    dbOp(()=>F.setDoc(userRef(uid),base(),{merge:true}));
+    me.hobbies=$('#ph').value.trim();
     bumpStat('profile_save');
-    buildProfile();
-    renderAll();
-    toast('Saved');
+    persistProfileChanges('Profile saved');
   };
 }
 

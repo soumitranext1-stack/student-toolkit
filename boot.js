@@ -1,2 +1,17 @@
 "use strict";
-applyTheme();applyLang();applyDevUI();checkBan();checkDailyLoginBonus();renderHome();renderGameSlots();renderNotice();buildProfile();updateHud();renderAll();sweepDuels();initFirebase();setInterval(sweepDuels,30000);
+applyTheme();
+applyLang();
+applyDevUI();
+checkBan();
+checkDailyLoginBonus();
+renderHome();
+renderGameSlots();
+renderNotice();
+buildProfile();
+updateHud();
+renderAll();
+pruneExpiredChats();
+sweepDuels();
+initFirebase();
+setInterval(sweepDuels,30000);
+setInterval(pruneExpiredChats,300000);
