@@ -341,6 +341,10 @@ function buildProfile(){
         <div class="pf-pick-left"><span class="pf-pick-ico" data-sfx-ico>${typeof SFX!=='undefined'?SFX.iconSvg(SFX.isMuted()):''}</span><div class="pf-pick-meta"><b>Sound Effects</b><small data-sfx-label>${typeof SFX!=='undefined'&&SFX.isMuted()?'Muted':'Sound On'}</small></div></div>
         <span class="pf-pick-chev">›</span>
       </button>
+      <button type="button" class="pf-pick-row" id="pfInstallRow" ${typeof PWA!=='undefined'&&PWA.isStandalone()?'hidden':''}>
+        <div class="pf-pick-left"><span class="pf-pick-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg></span><div class="pf-pick-meta"><b>Install App</b><small data-pwa-sub>Install Study Game on your device</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
     </div>
 
     <div class="card" style="margin-top:12px">
@@ -377,6 +381,7 @@ function buildProfile(){
 
   updateHud();
   if(typeof SFX!=='undefined')SFX.syncButtons();
+  if(typeof PWA!=='undefined')PWA.syncUI();
   if(typeof bindGiftWallEvents==='function')bindGiftWallEvents($('#v-profile'),me,true);
   $('#accBtn').onclick=openAuthModal;
   if($('#pfSfxRow'))$('#pfSfxRow').onclick=()=>{
@@ -384,6 +389,9 @@ function buildProfile(){
       const isOff=SFX.toggle();
       toast(isOff?'Sound FX muted':'Sound FX enabled');
     }
+  };
+  if($('#pfInstallRow'))$('#pfInstallRow').onclick=()=>{
+    if(typeof PWA!=='undefined')PWA.triggerInstall();
   };
   if($('#refLogin'))$('#refLogin').onclick=openAuthModal;
   if($('#refCopyInline'))$('#refCopyInline').onclick=()=>shareInvite('copy_code');

@@ -1217,3 +1217,45 @@ button:focus-visible,a:focus-visible{
   .lux-car-mover,.lux-wheel,.lux-road-line,.lux-speed-lines span,.lux-palace-rise,.lux-sparkles i{animation:none !important}
   .lux-car-mover{position:relative;left:auto;margin:10px auto 0;transform:none}
 }
+
+/* ===== PWA Install Button & Offline Indicator ===== */
+.pwa-install-btn{
+  background:linear-gradient(135deg,rgba(79,110,247,.26),rgba(14,165,233,.24));
+  border-color:rgba(112,131,255,.48);
+  color:#e0e7ff;
+}
+body.light .pwa-install-btn{
+  background:linear-gradient(135deg,rgba(79,70,229,.12),rgba(14,165,233,.14));
+  border-color:rgba(79,70,229,.35);
+  color:#3730a3;
+}
+@media(max-width:480px){
+  .pwa-install-lbl{display:none}
+}
+.offline-bar{
+  position:fixed;
+  left:50%;
+  bottom:calc(68px + env(safe-area-inset-bottom,0px));
+  transform:translateX(-50%);
+  z-index:45;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:6px 12px;
+  border-radius:999px;
+  background:rgba(245,158,11,.94);
+  color:#111827;
+  font-size:11.5px;
+  font-weight:700;
+  box-shadow:0 8px 20px rgba(0,0,0,.32);
+  white-space:nowrap;
+  max-width:calc(100vw - 24px);
+}
+.offline-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#111827;
+  flex-shrink:0;
+}
+

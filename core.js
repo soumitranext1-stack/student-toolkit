@@ -112,6 +112,8 @@ function applyTheme(){
   document.body.classList.toggle('light',themeMode==='light');
   const tb=$('#themeBtn');
   if(tb)tb.innerHTML=themeMode==='light'?UI_SVG.sun:UI_SVG.moon;
+  const tm=document.querySelector('meta[name="theme-color"]');
+  if(tm)tm.setAttribute('content',themeMode==='light'?'#eef3f9':'#131b2e');
   localStorage.setItem('sg_theme',themeMode);
 }
 $('#themeBtn').onclick=()=>{themeMode=(themeMode==='light'?'dark':'light');applyTheme()};

@@ -3,19 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b0f1a">
+<meta name="theme-color" content="#131b2e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Study Game">
 <title>Study Game</title>
-<meta name="description" content="Student tools, study mini-games, daily leaderboard, glowing cosmetics store, world chat, and reward tasks.">
+<meta name="description" content="Student tools, study mini-games, daily leaderboard, glowing cosmetics store, world chat, and player gifts.">
 <meta property="og:title" content="Study Game">
-<meta property="og:description" content="Student tools, study mini-games, daily leaderboard, glowing cosmetics store, world chat, and reward tasks.">
+<meta property="og:description" content="Student tools, study mini-games, daily leaderboard, glowing cosmetics store, world chat, and player gifts.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=6">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=7">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6">
-<link rel="stylesheet" href="fx-pack.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="fx-pack.css?v=7">
 </head>
 <body>
 <div id="app">
@@ -46,6 +53,10 @@
     </div>
     <div class="row" style="gap:6px">
       <span id="devBadge" class="tg p-tag-dev-sig" hidden>DEV</span>
+      <button class="icon-btn pwa-install-btn" id="pwaInstallBtn" title="Install Study Game App" aria-label="Install Study Game App" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+        <span class="pwa-install-lbl">Install</span>
+      </button>
       <button class="icon-btn" id="sfxBtn" title="Sound FX: On (tap to mute)" aria-label="Mute Sound FX" aria-pressed="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5.5a9.5 9.5 0 0 1 0 13"/></svg>
       </button>
@@ -192,20 +203,25 @@
       <button class="btn ghost full" id="banLogin">Login / Switch account</button>
     </div>
   </div>
+  <div id="offlineBar" class="offline-bar" role="status" aria-live="polite" hidden>
+    <span class="offline-dot" aria-hidden="true"></span>
+    <span>Offline Mode — Using cached app shell</span>
+  </div>
 </div>
-<script src="sfx.js?v=6"></script>
-<script src="fx-avatars.js?v=6"></script>
-<script src="fx-frames.js?v=6"></script>
-<script src="core.js?v=6"></script>
-<script src="gifts.js?v=6"></script>
-<script src="firebase.js?v=6"></script>
-<script src="home.js?v=6"></script>
-<script src="games.js?v=6"></script>
-<script src="ranking.js?v=6"></script>
-<script src="tasks.js?v=6"></script>
-<script src="store.js?v=6"></script>
-<script src="chat.js?v=6"></script>
-<script src="profile.js?v=6"></script>
-<script src="boot.js?v=6"></script>
+<script src="sfx.js?v=7"></script>
+<script src="fx-avatars.js?v=7"></script>
+<script src="fx-frames.js?v=7"></script>
+<script src="core.js?v=7"></script>
+<script src="gifts.js?v=7"></script>
+<script src="firebase.js?v=7"></script>
+<script src="home.js?v=7"></script>
+<script src="games.js?v=7"></script>
+<script src="ranking.js?v=7"></script>
+<script src="tasks.js?v=7"></script>
+<script src="store.js?v=7"></script>
+<script src="chat.js?v=7"></script>
+<script src="profile.js?v=7"></script>
+<script src="pwa.js?v=7"></script>
+<script src="boot.js?v=7"></script>
 </body>
 </html>
