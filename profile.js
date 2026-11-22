@@ -23,50 +23,83 @@ function switchToIdentity(nextUid,nextProfileObj){
 }
 
 function openAuthModal(){
-  const m=modal('Register & Login',`
-    <p style="font-size:12px;color:var(--mu);margin-bottom:8px">Status: <b style="color:var(--tx)">${me.accountType==='account'?esc(me.accountId):'Guest: '+esc(uid)}</b></p>
-    <div class="tabs"><button class="on" data-am="login">Login</button><button data-am="reg">Register New ID</button></div>
-    <label>Login ID (name or email)</label><input id="auId" type="text" placeholder="Enter Login ID" autocomplete="off">
-    <label>Password (6+ characters)</label><input id="auPw" type="password" placeholder="Enter Password">
-    <label>Invite Code (optional)</label><input id="auRef" type="text" placeholder="REF_..." value="${esc(me.referredBy||REF_PARAM)}">
-    <button class="btn full" id="auSubmit">Login</button>
-    <button class="btn red full" id="auLogout">Logout</button>
+  const signedInGoogle=me.accountType==='account';
+  const m=modal('Google Account',`
+    <div class="auth-status-card">
+      <div class="auth-status-label">${signedInGoogle?'Signed in with Google':'Guest Session'}</div>
+      <div class="auth-status-val">${signedInGoogle?esc(me.accountId):('Guest ID: '+esc(uid))}</div>
+      <small>${signedInGoogle?'Your coins, Gift Wall, and Charm Box sync securely across devices.':'Guest sessions auto-clean after 7 days of inactivity. Sign in with Google to save permanently.'}</small>
+    </div>
+    ${!signedInGoogle?`
+      <label for="auRef">Invite Code (optional)</label>
+      <input id="auRef" type="text" placeholder="REF_..." value="${esc(me.referredBy||REF_PARAM)}" autocomplete="off">
+      <button type="button" class="btn google-btn full" id="auGoogle">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.5 3.9-5.5 3.9-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.9 1.5l2.6-2.5C16.9 3.5 14.7 2.5 12 2.5 6.8 2.5 2.5 6.8 2.5 12S6.8 21.5 12 21.5c6.9 0 9.1-4.8 9.1-7.3 0-.5-.1-.9-.1-1.3H12z"/>
+        </svg>
+        Continue with Google
+      </button>
+    `:`<button type="button" class="btn red full" id="auLogout">Sign Out of Google</button>`}
   `);
-  let mode='login';
-  $$('[data-am]',m).forEach(b=>b.onclick=()=>{mode=b.dataset.am;$$('[data-am]',m).forEach(x=>x.classList.toggle('on',x===b));$('#auSubmit',m).textContent=mode==='login'?'Login':'Create Account'});
 
-  $('#auSubmit',m).onclick=async()=>{
-    if(!auth||!AUTH)return toast('Connecting… try again in a moment');
-    const idClean=$('#auId',m).value.trim().toLowerCase(),pass=$('#auPw',m).value,refCode=$('#auRef',m).value.trim().toUpperCase();
-    if(!idClean||!pass)return toast('Enter ID and password');
-    if(pass.length<6)return toast('Password must be 6+ characters');
-    const email=emailOf(idClean),btn=$('#auSubmit',m);btn.disabled=true;
-    try{
-      if(mode==='reg'){
+  if($('#auGoogle',m)){
+    $('#auGoogle',m).onclick=async()=>{
+      if(!auth||!AUTH)return toast('Connecting… try again in a moment');
+      const refCode=($('#auRef',m)?.value||'').trim().toUpperCase();
+      if(refCode){me.referredBy=refCode;saveMe()}
+      const btn=$('#auGoogle',m);btn.disabled=true;
+      const provider=new AUTH.GoogleAuthProvider();
+      provider.setCustomParameters({prompt:'select_account'});
+      try{
         if(auth.currentUser&&auth.currentUser.isAnonymous){
-          await AUTH.linkWithCredential(auth.currentUser,AUTH.EmailAuthProvider.credential(email,pass));
-          me.referredBy=me.referredBy||refCode||'';
-          if(/^guest /i.test(me.name||''))me.name=idClean.split('@')[0].slice(0,24);
-          await adoptAuthUser(auth.currentUser);
-          attachUserListeners();attachDevListeners();
-          buildProfile();renderAll();
+          try{
+            const res=await AUTH.linkWithPopup(auth.currentUser,provider);
+            await adoptAuthUser(res.user);
+            toast('Signed in with Google');
+            m.close();
+            return;
+          }catch(linkErr){
+            const lc=String(linkErr?.code||'');
+            if(lc.includes('credential-already-in-use')||lc.includes('email-already-in-use')){
+              const res=await AUTH.signInWithPopup(auth,provider);
+              await adoptAuthUser(res.user);
+              toast('Signed in with Google');
+              m.close();
+              return;
+            }
+            if(lc.includes('popup-blocked')){
+              toast(authMsg(linkErr));
+              await AUTH.signInWithRedirect(auth,provider);
+              return;
+            }
+            throw linkErr;
+          }
         }else{
-          await AUTH.createUserWithEmailAndPassword(auth,email,pass);
+          const res=await AUTH.signInWithPopup(auth,provider);
+          await adoptAuthUser(res.user);
+          toast('Signed in with Google');
+          m.close();
         }
-        toast('Account created');
-      }else{
-        await AUTH.signInWithEmailAndPassword(auth,email,pass);
-        toast('Logged in');
+      }catch(e){
+        const c=String(e?.code||'');
+        if(c.includes('popup-blocked')){
+          toast(authMsg(e));
+          AUTH.signInWithRedirect(auth,provider).catch(()=>{btn.disabled=false});
+          return;
+        }
+        btn.disabled=false;
+        toast(authMsg(e));
       }
-      m.close();
-    }catch(e){btn.disabled=false;toast(authMsg(e))}
-  };
+    };
+  }
 
-  $('#auLogout',m).onclick=async()=>{
-    if(!auth||!AUTH){m.close();return}
-    try{await AUTH.signOut(auth);await AUTH.signInAnonymously(auth)}catch(e){toast(authMsg(e))}
-    m.close();toast('Logged out');
-  };
+  if($('#auLogout',m)){
+    $('#auLogout',m).onclick=async()=>{
+      if(!auth||!AUTH){m.close();return}
+      try{await AUTH.signOut(auth);await AUTH.signInAnonymously(auth)}catch(e){toast(authMsg(e))}
+      m.close();toast('Signed out');
+    };
+  }
 }
 
 function mergePairs(baseList,fxList){
@@ -243,7 +276,7 @@ function buildProfile(){
   $('#v-profile').innerHTML=`
     <div class="row" style="justify-content:space-between;margin-bottom:10px">
       <h2 style="margin:0">${tr('yp')}</h2>
-      <button class="btn ghost sm" id="accBtn">${me.accountType==='account'?'Account · Logout':'Register / Login'}</button>
+      <button class="btn ghost sm" id="accBtn">${me.accountType==='account'?'Google Account':'Sign in with Google'}</button>
     </div>
 
     <div class="bn-box pf-banner-tap ${esc(me.banner||'bn-aurora')}" id="pBanner" title="Tap to change Banner">
@@ -266,6 +299,8 @@ function buildProfile(){
     </div>
 
     ${devWalletHtml}
+
+    ${typeof renderGiftWallHtml==='function'?renderGiftWallHtml(me,true):''}
 
     <div class="pf-picker-grid" aria-label="Customize Appearance">
       <button type="button" class="pf-pick-row" id="pickBannerRow">
@@ -296,6 +331,10 @@ function buildProfile(){
         <div class="pf-pick-left"><span class="pf-pick-ico">${UI_SVG.tag}</span><div class="pf-pick-meta"><b>Profile Tags (Max 3)</b><small>${esc((me.tags||[]).join(' · '))}</small></div></div>
         <span class="pf-pick-chev">›</span>
       </button>
+      <button type="button" class="pf-pick-row" id="pfSfxRow" data-sfx-toggle="1" aria-pressed="${typeof SFX!=='undefined'&&SFX.isMuted()?'true':'false'}">
+        <div class="pf-pick-left"><span class="pf-pick-ico" data-sfx-ico>${typeof SFX!=='undefined'?SFX.iconSvg(SFX.isMuted()):''}</span><div class="pf-pick-meta"><b>Sound Effects</b><small data-sfx-label>${typeof SFX!=='undefined'&&SFX.isMuted()?'Muted':'Sound On'}</small></div></div>
+        <span class="pf-pick-chev">›</span>
+      </button>
     </div>
 
     <div class="card" style="margin-top:12px">
@@ -309,17 +348,40 @@ function buildProfile(){
       <button class="btn full" id="psv">Save Profile Details</button>
     </div>
 
-    <div class="card" style="margin-top:10px">
-      <b>Refer &amp; Earn (Logged-In Only · 3 Days)</b>
-      <p style="color:var(--mu);font-size:12px;margin-top:3px">Active days: <b>${daysCount}/3</b> · Referrer gets +50 coins</p>
-      ${invCode?`<div class="row wrap" style="margin-top:8px"><span class="dur-pill">${esc(invCode)}</span><button class="btn sm" id="refShare">Share Link</button></div>`:`<button class="btn ghost sm" style="margin-top:8px" id="refLogin">Login for Invite Code</button>`}
+    <div class="card ref-profile-card" style="margin-top:10px">
+      <div class="row" style="justify-content:space-between;gap:8px">
+        <div>
+          <b>Refer &amp; Earn · +50 Coins</b>
+          <p style="color:var(--mu);font-size:12px;margin-top:2px">Share your invite card on WhatsApp or Telegram. Active days: <b>${Math.min(3,daysCount)}/3</b></p>
+        </div>
+        <span class="ref-bonus-tag">+50 🪙</span>
+      </div>
+      <div class="gw-prog" style="margin-top:8px"><i style="width:${Math.min(100,Math.round((Math.min(3,daysCount)/3)*100))}%;background:var(--ok)"></i></div>
+      ${invCode?`
+        <div class="ref-code-strip" style="margin-top:10px">
+          <div><small>Invite Code</small><b>${esc(invCode)}</b></div>
+          <div class="row" style="gap:6px">
+            <button type="button" class="btn ghost sm" id="refCopyInline">Copy</button>
+            <button type="button" class="btn sm" id="refShare">Share Card</button>
+          </div>
+        </div>
+      `:`<button class="btn ghost sm" style="margin-top:10px" id="refLogin">Sign in with Google for Invite Card</button>`}
     </div>
   `;
 
   updateHud();
+  if(typeof SFX!=='undefined')SFX.syncButtons();
+  if(typeof bindGiftWallEvents==='function')bindGiftWallEvents($('#v-profile'),me,true);
   $('#accBtn').onclick=openAuthModal;
+  if($('#pfSfxRow'))$('#pfSfxRow').onclick=()=>{
+    if(typeof SFX!=='undefined'){
+      const isOff=SFX.toggle();
+      toast(isOff?'Sound FX muted':'Sound FX enabled');
+    }
+  };
   if($('#refLogin'))$('#refLogin').onclick=openAuthModal;
-  if($('#refShare'))$('#refShare').onclick=shareInvite;
+  if($('#refCopyInline'))$('#refCopyInline').onclick=()=>shareInvite('copy_code');
+  if($('#refShare'))$('#refShare').onclick=openReferShareModal;
 
   /* Tap Banner -> Banner Picker; Tap Avatar -> Avatar Picker */
   $('#pBanner').onclick=e=>{

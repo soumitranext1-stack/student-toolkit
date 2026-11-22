@@ -1,5 +1,5 @@
 "use strict";
-/* Shared helpers for all Study Game mini games (with safe coin/EXP capping) */
+/* Shared helpers for all Study Game mini games (safe coin/EXP capping, Google auth check, Sound FX, Gift return) */
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
@@ -8,6 +8,58 @@ const shuffle=a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=rnd(i+1);
 function toast(t){$$('.toast').forEach(x=>x.remove());const e=document.createElement('div');e.className='toast';e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2600)}
 function modal(html){const m=document.createElement('div');m.className='mb';m.innerHTML=`<div class="sheet">${html}</div>`;document.body.appendChild(m);m.close=()=>m.remove();return m}
 if(localStorage.getItem('sg_theme')==='light')document.body.classList.add('light');
+
+/* Shared Lightweight Web Audio SFX synced with main app Mute/Unmute preference */
+let gkAudioCtx=null;
+function gkIsMuted(){try{return localStorage.getItem('sg_sfx_muted')==='1'}catch{return false}}
+function gkPlaySfx(kind){
+  if(gkIsMuted())return;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC)return;
+  if(!gkAudioCtx){try{gkAudioCtx=new AC()}catch{return}}
+  if(gkAudioCtx.state==='suspended')gkAudioCtx.resume().catch(()=>{});
+  const tone=(f,off,dur,tp='sine',g=0.08)=>{
+    try{
+      const now=gkAudioCtx.currentTime+off,o=gkAudioCtx.createOscillator(),gn=gkAudioCtx.createGain();
+      o.type=tp;o.frequency.setValueAtTime(f,now);
+      gn.gain.setValueAtTime(0.0001,now);
+      gn.gain.exponentialRampToValueAtTime(g,now+0.015);
+      gn.gain.exponentialRampToValueAtTime(0.0001,now+dur);
+      o.connect(gn);gn.connect(gkAudioCtx.destination);o.start(now);o.stop(now+dur+0.02);
+    }catch{}
+  };
+  if(kind==='coin'){tone(988,0,0.08,'triangle',0.08);tone(1318.5,0.06,0.16,'sine',0.09)}
+  else if(kind==='win'){[587.3,740,880,1174.7].forEach((f,i)=>tone(f,i*0.065,0.2,'triangle',0.085))}
+  else if(kind==='good'){tone(660,0,0.07,'triangle',0.07);tone(990,0.05,0.11,'sine',0.08)}
+  else if(kind==='bad'){tone(250,0,0.1,'sawtooth',0.045)}
+  else tone(740,0,0.04,'sine',0.045);
+}
+
+/* Inject compact Sound FX mute toggle into standalone mini-game headers */
+(function mountMiniGameSfxBtn(){
+  const hdr=$('header');
+  if(!hdr||$('#gkSfxBtn'))return;
+  const btn=document.createElement('button');
+  btn.id='gkSfxBtn';btn.type='button';btn.className='ib';
+  const sync=()=>{
+    const m=gkIsMuted();
+    btn.setAttribute('aria-label',m?'Unmute Sound FX':'Mute Sound FX');
+    btn.title=m?'Sound FX: Muted':'Sound FX: On';
+    btn.innerHTML=m
+      ?'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>'
+      :'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>';
+  };
+  btn.onclick=()=>{
+    const next=!gkIsMuted();
+    try{localStorage.setItem('sg_sfx_muted',next?'1':'0')}catch{}
+    sync();
+    if(!next)gkPlaySfx('click');
+  };
+  sync();
+  const coinEl=$('.coin');
+  if(coinEl)hdr.insertBefore(btn,coinEl);
+  else hdr.appendChild(btn);
+})();
 
 const MAX_COINS=999999999, MAX_EXP=99999900;
 const DAILY_CAP=20;
@@ -25,7 +77,7 @@ function fmtCoins(v){
 
 function getProf(){
   try{const p=JSON.parse(localStorage.getItem(PK)||'null');if(p)return p}catch{}
-  const p={uid,name:'Guest '+uid.slice(-4),avatar:'🦊',coins:50,exp:0};
+  const p={uid,name:'Guest '+uid.slice(-4),avatar:'🦊',coins:50,exp:0,lastSeen:Date.now()};
   localStorage.setItem(PK,JSON.stringify(p));return p;
 }
 function showCoins(){const e=$('#coins');if(e)e.textContent=fmtCoins(getProf().coins)}
@@ -33,12 +85,17 @@ function addReward(coins,exp){
   const p=getProf();
   p.coins=clampInt(Number(p.coins||0)+Number(coins||0),0,MAX_COINS);
   p.exp=clampInt(Number(p.exp||0)+Number(exp||0),0,MAX_EXP);
+  p.lastSeen=Date.now();
   if(coins>0){
     p.dailyCoinsByDay=p.dailyCoinsByDay&&typeof p.dailyCoinsByDay==='object'?p.dailyCoinsByDay:{};
     p.dailyCoinsByDay[today()]=clampInt(Number(p.dailyCoinsByDay[today()]||0)+coins,0,MAX_COINS);
   }
   localStorage.setItem(PK,JSON.stringify(p));
-  if(db&&S){const o={uid,name:p.name,avatar:p.avatar||'🦊',coins:p.coins,exp:p.exp};if(p.dailyCoinsByDay)o.dailyCoinsByDay=p.dailyCoinsByDay;S.setDoc(S.doc(db,'users',uid),o,{merge:true}).catch(()=>{})}
+  if(db&&S){
+    const o={uid,name:p.name,avatar:p.avatar||'🦊',coins:p.coins,exp:p.exp,lastSeen:p.lastSeen};
+    if(p.dailyCoinsByDay)o.dailyCoinsByDay=p.dailyCoinsByDay;
+    S.setDoc(S.doc(db,'users',uid),o,{merge:true}).catch(()=>{});
+  }
   showCoins();
 }
 function bumpPlayed(){
@@ -54,7 +111,8 @@ async function initFb(){
     const app=A.initializeApp(CFG);db=S.getFirestore(app);const auth=AU.getAuth(app);
     let u=await new Promise(res=>{const un=AU.onAuthStateChanged(auth,x=>{un();res(x)})});
     if(!u)u=(await AU.signInAnonymously(auth)).user;
-    uid=u.uid;PK='sg_profile_'+uid;isGuest=u.isAnonymous;localStorage.setItem('sg_uid',uid);
+    const hasGoogle=Array.isArray(u.providerData)&&u.providerData.some(p=>p&&p.providerId==='google.com');
+    uid=u.uid;PK='sg_profile_'+uid;isGuest=u.isAnonymous||!hasGoogle;localStorage.setItem('sg_uid',uid);
   }catch{S=null;db=null}
 }
 const ready=initFb().then(showCoins);
@@ -66,18 +124,22 @@ async function award(gameId,wantCoins,wantExp){
   const coins=isGuest?0:Math.max(0,Math.min(wantCoins,DAILY_CAP-got));
   localStorage.setItem(k,String(got+coins));
   addReward(coins,Math.max(0,Math.min(40,wantExp)));
+  if(coins>0)gkPlaySfx('coin');
+  else gkPlaySfx('win');
   return {coins,capped:!isGuest&&wantCoins>coins,guest:isGuest&&wantCoins>0};
 }
 function result(o){
   const r=o.r||{coins:0};
-  const coinTxt=r.guest?'🔒 Coins ke liye Register / Login karo':(r.coins>0?`+${r.coins} 🪙 mile`:(r.capped?'Aaj ka coin limit pura ho gaya (20 🪙/game)':'Is baar coin nahi mile'));
-  const m=modal(`<div class="big">${o.emoji||'🏁'}</div><h2>${esc(o.title)}</h2>${(o.lines||[]).map(l=>`<p class="mu">${esc(l)}</p>`).join('')}<p style="margin-top:10px;font-weight:700">${esc(coinTxt)}</p><button class="btn full" id="rA">Play again</button><button class="btn ghost full" id="rM">Menu</button><button class="btn ghost full" id="rB">Back to Study Game</button>`);
-  $('#rA').onclick=()=>{m.close();o.again()};
-  $('#rM').onclick=()=>{m.close();o.menu()};
+  const coinTxt=r.guest?'Sign in with Google in Study Game to earn coins':(r.coins>0?`+${r.coins} 🪙 earned`:(r.capped?'Daily coin cap reached (20 🪙/game)':'No coins earned this round'));
+  const m=modal(`<div class="big">${o.emoji||'🏁'}</div><h2>${esc(o.title)}</h2>${(o.lines||[]).map(l=>`<p class="mu">${esc(l)}</p>`).join('')}<p style="margin-top:10px;font-weight:700">${esc(coinTxt)}</p><button class="btn full" id="rA">Play again</button><button class="btn ghost full" id="rG">Send Gift to a Player</button><button class="btn ghost full" id="rMp">Join Live Multiplayer Room</button><button class="btn ghost full" id="rM">Menu</button><button class="btn ghost full" id="rB">Back to Study Game</button>`);
+  $('#rA').onclick=()=>{gkPlaySfx('click');m.close();o.again()};
+  $('#rG').onclick=()=>{try{sessionStorage.setItem('sg_return','games');sessionStorage.setItem('sg_open_gift','1')}catch{}location.href='index.html'};
+  $('#rMp').onclick=()=>{try{sessionStorage.setItem('sg_return','games')}catch{}location.href='index.html'};
+  $('#rM').onclick=()=>{gkPlaySfx('click');m.close();o.menu()};
   $('#rB').onclick=()=>location.href='index.html';
 }
-function pick(sel,cb){$(sel).onclick=e=>{const b=e.target.closest('button');if(!b)return;$$(sel+' button').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset.v)}}
+function pick(sel,cb){$(sel).onclick=e=>{const b=e.target.closest('button');if(!b)return;$$(sel+' button').forEach(x=>x.classList.toggle('on',x===b));gkPlaySfx('click');cb(b.dataset.v)}}
 const bestGet=k=>Number(localStorage.getItem('best_'+k)||0);
 const bestSet=(k,v)=>{if(v>bestGet(k)){localStorage.setItem('best_'+k,String(v));return true}return false};
 showCoins();
-$('#back').onclick=()=>location.href='index.html';
+if($('#back'))$('#back').onclick=()=>{try{sessionStorage.setItem('sg_return','games')}catch{}location.href='index.html'};

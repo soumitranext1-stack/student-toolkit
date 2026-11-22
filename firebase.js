@@ -11,18 +11,16 @@ const firebaseConfig = {
 
 /* ===== Firebase Auth helpers ===== */
 let AUTH=null,auth=null,userUnsubs=[],devListening=false;
-const emailOf=id=>{id=String(id||'').trim().toLowerCase();return id.includes('@')?id:id.replace(/[^a-z0-9._-]/g,'')+'@studygame.app'};
 function authMsg(e){
   const c=String((e&&e.code)||'');
-  if(c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found'))return 'Wrong ID or password';
-  if(c.includes('email-already-in-use')||c.includes('credential-already-in-use'))return 'This ID already exists';
-  if(c.includes('weak-password'))return 'Password must be 6+ characters';
-  if(c.includes('invalid-email'))return 'Invalid ID';
-  if(c.includes('network'))return 'No internet';
-  if(c.includes('operation-not-allowed'))return 'Enable Email/Password sign-in in Firebase Auth';
-  if(c.includes('unauthorized-domain'))return 'Add this website in Firebase > Auth > Authorized domains';
-  if(c.includes('too-many-requests'))return 'Too many tries, wait a bit';
-  return 'Login failed';
+  if(c.includes('popup-closed-by-user')||c.includes('cancelled-popup-request'))return 'Google sign-in cancelled';
+  if(c.includes('popup-blocked'))return 'Popup blocked — redirecting to Google Sign-In…';
+  if(c.includes('credential-already-in-use')||c.includes('email-already-in-use'))return 'Switching to your existing Google account…';
+  if(c.includes('network'))return 'No internet connection';
+  if(c.includes('operation-not-allowed'))return 'Enable Google sign-in in Firebase Auth';
+  if(c.includes('unauthorized-domain'))return 'Add this domain in Firebase > Auth > Authorized domains';
+  if(c.includes('too-many-requests'))return 'Too many tries, wait a moment';
+  return 'Google sign-in failed';
 }
 
 function mergeAppearanceFromCloud(m){
@@ -74,6 +72,13 @@ function mergeAppearanceFromCloud(m){
   if(m.claimedByDay&&typeof m.claimedByDay==='object'){
     me.claimedByDay={...m.claimedByDay,...me.claimedByDay};
   }
+  if(typeof m.charm==='number')me.charm=Math.max(clampSafeInt(me.charm||0,0,MAX_COINS),clampSafeInt(m.charm,0,MAX_COINS));
+  if(typeof m.charmSent==='number')me.charmSent=Math.max(clampSafeInt(me.charmSent||0,0,MAX_COINS),clampSafeInt(m.charmSent,0,MAX_COINS));
+  if(m.giftWallet&&typeof m.giftWallet==='object'&&!Array.isArray(m.giftWallet)){
+    const gw={...(me.giftWallet||{})};
+    Object.entries(m.giftWallet).forEach(([k,v])=>{gw[k]=Math.max(Number(gw[k]||0),clampSafeInt(v,0,MAX_COINS))});
+    me.giftWallet=gw;
+  }
   if(typeof m.banned==='boolean')me.banned=m.banned;
 
   me=normalizeProfile(me,uid);
@@ -83,9 +88,13 @@ function mergeAppearanceFromCloud(m){
 }
 
 async function adoptAuthUser(u){
-  const anon=u.isAnonymous,email=(u.email||'').toLowerCase();
+  const hasGoogle=Array.isArray(u.providerData)&&u.providerData.some(p=>p&&p.providerId==='google.com');
+  const anon=u.isAnonymous||!hasGoogle;
+  const email=hasGoogle?String(u.email||'').trim().toLowerCase():'';
+  const authProvider=hasGoogle?'google.com':'anonymous';
   if(u.uid===uid){
-    me.accountType=anon?'guest':'account';me.accountId=anon?'':email;
+    me.accountType=anon?'guest':'account';me.accountId=email;me.authProvider=authProvider;
+    if(hasGoogle&&u.displayName&&/^guest /i.test(me.name||''))me.name=u.displayName.slice(0,24);
     me=normalizeProfile(me,uid);refreshDevMode();
     saveMe();applyDevUI();checkBan();
     patchUser(uid,base());dbOp(()=>F.setDoc(userRef(uid),base(),{merge:true}));
@@ -101,7 +110,8 @@ async function adoptAuthUser(u){
     start=JSON.parse(JSON.stringify(me));delete start.banned;
   }
   localStorage.setItem('sg_migrated','1');
-  const next={...(start||{}),uid:u.uid,accountType:anon?'guest':'account',accountId:anon?'':email};
+  const next={...(start||{}),uid:u.uid,accountType:anon?'guest':'account',accountId:email,authProvider};
+  if(hasGoogle&&u.displayName&&(!next.name||/^guest /i.test(next.name)))next.name=u.displayName.slice(0,24);
   switchToIdentity(u.uid,next);
   if(!cloud){
     dbOp(()=>F.setDoc(userRef(u.uid),{...base(),coins:clampCoins(me.coins),createdAt:Date.now()},{merge:true}));
@@ -140,6 +150,7 @@ async function initFirebase(){
     const app=A.initializeApp(firebaseConfig);
     db=S.getFirestore(app);F=S;AUTH=AU;auth=AU.getAuth(app);
 
+    try{await AU.getRedirectResult(auth)}catch{}
     let u=await new Promise(res=>{const un=AU.onAuthStateChanged(auth,x=>{un();res(x)})});
     if(!u)u=(await AU.signInAnonymously(auth)).user;
     online=true;
@@ -158,10 +169,15 @@ async function initFirebase(){
 
     S.onSnapshot(S.collection(db,'users'),snap=>{
       const docs=snap.docs.map(d=>sanitizeUserAppearance({uid:d.id,...d.data()}));
-      cleanupInactiveZeroFriendUsers(docs);users=docs;ls.set('sg_users_cache',users);
+      cleanupInactiveGuestUsers(docs);users=docs;ls.set('sg_users_cache',users);
       const m=users.find(x=>x.uid===uid);
       if(m){mergeAppearanceFromCloud(m);applyDevUI();checkBan()}
       setStatus(true);claimRankReward();checkReferralPayout();updateHud();renderAll();
+    },()=>{});
+
+    S.onSnapshot(S.collection(db,'gift_events'),snap=>{
+      const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.ts||0)-(a.ts||0));
+      if(typeof ingestIncomingGiftEvents==='function')ingestIncomingGiftEvents(list);
     },()=>{});
 
     S.onSnapshot(S.collection(db,'store_items'),snap=>{
@@ -177,7 +193,8 @@ async function initFirebase(){
       renderRanking();
     },()=>{});
 
-    /* World Chat with automatic 7-day cleanup + 150 msg cap */
+    /* World Chat with automatic 7-day cleanup + 150 msg cap + live incoming Sound FX */
+    let worldHydrated=false, prevWorldIds=new Set((worldMsgs||[]).map(x=>x.id));
     S.onSnapshot(S.collection(db,'world_chat'),snap=>{
       const now=Date.now();
       let list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.ts||0)-(b.ts||0));
@@ -194,9 +211,36 @@ async function initFirebase(){
         list.slice(0,list.length-150).forEach(old=>dbOp(()=>F.deleteDoc(F.doc(db,'world_chat',old.id))));
         list=list.slice(-150);
       }
+      if(worldHydrated&&typeof playSfx==='function'){
+        const newlyAdded=list.filter(m=>m&&m.id&&!prevWorldIds.has(m.id)&&m.uid!==uid);
+        if(newlyAdded.length){
+          const lastNew=newlyAdded[newlyAdded.length-1];
+          if(lastNew.type==='red_packet')playSfx('redPacketDrop');
+          else if(lastNew.type==='gift')playSfx('giftReceive');
+          else if(cur==='world')playSfx('chatRecv');
+        }
+      }
+      worldHydrated=true;
+      prevWorldIds=new Set(list.map(x=>x.id));
       worldMsgs=list;ls.set('sg_world_msgs',worldMsgs);
       if(cur==='world')renderThread();
       else renderChats();
+    },()=>{});
+
+    /* Live Multiplayer Game Rooms listener (auto-cleans stale rooms older than 2 hours) */
+    S.onSnapshot(S.collection(db,'game_rooms'),snap=>{
+      const now=Date.now();
+      const active=[];
+      snap.docs.forEach(d=>{
+        const rm={id:d.id,...d.data()};
+        const lastTs=Number(rm.updatedAt||rm.createdAt||0);
+        if(lastTs>0&&(now-lastTs)>=7200000){
+          dbOp(()=>F.deleteDoc(F.doc(db,'game_rooms',d.id)));
+        }else{
+          active.push(rm);
+        }
+      });
+      if(typeof ingestMultiplayerRooms==='function')ingestMultiplayerRooms(active);
     },()=>{});
 
     attachUserListeners();attachDevListeners();

@@ -54,7 +54,8 @@ $('#taskList').onclick=e=>{
   if(!checkRule(t.ruleCode))return;
   inFlightOps.add('task_'+id);
   try{
-    addReward(clampSafeInt(t.reward,0,5000),clampSafeInt(t.exp||15,0,500),id);
+    addReward(clampSafeInt(t.reward,0,5000),clampSafeInt(t.exp||15,0,500),id,false,{silentSfx:true});
+    if(typeof playSfx==='function')playSfx('taskClaim',{amount:t.reward});
     renderTasks();
     toast(`+${fmtNum(t.reward)} coins & +${fmtNum(t.exp||15)} EXP`);
   }finally{

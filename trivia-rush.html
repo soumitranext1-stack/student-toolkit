@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#14182b">
 <title>Trivia Rush</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=5">
 <link rel="stylesheet" href="gamekit.css">
 </head>
 <body>
@@ -74,7 +75,7 @@ function menu(){
     <label>Category</label><div class="chips" id="cat">${CATS.map(c=>`<button data-v="${c}" ${c==='All'?'class="on"':''}>${c}</button>`).join('')}</div>
     <p class="mu" style="margin-top:10px">🏆 Best: <b>${bestGet('tr_best')}</b></p>
     <button class="btn full" id="go">Start</button></div>
-    <div class="card"><p class="mu">Coins: max 20 🪙 per din, sirf registered players ko.</p></div>`;
+    <div class="card"><p class="mu">Coins: max 20 🪙 per din, sirf Google-signed-in players ko.</p></div>`;
   pick('#cat',v=>cat=v);$('#go').onclick=play;
 }
 
@@ -94,8 +95,8 @@ function play(){
     const settle=pick=>{
       if(lock)return;lock=true;clearInterval(iv);
       const left=Math.max(0,limit-(Date.now()-t0))/1000,ok=pick===q.a;
-      if(ok){correct++;const p=10+Math.round(left);score+=p;$('#fb').textContent=`✅ Sahi! +${p}`}
-      else $('#fb').textContent=pick==null?'⏰ Time up':'❌ Galat';
+      if(ok){correct++;const p=10+Math.round(left);score+=p;if(typeof gkPlaySfx==='function')gkPlaySfx('good');$('#fb').textContent=`✅ Sahi! +${p}`}
+      else{if(typeof gkPlaySfx==='function')gkPlaySfx('bad');$('#fb').textContent=pick==null?'⏰ Time up':'❌ Galat'}
       $$('.opt').forEach(x=>{if(x.dataset.a===q.a)x.classList.add('good');else if(x.dataset.a===pick)x.classList.add('bad');else x.classList.add('off')});
       setTimeout(ask,1300);
     };

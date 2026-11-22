@@ -162,7 +162,9 @@ let uid=localStorage.getItem('sg_uid')||guestUid;localStorage.setItem('sg_uid',u
 function isDevAccount(u){
   if(!u)return false;
   if(u.uid===DEV_UID)return true;
-  return u.accountType==='account' && String(u.accountId||'').trim().toLowerCase()===DEV_LOGIN_ID;
+  const prov=String(u.authProvider||'');
+  const provOk=!prov||prov==='google.com';
+  return u.accountType==='account' && provOk && String(u.accountId||'').trim().toLowerCase()===DEV_LOGIN_ID;
 }
 
 function freshDefaultProfile(targetUid, isGuest){
@@ -172,10 +174,11 @@ function freshDefaultProfile(targetUid, isGuest){
     bio:'',hobbies:'',avatar:'🦊',
     frame:'none',banner:'bn-aurora',textStyle:'',msgStyle:'',
     tags:[isGuest?'Guest Pass':'Newbie'],
-    accountType:isGuest?'guest':'account',accountId:'',
-    coins:50,exp:0,dailyCoinsByDay:{},claimedByDay:{},friends:[],tempUnlocks:{},done:{},bioStyle:'',
+    accountType:isGuest?'guest':'account',accountId:'',authProvider:isGuest?'anonymous':'google.com',
+    coins:50,exp:0,charm:0,charmSent:0,giftWallet:{},
+    dailyCoinsByDay:{},claimedByDay:{},friends:[],tempUnlocks:{},done:{},bioStyle:'',
     unreadFrom:{},activeDays:[today()],referredBy:'',referralRewardClaimed:false,
-    lastLoginBonusDay:'',poemReqDay:'',usageSec:0,banned:false,resetAt:0,lastRewardedLevel:1
+    lastLoginBonusDay:'',poemReqDay:'',usageSec:0,banned:false,resetAt:0,lastRewardedLevel:1,lastSeen:Date.now()
   };
 }
 
@@ -195,7 +198,7 @@ function sanitizeDailyMap(rawMap){
 function normalizeProfile(p,targetUid){
   const isGuest=targetUid===guestUid && (!p || p.accountType!=='account');
   const o={...freshDefaultProfile(targetUid,isGuest),...JSON.parse(JSON.stringify(p||{})),uid:targetUid};
-  ['dailyCoinsByDay','claimedByDay','tempUnlocks','unreadFrom','done'].forEach(k=>{if(!o[k]||typeof o[k]!=='object'||Array.isArray(o[k]))o[k]={}});
+  ['dailyCoinsByDay','claimedByDay','tempUnlocks','unreadFrom','done','giftWallet'].forEach(k=>{if(!o[k]||typeof o[k]!=='object'||Array.isArray(o[k]))o[k]={}});
   o.friends=Array.isArray(o.friends)?o.friends:[];
   o.activeDays=Array.isArray(o.activeDays)?o.activeDays:[];
   if(!o.activeDays.includes(today()))o.activeDays.push(today());
@@ -203,9 +206,12 @@ function normalizeProfile(p,targetUid){
   o.dailyCoinsByDay=sanitizeDailyMap(o.dailyCoinsByDay);
   o.coins=clampCoins(o.coins);
   o.exp=clampExp(o.exp);
+  o.charm=clampSafeInt(o.charm||0,0,MAX_COINS);
+  o.charmSent=clampSafeInt(o.charmSent||0,0,MAX_COINS);
   o.streakDays=calcStreak(o.activeDays);
   o.resetAt=Number(o.resetAt||0);
   o.lastRewardedLevel=Math.max(1,clampSafeInt(o.lastRewardedLevel||calcLevel(o.exp),1,MAX_LEVEL));
+  o.lastSeen=Date.now();
 
   const live=k=>Number(o.tempUnlocks[k]||0)>Date.now();
   const isFreeAvatar=a=>(typeof FX_FREE_AVATARS!=='undefined'?FX_FREE_AVATARS:USER_AVATARS).includes(a);
@@ -244,12 +250,12 @@ function getUserTodayPts(u){
   return map&&typeof map==='object'?clampSafeInt(map[today()]||0,0,MAX_DAILY_PTS):0;
 }
 
-let devMode=isDevAccount(me) && me.accountType==='account' && String(me.accountId||'').toLowerCase()===DEV_LOGIN_ID;
+let devMode=isDevAccount(me);
 function refreshDevMode(){
-  devMode=Boolean(me && me.accountType==='account' && String(me.accountId||'').trim().toLowerCase()===DEV_LOGIN_ID);
+  devMode=isDevAccount(me);
   return devMode;
 }
-function needLogin(what){if(devMode||me.accountType==='account')return false;toast('Register / Login to use '+what);return true}
+function needLogin(what){if(devMode||me.accountType==='account')return false;toast('Sign in with Google to use '+what);return true}
 
 function sanitizeUserAppearance(u){
   const copy={...(u||{})};
@@ -366,7 +372,9 @@ const base=()=>({
   uid,name:me.name,bio:me.bio,hobbies:me.hobbies,avatar:me.avatar,frame:me.frame,banner:me.banner,
   textStyle:me.textStyle,msgStyle:me.msgStyle,bioStyle:me.bioStyle||'',
   streakDays:calcStreak(me.activeDays),activeDays:me.activeDays,tags:me.tags,
-  accountType:me.accountType,accountId:me.accountId,exp:clampExp(me.exp),
+  accountType:me.accountType,accountId:me.accountId,authProvider:me.authProvider||(me.accountType==='account'?'google.com':'anonymous'),
+  exp:clampExp(me.exp),charm:clampSafeInt(me.charm||0,0,MAX_COINS),charmSent:clampSafeInt(me.charmSent||0,0,MAX_COINS),
+  giftWallet:me.giftWallet||{},
   dailyCoinsByDay:sanitizeDailyMap(me.dailyCoinsByDay),claimedByDay:me.claimedByDay,
   friends:me.friends,tempUnlocks:me.tempUnlocks,resetAt:Number(me.resetAt||0),lastSeen:Date.now()
 });
@@ -466,6 +474,7 @@ function triggerLevelUp(prevLevel,newLevel){
   dbOp(()=>F.setDoc(userRef(uid),{...base(),coins:me.coins,exp:me.exp,tempUnlocks:me.tempUnlocks},{merge:true}));
   updateHud();
   if(typeof buildProfile==='function')buildProfile();
+  if(typeof playSfx==='function')playSfx('levelUp');
   showLevelUpModal(prevLevel,newLevel,rw);
 }
 
@@ -485,6 +494,9 @@ function addReward(coinsDelta, expDelta, taskId, noLb, opts){
   }
   const newLevel=calcLevel(me.exp);
   saveMe();patchUser(uid,{...base(),coins:me.coins,exp:me.exp});updateHud();
+  if(cDelta>0 && !(opts&&opts.silentSfx) && typeof playSfx==='function'){
+    playSfx('coin',{amount:cDelta});
+  }
   if(typeof renderRanking==='function')renderRanking();
   dbOp(()=>F.setDoc(userRef(uid),{...base(),coins:me.coins,exp:me.exp,dailyCoinsByDay:me.dailyCoinsByDay,claimedByDay:me.claimedByDay},{merge:true}));
 
@@ -527,17 +539,134 @@ function devAdjustUserCoins(targetUid, delta){
 }
 
 function getInviteCode(){return me.accountType==='account'?'REF_'+uid.replace(/[^A-Z0-9]/gi,'').slice(-8).toUpperCase():''}
-function shareInvite(){
-  const code=getInviteCode();if(!code)return toast('Login first for invite code');
-  const link=location.href.split('#')[0].split('?')[0]+'?ref='+code;
-  if(navigator.share)navigator.share({title:'Study Game',text:`Join with code ${code}: ${link}`,url:link}).catch(()=>{});
-  else navigator.clipboard?.writeText(link).then(()=>toast('Invite link copied'),()=>toast(link));
+function buildReferralSharePayload(customCode){
+  const code=String(customCode||getInviteCode()||'').trim().toUpperCase();
+  const cleanBase=location.href.split('#')[0].split('?')[0];
+  const link=code?`${cleanBase}?ref=${encodeURIComponent(code)}`:cleanBase;
+  const sender=(me.name||'').trim();
+  const intro=sender&&!/^guest /i.test(sender)
+    ? `Join ${sender} on *Study Game* — study tools, live quizzes, daily leaderboard & gift drops!`
+    : `Join *Study Game* — study tools, live quizzes, daily leaderboard & gift drops!`;
+  const text=[
+    intro,
+    '',
+    `Invite Code: *${code}*`,
+    `Bonus: Stay active 3 days to unlock +50 bonus coins`,
+    `Play now: ${link}`
+  ].join('\n');
+  return {
+    code,
+    link,
+    text,
+    whatsappUrl:`https://wa.me/?text=${encodeURIComponent(text)}`,
+    telegramUrl:`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(intro+'\nInvite Code: '+code+' (+50 bonus coins after 3 active days)')}`
+  };
+}
+function shareInvite(mode){
+  const code=getInviteCode();if(!code)return toast('Sign in with Google for your invite code');
+  const p=buildReferralSharePayload(code);
+  if(typeof playSfx==='function')playSfx('click');
+  if(mode==='whatsapp'){
+    const a=document.createElement('a');a.href=p.whatsappUrl;a.target='_blank';a.rel='noopener noreferrer';a.click();
+    return;
+  }
+  if(mode==='telegram'){
+    const a=document.createElement('a');a.href=p.telegramUrl;a.target='_blank';a.rel='noopener noreferrer';a.click();
+    return;
+  }
+  if(mode==='copy_code'){
+    navigator.clipboard?.writeText(p.code).then(()=>toast('Invite code copied: '+p.code),()=>toast(p.code));
+    return;
+  }
+  if(mode==='copy_card'){
+    navigator.clipboard?.writeText(p.text).then(()=>toast('Invite message copied! Ready to paste in WhatsApp/Telegram'),()=>toast(p.link));
+    return;
+  }
+  /* Pass ONLY title + text (no separate url field) so WhatsApp/Android never duplicates the link */
+  if(navigator.share){
+    navigator.share({title:'Study Game — Invite & Earn',text:p.text}).catch(()=>{});
+  }else{
+    navigator.clipboard?.writeText(p.text).then(()=>toast('Invite card copied!'),()=>toast(p.link));
+  }
+}
+function openReferShareModal(){
+  const code=getInviteCode();
+  if(!code)return toast('Sign in with Google to unlock your Invite Card');
+  const p=buildReferralSharePayload(code);
+  const days=Math.min(3,new Set(me.activeDays||[]).size);
+  const m=modal('Refer & Earn Card',`
+    <div class="ref-card-preview">
+      <div class="ref-card-head">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="32" height="32" fill="none">
+            <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#hdrSgBg)"/>
+            <path d="M16 40V25c0-1.5 1.4-2.6 2.9-2.1 4.7 1.5 9.2 3.4 13.1 6.1 3.9-2.7 8.4-4.6 13.1-6.1 1.5-.5 2.9.6 2.9 2.1v15c0 1.4-1.3 2.4-2.6 2-4.6-1.3-9.1-1-13.4 1.5-4.3-2.5-8.8-2.8-13.4-1.5-1.3.4-2.6-.6-2.6-2z" fill="#ffffff"/>
+            <path d="M32 29v14.5" stroke="#4f6ef7" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M32 10.5l2.5 5.4 5.9.7-4.4 4 1.2 5.8-5.2-2.9-5.2 2.9 1.2-5.8-4.4-4 5.9-.7 2.5-5.4z" fill="#ffd36b"/>
+          </svg>
+        </span>
+        <div>
+          <div class="ref-card-brand">Study Game</div>
+          <small>Study tools · Live Multiplayer · Gift Wall</small>
+        </div>
+        <span class="ref-bonus-tag">+50 🪙</span>
+      </div>
+      <div class="ref-code-strip">
+        <div><small>Your Invite Code</small><b id="refCodeVal">${esc(p.code)}</b></div>
+        <button type="button" class="btn ghost sm" id="refCopyCodeBtn">Copy Code</button>
+      </div>
+      <div class="ref-msg-box" id="refPreviewTxt">${esc(p.text).replace(/\n/g,'<br>')}</div>
+      <div class="ref-meta-foot">Your active streak: <b>${days}/3 days</b> · Friend stays active 3 days → you earn +50 coins</div>
+    </div>
+    <div class="ref-share-grid">
+      <a class="btn ref-wa-btn" href="${esc(p.whatsappUrl)}" target="_blank" rel="noopener noreferrer" id="refWaBtn">WhatsApp</a>
+      <a class="btn ref-tg-btn" href="${esc(p.telegramUrl)}" target="_blank" rel="noopener noreferrer" id="refTgBtn">Telegram</a>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button type="button" class="btn ghost" style="flex:1" id="refCopyAllBtn">Copy Message</button>
+      <button type="button" class="btn" style="flex:1" id="refNativeBtn">Share Now</button>
+    </div>
+  `,'ref-modal-sheet');
+  $('#refCopyCodeBtn',m).onclick=()=>shareInvite('copy_code');
+  $('#refCopyAllBtn',m).onclick=()=>shareInvite('copy_card');
+  $('#refNativeBtn',m).onclick=()=>shareInvite();
+  $('#refWaBtn',m).onclick=()=>{if(typeof playSfx==='function')playSfx('click')};
+  $('#refTgBtn',m).onclick=()=>{if(typeof playSfx==='function')playSfx('click')};
 }
 
 function syncDevInboxToCloud(tid,obj){ls.set('sg_dev_inbox',devInbox);dbOp(()=>F.setDoc(F.doc(db,'dev_inbox',tid),obj,{merge:true}))}
-function cleanupInactiveZeroFriendUsers(docList){
-  if(!online||!db||!devMode)return;const now=Date.now();
-  docList.forEach(d=>{if(isDevAccount(d)||d.uid===uid||d.accountType==='account')return;const fc=Array.isArray(d.friends)?d.friends.length:0,lsT=Number(d.lastSeen||d.createdAt||now);if(fc===0&&(now-lsT)>=TEN_DAYS_MS)dbOp(()=>F.deleteDoc(F.doc(db,'users',d.uid)))});
+
+/* Auto-cleanup offline/inactive guest accounts after 7 days (Firestore + local storage) */
+function cleanupInactiveGuestUsers(docList){
+  const now=Date.now();
+  /* 1. Sweep stale local guest profiles older than 7 days */
+  try{
+    const keys=Object.keys(localStorage);
+    keys.forEach(k=>{
+      if(!k.startsWith('sg_profile_')||k==='sg_profile_'+uid)return;
+      const p=ls.get(k,null);
+      if(p&&p.accountType==='guest'){
+        const last=Number(p.lastSeen||p.createdAt||0);
+        if(!last||(now-last)>=SEVEN_DAYS_MS){
+          const deadUid=k.slice('sg_profile_'.length);
+          localStorage.removeItem(k);
+          localStorage.removeItem('sg_stats_'+deadUid);
+          localStorage.removeItem('sg_chats_'+deadUid);
+        }
+      }
+    });
+  }catch{}
+
+  /* 2. Remove inactive Firestore guest docs older than 7 days */
+  if(!online||!db||!Array.isArray(docList))return;
+  docList.forEach(d=>{
+    if(!d||!d.uid||d.uid===uid||isDevAccount(d))return;
+    if(d.accountType!=='guest')return;
+    const last=Number(d.lastSeen||d.createdAt||0);
+    if(last>0&&(now-last)>=SEVEN_DAYS_MS){
+      dbOp(()=>F.deleteDoc(F.doc(db,'users',d.uid)));
+    }
+  });
 }
 
 function modal(title,html,cls=''){
@@ -554,7 +683,13 @@ function openRewardAd(onDone){
 }
 
 function allUsers(){const m=new Map(users.map(u=>[u.uid,sanitizeUserAppearance(u)]));m.set(uid,{...(m.get(uid)||{}),...sanitizeUserAppearance(me)});return [...m.values()]}
-function rankableUsers(){return allUsers().filter(u=>!isDevAccount(u)).map(u=>({...u,todayPts:getUserTodayPts(u)})).sort((a,b)=>b.todayPts-a.todayPts||(b.coins||0)-(a.coins||0))}
+/* Leaderboard strictly ranks by TODAY'S earned coins/points (never exposes total wallet balance) */
+function rankableUsers(){
+  return allUsers()
+    .filter(u=>!isDevAccount(u))
+    .map(u=>({...u,todayPts:getUserTodayPts(u)}))
+    .sort((a,b)=>b.todayPts-a.todayPts||(b.charm||0)-(a.charm||0)||(b.exp||0)-(a.exp||0));
+}
 function isFriend(id){return me.friends.includes(id)}
 function toggleFriend(targetUid){
   if(!targetUid||targetUid===uid)return;
@@ -567,21 +702,45 @@ function toggleFriend(targetUid){
 function openPublicProfile(targetUid){
   if(targetUid==='developer'||targetUid===DEV_UID){
     const realDev=allUsers().find(x=>isDevAccount(x))||{uid:DEV_UID,name:'Developer',avatar:'🦊',frame:'none',banner:'bn-aurora',tags:['Developer','LVL 99']};
-    const m=modal('Developer Profile',`<div class="bn-box ${esc(realDev.banner||'bn-aurora')}"><div class="pf">${av(realDev,74)}<b>${styledName(realDev)}</b>${renderTags(['Developer','LVL 99'],realDev)}</div></div><button class="btn full" id="pmDev">Message Developer</button>`);
+    const isSelfDev=realDev.uid===uid;
+    const gwHtml=typeof renderGiftWallHtml==='function'?renderGiftWallHtml(realDev,isSelfDev):'';
+    const m=modal('Developer Profile',`
+      <div class="bn-box ${esc(realDev.banner||'bn-aurora')}"><div class="pf">${av(realDev,74)}<b>${styledName(realDev)}</b>${renderTags(['Developer','LVL 99'],realDev)}</div></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="pmDev" style="flex:1">Message Developer</button>
+        ${!isSelfDev&&typeof openGiftSendModal==='function'?`<button class="btn gold" id="pmDevGift" style="flex:1">Send Gift</button>`:''}
+      </div>
+      ${gwHtml}
+    `,'pub-prof-sheet');
     $('#pmDev',m).onclick=()=>{m.close();openThread('developer')};
+    if($('#pmDevGift',m))$('#pmDevGift',m).onclick=()=>openGiftSendModal(realDev.uid,{targetName:realDev.name||'Developer'});
+    if(typeof bindGiftWallEvents==='function')bindGiftWallEvents(m,realDev,isSelfDev);
     return;
   }
   const u=allUsers().find(x=>x.uid===targetUid);if(!u)return toast('Player not found');
   const self=u.uid===uid, fr=isFriend(u.uid);
+  const canSeeWallet=self||devMode;
+  const gwStats=typeof getGiftWallStatsForUser==='function'?getGiftWallStatsForUser(u):{totalCharm:u.charm||0};
+  const walletMarkup=canSeeWallet
+    ? `<span class="chip" data-wallet-visible="1">${UI_SVG.coin} ${self?'Wallet':'Dev View · Wallet'}: ${fmtNum(u.coins)}</span> · `
+    : '';
+  const gwHtml=typeof renderGiftWallHtml==='function'?renderGiftWallHtml(u,self):'';
+
   const m=modal('Player Profile',`
     <div class="bn-box ${esc(u.banner||'bn-aurora')}">
       <div class="pf">${av(u,74)}<b style="font-size:18px">${styledName(u)}</b><small>LVL ${fmtNum(calcLevel(u.exp),MAX_LEVEL)} · UID: ${esc(u.uid)}</small></div>
-      <div style="text-align:center;margin-top:6px"><span class="chip">${UI_SVG.coin} ${fmtNum(u.coins)}</span> · <span class="exp-chip">Today: ${fmtNum(getUserTodayPts(u))}</span></div>
+      <div class="pub-meta-line">
+        ${walletMarkup}<span class="exp-chip">Today: +${fmtNum(getUserTodayPts(u))}</span> · <span class="charm-chip">Charm: ${fmtNum(gwStats.totalCharm)}</span>
+      </div>
       ${renderTags(u.tags,u)}
     </div>
     <div class="card" style="margin-top:10px;font-size:13px"><div><b>Bio:</b> <span class="${esc(u.bioStyle||'')}">${esc(u.bio||'—')}</span></div>${u.streakDays?`<div style="margin-top:4px">🔥 ${u.streakDays} ${tr('streak')}</div>`:''}<div style="margin-top:4px"><b>Hobbies:</b> ${esc(u.hobbies||'—')}</div></div>
-    ${!self?`<div class="row" style="margin-top:10px"><button class="btn ${fr?'ghost':''}" id="pfAdd" style="flex:1">${fr?'Friends ✓':'Add Friend'}</button><button class="btn" id="pfMsg" style="flex:1">Message</button></div>`:''}
-  `);
+    ${!self?`<div class="row wrap" style="margin-top:10px"><button class="btn ${fr?'ghost':''}" id="pfAdd" style="flex:1">${fr?'Friends ✓':'Add Friend'}</button><button class="btn" id="pfMsg" style="flex:1">Message</button><button class="btn gold" id="pfGift" style="flex:1">Send Gift</button></div>`:''}
+    ${gwHtml}
+  `,'pub-prof-sheet');
+
+  if(typeof bindGiftWallEvents==='function')bindGiftWallEvents(m,u,self);
+
   if(devMode&&!self){
     $('.sb',m).insertAdjacentHTML('beforeend',`<div class="card pf-dev-wallet"><b style="color:var(--gold)">Developer Tools</b><div class="row" style="margin-top:8px"><input id="dvCoin" type="number" placeholder="± coins" style="flex:1"><button class="btn sm gold" id="dvAdj">Apply</button></div><button class="btn ghost full" id="dvResetZero" style="margin-top:8px">${UI_SVG.reset} Reset Coins / EXP to 0</button><button class="btn ${u.banned?'ok':'red'} full" id="dvBan" style="margin-top:8px">${u.banned?'Unban':'Ban'} user</button></div>`);
     $('#dvAdj',m).onclick=()=>{
@@ -603,6 +762,11 @@ function openPublicProfile(targetUid){
     if(!chats[u.uid])chats[u.uid]={id:u.uid,name:u.name||'Player',uid:u.uid,messages:[]};
     saveChats();m.close();showTab('chat');openThread(u.uid);
   };
+  if($('#pfGift',m))$('#pfGift',m).onclick=()=>{
+    if(typeof openGiftSendModal==='function'){
+      openGiftSendModal(u.uid,{targetName:u.name,onSent:()=>{m.close();openPublicProfile(u.uid)}});
+    }
+  };
 }
 
 function showTab(tab){
@@ -610,9 +774,16 @@ function showTab(tab){
   $$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+tab));
   $('main').scrollTop=0;
 }
-$('#nav').onclick=e=>{const b=e.target.closest('[data-tab]');if(b)showTab(b.dataset.tab)};
+$('#nav').onclick=e=>{const b=e.target.closest('[data-tab]');if(b){if(typeof playSfx==='function')playSfx('click');showTab(b.dataset.tab)}};
+if($('#sfxBtn'))$('#sfxBtn').onclick=()=>{
+  if(typeof SFX!=='undefined'){
+    const isOff=SFX.toggle();
+    toast(isOff?'Sound FX muted':'Sound FX enabled');
+  }
+};
 function renderAll(){
   if(typeof renderGameSlots==='function')renderGameSlots();
+  if(typeof renderMultiplayerRooms==='function')renderMultiplayerRooms();
   if(typeof renderRanking==='function')renderRanking();
   if(typeof renderTasks==='function')renderTasks();
   if(typeof renderStore==='function')renderStore();

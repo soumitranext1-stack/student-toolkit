@@ -124,18 +124,24 @@ function renderRanking(){
       <span class="lb-badge ${esc(def.badgeClass)}">TOP ${rk}</span>
       <div>${av(disp,rk===1?62:48)}</div>
       <b>${styledName(disp)}</b>
-      <div class="pts">${UI_SVG.coin} ${fmtNum(disp.todayPts||0)}</div>
+      <div class="pts">${UI_SVG.coin} +${fmtNum(disp.todayPts||0)}</div>
+      <small style="font-size:10px;color:var(--mu)">Today</small>
     </div>`;
-  }).join('')}</div><div style="text-align:center;font-size:11px;color:var(--mu);margin-top:8px">Daily 00:00 UTC reset · Top 1–3 earn exclusive Leaderboard Banners, Frames, Crests &amp; Badges</div></div>`;
+  }).join('')}</div><div style="text-align:center;font-size:11px;color:var(--mu);margin-top:8px">Ranked by Today's earned coins (00:00 UTC reset) · Full wallet balances stay private</div></div>`;
   $('#podiumSection').insertAdjacentHTML('beforeend',rewardCardsHtml());
   $('#rankList').innerHTML=rankableUsers().slice(3,50).map((u,i)=>{
     const rb=getActiveRankBadge(u);
-    return `<div class="row rk ${u.uid===uid?'me':''}" data-prof="${esc(u.uid)}"><div class="badge">#${i+4}</div>${av(u,44)}<div class="mid"><b>${styledName(u)} ${rb?`<span class="lb-badge ${esc(rb.badgeClass)}" style="font-size:9px;padding:1px 6px">${esc(rb.badge)}</span>`:''}</b><small>LVL ${fmtNum(calcLevel(u.exp),MAX_LEVEL)} · ${esc(u.uid)}</small></div><div class="cn">${UI_SVG.coin} ${fmtNum(u.todayPts||0)}</div></div>`;
+    const giftBtnHtml=u.uid!==uid?`<button type="button" class="btn gold sm rk-gift-btn" data-rkgift="${esc(u.uid)}" aria-label="Send gift to ${esc(u.name||'Player')}">Gift</button>`:'';
+    return `<div class="row rk ${u.uid===uid?'me':''}" data-prof="${esc(u.uid)}"><div class="badge">#${i+4}</div>${av(u,44)}<div class="mid"><b>${styledName(u)} ${rb?`<span class="lb-badge ${esc(rb.badgeClass)}" style="font-size:9px;padding:1px 6px">${esc(rb.badge)}</span>`:''}</b><small>LVL ${fmtNum(calcLevel(u.exp),MAX_LEVEL)} · Charm ${fmtNum(u.charm||0)}</small></div>${giftBtnHtml}<div class="cn" title="Today's earnings">${UI_SVG.coin} +${fmtNum(u.todayPts||0)}</div></div>`;
   }).join('')||'<div class="empty">Earn coins in Study Tasks &amp; Games to climb the Daily Leaderboard!</div>';
 }
 
 $('#podiumSection').onclick=e=>{const p=e.target.closest('[data-prof]');if(p&&p.dataset.prof)openPublicProfile(p.dataset.prof)};
-$('#rankList').onclick=e=>{const c=e.target.closest('[data-prof]');if(c)openPublicProfile(c.dataset.prof)};
+$('#rankList').onclick=e=>{
+  const gb=e.target.closest('[data-rkgift]');
+  if(gb){e.stopPropagation();if(typeof openGiftSendModal==='function')openGiftSendModal(gb.dataset.rkgift);return}
+  const c=e.target.closest('[data-prof]');if(c)openPublicProfile(c.dataset.prof);
+};
 
 /* Developer-only: Add/Edit Rank Reward */
 $('#addRewardBtn').onclick=()=>{

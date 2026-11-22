@@ -1,6 +1,6 @@
 "use strict";
 const linkify=h=>h.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;word-break:break-all">$1</a>');
-let chats=ls.get('sg_chats_'+uid,{}),cur=null;
+let chats=ls.get('sg_chats_'+uid,{}),cur=null,dmHydrated=false;
 const saveChats=()=>ls.set('sg_chats_'+uid,chats);
 const sendTimestamps=[];
 
@@ -83,12 +83,21 @@ function ingestRemoteDmDocs(dmDocs){
     const m={
       id:docItem.id,
       from:isMe?'me':'them',
-      type:type==='duel'?'duel':(type==='red_packet'?'red_packet':'text'),
+      type:type==='duel'?'duel':(type==='red_packet'?'red_packet':(type==='gift'?'gift':'text')),
       text:docItem.text||'',
       msgStyle:docItem.msgStyle||'',
       ts
     };
     if(m.type==='duel'){m.gi=Number(docItem.gi)||0;m.accepted=false}
+    if(m.type==='gift'){
+      m.giftId=docItem.giftId||'g01_rose';
+      m.qty=clampSafeInt(docItem.qty||1,1,99);
+      m.fromName=docItem.fromName||'Player';
+      m.toName=docItem.toName||'Player';
+      m.charm=clampSafeInt(docItem.charm||0,0,MAX_COINS);
+      m.luckyCoins=clampSafeInt(docItem.luckyCoins||0,0,50000);
+      m.luckLabel=docItem.luckLabel||'Lucky Drop';
+    }
     if(m.type==='red_packet'){
       m.amount=clampSafeInt(docItem.amount,1,10000);
       m.maxClaims=clampSafeInt(docItem.maxClaims||1,1,50);
@@ -101,7 +110,11 @@ function ingestRemoteDmDocs(dmDocs){
     th.messages.push(m);
     th.messages.sort((a,b)=>(a.ts||0)-(b.ts||0));
     if(!isMe&&cur!==peerId){me.unreadFrom[peerId]=true;gotNewUnread=true}
+    if(!isMe && dmHydrated && typeof playSfx==='function'){
+      playSfx(m.type==='red_packet'?'redPacketDrop':(m.type==='gift'?'giftReceive':'chatRecv'));
+    }
   });
+  dmHydrated=true;
   if(gotNewUnread)saveMe();
   pruneExpiredChats();
   sweepDuels();saveChats();updateUnreadDots();
@@ -185,7 +198,7 @@ function renderChats(){
     const peerUser=allUsers().find(u=>u.uid===peerUid)||{uid:peerUid,name:t.name||peerUid,avatar:'🦊',frame:'none'};
     const dot=(me.unreadFrom&&me.unreadFrom[peerUid])?'<span class="red-dot"></span>':'';
     const last=t.messages&&t.messages.length?t.messages[t.messages.length-1]:null;
-    const preview=last?(last.type==='red_packet'?'🧧 Red Packet Coin Gift':(last.type==='duel'?'🎯 60s MCQ Duel':last.text)):peerUid;
+    const preview=last?(last.type==='red_packet'?'🧧 Red Packet Coin Gift':(last.type==='gift'?'🎁 Sent a Gift':(last.type==='duel'?'🎯 60s MCQ Duel':last.text))):peerUid;
     return `<div class="th" data-th="${esc(t.id)}">${av(peerUser,44)}<div class="mid"><b>${styledName(peerUser)}</b><small>${esc(preview)}</small></div>${dot}</div>`;
   }).join('');
 
@@ -231,9 +244,12 @@ function renderThread(){
       const isOut=m.uid===uid;
       const rb=getActiveRankBadge(s);
       const tagsHtml=`<div class="wc-tags">${rb?`<span class="lb-badge ${esc(rb.badgeClass)}">${esc(rb.badge)}</span>`:''}${(s.tags||[]).slice(0,3).map(tg=>`<span class="p-tag ${tagClassFor(tg)}">${esc(tg)}</span>`).join('')}</div>`;
+      const roomMatch=typeof m.text==='string'?m.text.match(/Room Code:\s*(SG-[A-Z0-9]{4})/i):null;
       const bodyHtml=m.type==='red_packet'
         ? renderRedPacketCard(m,'world')
-        : `<div class="bub ${esc(s.msgStyle||'')}">${linkify(esc(m.text))}</div>`;
+        : (m.type==='gift'&&typeof renderWorldGiftCard==='function'
+            ? renderWorldGiftCard(m)
+            : `<div class="bub ${esc(s.msgStyle||'')}">${linkify(esc(m.text))}${roomMatch?`<div style="margin-top:8px"><button type="button" class="btn sm ok" data-joinroomcode="${esc(roomMatch[1].toUpperCase())}">Join Live Room (${esc(roomMatch[1].toUpperCase())})</button></div>`:''}</div>`);
 
       return `<div class="m wc-m ${isOut?'out':'in'}">
         <div class="wc-card">
@@ -272,6 +288,9 @@ function renderThread(){
     const out=isInbox?(m.from==='dev'):(m.from==='me');
     if(m.type==='red_packet'){
       return `<div class="m ${out?'out':'in'}">${renderRedPacketCard(m,isInbox?'inbox':'dm')}<time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
+    }
+    if(m.type==='gift'&&typeof renderWorldGiftCard==='function'){
+      return `<div class="m ${out?'out':'in'}">${renderWorldGiftCard(m)}<time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
     }
     if(m.type==='duel'){
       const g=DUEL_GAMES[m.gi]||DUEL_GAMES[0],mine=m.from==='me',sm='style="color:var(--mu);font-size:12px"';
@@ -339,7 +358,8 @@ async function claimRedPacket(packetId, scope){
     }
     dbOp(()=>F.setDoc(F.doc(db,'red_packets',packetId),{claimedBy,claimedCount:claimedBy.length},{merge:true}));
 
-    addReward(clampSafeInt(msg.amount,1,10000),0,null,true,{skipLevelUp:true});
+    addReward(clampSafeInt(msg.amount,1,10000),0,null,true,{skipLevelUp:true,silentSfx:true});
+    if(typeof playSfx==='function')playSfx('redPacketClaim');
     renderThread();
     toast(`🧧 Claimed +${fmtNum(msg.amount)} coins from Red Packet!`);
   }finally{
@@ -393,11 +413,19 @@ $('#rpBtn').onclick=()=>{
         dbOp(()=>F.setDoc(F.doc(db,'dm_messages',id),{id,from:uid,fromName:me.name,to:t.uid,type:'red_packet',amount,maxClaims:1,claimedBy:[],claimedCount:0,note,ts:nowTs}));
       }
     }
-    m.close();renderThread();toast('Red Packet sent!');
+    m.close();renderThread();
+    if(typeof playSfx==='function')playSfx('redPacketDrop');
+    toast('Red Packet sent!');
   };
 };
 
 $('#msgs').onclick=e=>{
+  const jRoom=e.target.closest('[data-joinroomcode]');
+  if(jRoom&&jRoom.dataset.joinroomcode){
+    $('#thread').hidden=true;cur=null;showTab('games');
+    if(typeof joinMultiplayerRoomByCode==='function')joinMultiplayerRoomByCode(jRoom.dataset.joinroomcode);
+    return;
+  }
   const wprof=e.target.closest('[data-wprof]');
   if(wprof&&wprof.dataset.wprof){
     openPublicProfile(wprof.dataset.wprof);
@@ -416,6 +444,7 @@ $('#msgs').onclick=e=>{
     if(!online)return toast('Need a live connection to accept');
     m.accepted=true;saveChats();
     dbOp(()=>F.setDoc(F.doc(db,'dm_messages','a_'+m.id),{id:'a_'+m.id,type:'duel_accept',ref:m.id,from:uid,to:t.uid,ts:Date.now()}));
+    if(typeof playSfx==='function')playSfx('click');
     renderThread();return toast('Accepted! Both players can start now');
   }
   const st=e.target.dataset.startduel;
@@ -441,6 +470,7 @@ function sendMsgText(){
     worldMsgs=[...worldMsgs,item].slice(-150);
     ls.set('sg_world_msgs',worldMsgs);
     dbOp(()=>F.setDoc(F.doc(db,'world_chat',id),item));
+    if(typeof playSfx==='function')playSfx('chatSend');
     renderThread();return;
   }
 
@@ -448,13 +478,17 @@ function sendMsgText(){
     const tid=cur.slice(6), entry=devInbox[tid];if(!entry)return;
     entry.messages=entry.messages||[];
     entry.messages.push({id:mid(),from:'dev',type:'text',text,ts:now});
-    syncDevInboxToCloud(tid,entry);renderThread();return;
+    syncDevInboxToCloud(tid,entry);
+    if(typeof playSfx==='function')playSfx('chatSend');
+    renderThread();return;
   }
 
   const t=chats[cur];if(!t)return;t.messages=t.messages||[];
   const msgId=mid(), curMsgStyle=me.msgStyle||'';
   const mObj={id:msgId,from:'me',type:'text',text,msgStyle:curMsgStyle,ts:now};
-  t.messages.push(mObj);saveChats();renderThread();
+  t.messages.push(mObj);saveChats();
+  if(typeof playSfx==='function')playSfx('chatSend');
+  renderThread();
 
   if(t.dev){
     const entry=devInbox[uid]||{uid,name:me.name,avatar:me.avatar,frame:me.frame,messages:[]};
@@ -484,6 +518,23 @@ $('#chBtn').onclick=()=>{
     dbOp(()=>F.setDoc(F.doc(db,'dm_messages',id),{id,type:'duel',gi:+d,from:uid,fromName:me.name,to:t.uid,ts}));
     m.close();renderThread();
   };
+};
+
+if($('#giftBtn'))$('#giftBtn').onclick=()=>{
+  if(typeof openGiftSendModal!=='function')return;
+  if(!cur||cur==='world'){
+    openGiftSendModal(null,{allowPickPlayer:true});
+    return;
+  }
+  if(cur==='developer'){
+    const realDev=allUsers().find(u=>isDevAccount(u))||{uid:DEV_UID,name:'Developer'};
+    if(realDev.uid===uid)return openGiftSendModal(null,{allowPickPlayer:true});
+    openGiftSendModal(realDev.uid,{targetName:realDev.name||'Developer'});
+    return;
+  }
+  const targetUid=cur.startsWith('inbox:')?cur.slice(6):(chats[cur]?.uid||cur);
+  const peerUser=allUsers().find(u=>u.uid===targetUid);
+  openGiftSendModal(targetUid,{inDm:!cur.startsWith('inbox:'),targetName:peerUser?.name||chats[cur]?.name||'Player'});
 };
 
 $('#findBtn').onclick=()=>{

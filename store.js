@@ -124,6 +124,7 @@ $('#storeList').onclick=e=>{
     patchUser(uid,{...base(),coins:me.coins,tempUnlocks:me.tempUnlocks});
     dbOp(()=>F.setDoc(userRef(uid),{...base(),coins:me.coins,tempUnlocks:me.tempUnlocks},{merge:true}));
     bumpStat('store_buy');updateHud();buildProfile();renderStore();renderRanking();
+    if(typeof playSfx==='function')playSfx('taskClaim');
     toast(`Unlocked ${it.name} (${dur.label})`);
   }finally{
     setTimeout(()=>inFlightOps.delete(buyKey),400);
