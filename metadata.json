@@ -1,0 +1,6 @@
+{
+  "name": "Study Game",
+  "description": "Glossy social arena, 1v1 stake mini-games, full-screen voice party rooms, 3D animated gifts, bonds, clans, and built-in student tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

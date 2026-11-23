@@ -9,20 +9,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Study Game">
 <title>Study Game</title>
-<meta name="description" content="Luxury gaming social arena, VR party rooms, YouTube watch-together, multiplayer games, gift vault, daily leaderboard, and student tools.">
+<meta name="description" content="Glossy 3D gaming social arena, full-screen voice party rooms with turn-based mic pass, 3D animated gifts, 1v1 stake matches, leaderboard, clans, and student tools.">
 <meta property="og:title" content="Study Game">
-<meta property="og:description" content="Luxury gaming social arena, VR party rooms, YouTube watch-together, multiplayer games, gift vault, daily leaderboard, and student tools.">
+<meta property="og:description" content="Glossy 3D gaming social arena, full-screen voice party rooms with turn-based mic pass, 3D animated gifts, 1v1 stake matches, leaderboard, clans, and student tools.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=10">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=13">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=10">
-<link rel="stylesheet" href="fx-pack.css?v=10">
+<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="fx-pack.css?v=13">
 </head>
 <body>
 <div id="app">
@@ -79,7 +79,7 @@
   </header>
 
   <main>
-    <!-- Gamer-First Home Arena & Party Hub -->
+    <!-- Gamer-First Home Arena & Full-Screen Voice Party Hub -->
     <section id="v-tools" class="view on">
       <div id="noticeBox" class="notice" hidden></div>
       <div class="row dev-only" style="justify-content:flex-end;margin-bottom:8px" hidden>
@@ -87,10 +87,10 @@
       </div>
       <div id="homeHubRoot"></div>
       <div class="wp-sec-bar" style="margin-top:14px">
-        <b>Games</b>
+        <b>Games Arena</b>
         <button type="button" class="wp-pill-btn" onclick="showTab('games')">Game Room ›</button>
       </div>
-      <div id="homeArenaPosters"></div>
+      <div id="homeArenaPosters" class="arena-posters-grid"></div>
       <div id="homePartyRooms" style="margin-top:16px"></div>
     </section>
 
@@ -102,7 +102,7 @@
           <button class="btn gold sm" id="gamesGiftBtn" type="button">Send Gift</button>
         </div>
       </div>
-      <div id="arenaGamesGrid" style="margin-bottom:14px"></div>
+      <div id="arenaGamesGrid" class="arena-posters-grid" style="margin-bottom:14px"></div>
       <div id="mpRoomsHost"></div>
       <h3 style="margin:14px 0 8px;font-size:14px;color:var(--mu)">Study Mini-Games</h3>
       <div class="grid" id="gameSlotsGrid"></div>
@@ -224,6 +224,8 @@
     </div>
   </div>
   <div id="modals"></div>
+  <div id="partyFsRoot" class="party-fs-overlay" hidden aria-modal="true" role="dialog" aria-label="Voice Party Room"></div>
+  <div id="giftAnimLayer" class="gift-anim-layer" aria-live="polite"></div>
   <div id="banBox" class="ban-screen" hidden>
     <div class="card ban-card">
       <div class="ban-ico" aria-hidden="true">🚫</div>
@@ -239,23 +241,26 @@
     <span>Offline Mode — Using cached app shell</span>
   </div>
 </div>
-<script src="sfx.js?v=10"></script>
-<script src="fx-avatars.js?v=10"></script>
-<script src="fx-frames.js?v=10"></script>
-<script src="core.js?v=10"></script>
-<script src="social.js?v=10"></script>
-<script src="party.js?v=10"></script>
-<script src="arena.js?v=10"></script>
-<script src="gifts.js?v=10"></script>
-<script src="firebase.js?v=10"></script>
-<script src="home.js?v=10"></script>
-<script src="games.js?v=10"></script>
-<script src="ranking.js?v=10"></script>
-<script src="tasks.js?v=10"></script>
-<script src="store.js?v=10"></script>
-<script src="chat.js?v=10"></script>
-<script src="profile.js?v=10"></script>
-<script src="pwa.js?v=10"></script>
-<script src="boot.js?v=10"></script>
+<script src="sfx.js?v=13"></script>
+<script src="quickvoice.js?v=13"></script>
+<script src="fx-avatars.js?v=13"></script>
+<script src="fx-frames.js?v=13"></script>
+<script src="core.js?v=13"></script>
+<script src="social.js?v=13"></script>
+<script src="party.js?v=13"></script>
+<script src="jackaroo.js?v=13"></script>
+<script src="uno.js?v=13"></script>
+<script src="arena.js?v=13"></script>
+<script src="gifts.js?v=13"></script>
+<script src="firebase.js?v=13"></script>
+<script src="home.js?v=13"></script>
+<script src="games.js?v=13"></script>
+<script src="ranking.js?v=13"></script>
+<script src="tasks.js?v=13"></script>
+<script src="store.js?v=13"></script>
+<script src="chat.js?v=13"></script>
+<script src="profile.js?v=13"></script>
+<script src="pwa.js?v=13"></script>
+<script src="boot.js?v=13"></script>
 </body>
 </html>
