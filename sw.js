@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v10';
+const CACHE_NAME = 'study-game-v13';
 const CORE_SHELL = [
   './',
   './index.html',
@@ -19,11 +19,14 @@ const CORE_SHELL = [
   './fx-pack.css',
   './gamekit.css',
   './sfx.js',
+  './quickvoice.js',
   './fx-avatars.js',
   './fx-frames.js',
   './core.js',
   './social.js',
   './party.js',
+  './jackaroo.js',
+  './uno.js',
   './arena.js',
   './gifts.js',
   './firebase.js',

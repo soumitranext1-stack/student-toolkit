@@ -125,22 +125,179 @@ GIFT_CATALOG.forEach(g => {
 
 const GIFT_BY_ID = Object.fromEntries(GIFT_CATALOG.map(g => [g.id, g]));
 
-/* Crisp Procedural Multi-Layer Vector SVG Generator (unique silhouettes for all 72 gifts) */
-function giftGlyphPath(icon, c1, c2) {
+/* ===== v13 Photorealistic 3D Luxury Gift & Ring Engine + 10,000+ Coin Continuous FX ===== */
+const LUXURY_ANIM_MIN_COINS = 10000;
+function isLuxuryAnimatedGift(giftOrPrice) {
+  const price = typeof giftOrPrice === 'object' && giftOrPrice ? Number(giftOrPrice.price || 0) : Number(giftOrPrice || 0);
+  return Number.isFinite(price) && price >= LUXURY_ANIM_MIN_COINS;
+}
+
+function renderLuxury10kFxHtml(gift, compact) {
+  if (!isLuxuryAnimatedGift(gift)) return '';
+  const count = Number(gift?.price || 0) >= 50000 ? (compact ? 4 : 6) : (compact ? 3 : 4);
+  const particles = Array.from({ length: count }, (_, i) => {
+    const left = 14 + ((i * 23) % 74);
+    const top = 16 + ((i * 29) % 66);
+    const delay = (i * 0.55).toFixed(2);
+    const dur = (2.8 + (i % 3) * 0.7).toFixed(2);
+    return `<i class="lux-ember" style="--lx:${left}%;--ly:${top}%;--ld:${delay}s;--lt:${dur}s"></i>`;
+  }).join('');
+  return `<span class="lux-10k-fx" aria-hidden="true"><span class="lux-shimmer-sweep"></span><span class="lux-aura-rim"></span>${particles}</span>`;
+}
+
+function giftGlyphPath(icon, c1, c2, gid) {
+  const u = gid || 'g';
+  const metA = `metA_${u}`, metB = `metB_${u}`, gemG = `gemG_${u}`, velG = `velG_${u}`;
   switch (icon) {
-    case 'rose': return `<path d="M24 36V23" stroke="#22c55e" stroke-width="2.6" stroke-linecap="round"/><path d="M24 30c-5 0-7-3-7-5 3 0 6 1 7 5zm0-2c5 0 7-3 7-5-3 0-6 1-7 5z" fill="#4ade80"/><path d="M24 10c5 0 8 4 8 8s-3.5 7-8 7-8-3-8-7 3-8 8-8z" fill="${c2}"/><path d="M24 12c3 0 5 2.5 5 5.5S27 22 24 22s-5-1.5-5-4.5 2-5.5 5-5.5z" fill="${c1}"/><path d="M21.5 16c1.5-1.8 4-1.8 5 0" stroke="#fff" stroke-width="1.4" stroke-linecap="round" fill="none"/>`;
-    case 'coffee': return `<rect x="13" y="18" width="18" height="15" rx="4" fill="${c1}"/><path d="M31 20h3a4 4 0 0 1 0 8h-3" stroke="${c1}" stroke-width="2.6" fill="none"/><path d="M11 35h22" stroke="${c2}" stroke-width="2.8" stroke-linecap="round"/><path d="M18 14c0-2 2-2 2-4M24 14c0-2 2-2 2-4" stroke="#fde68a" stroke-width="1.8" stroke-linecap="round" fill="none"/>`;
+    case 'ring_band': return `
+      <defs>
+        <linearGradient id="${velG}" x1="10" y1="22" x2="38" y2="42" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#311042"/><stop offset="55%" stop-color="#190826"/><stop offset="100%" stop-color="#0a0314"/></linearGradient>
+        <linearGradient id="${metA}" x1="12" y1="16" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="28%" stop-color="${c1}"/><stop offset="68%" stop-color="${c2}"/><stop offset="100%" stop-color="#fff8dc"/></linearGradient>
+        <linearGradient id="${gemG}" x1="16" y1="5" x2="32" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="35%" stop-color="#e0f2fe"/><stop offset="68%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient>
+      </defs>
+      <path d="M9 28c0-3 4-5.5 15-5.5s15 2.5 15 5.5v7.5c0 3.2-6 5.5-15 5.5S9 38.7 9 35.5V28z" fill="url(#${velG})" stroke="#ffd36b" stroke-opacity=".55" stroke-width="1"/>
+      <ellipse cx="24" cy="28.5" rx="14.2" ry="4.4" fill="#3b0764" fill-opacity=".65"/>
+      <ellipse cx="24" cy="27.8" rx="9.8" ry="8.4" fill="none" stroke="rgba(0,0,0,.45)" stroke-width="4.4" transform="translate(0,1.2)"/>
+      <ellipse cx="24" cy="27.2" rx="9.8" ry="8.4" fill="none" stroke="url(#${metA})" stroke-width="3.6"/>
+      <ellipse cx="24" cy="27.2" rx="9.8" ry="8.4" fill="none" stroke="#ffffff" stroke-opacity=".52" stroke-width="1" stroke-dasharray="14 26"/>
+      <path d="M18.8 18.5l2.2-2.6h6l2.2 2.6-5.2 4.6-5.2-4.6z" fill="url(#${metA})" stroke="#ffffff" stroke-width=".6"/>
+      <polygon points="24,6.2 31.8,13.6 24,21.5 16.2,13.6" fill="url(#${gemG})" stroke="#ffffff" stroke-width="1.15" stroke-linejoin="round"/>
+      <polygon points="24,6.2 28.4,13.6 24,21.5 19.6,13.6" fill="#ffffff" fill-opacity=".42"/>
+      <polygon points="16.2,13.6 31.8,13.6 24,10.2" fill="#ffffff" fill-opacity=".58"/>
+      <path d="M24 3.5v3.2M24 12.2l5-5M15 9l2.5 1.8M33 9l-2.5 1.8" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" opacity=".9"/>
+      <circle cx="20.5" cy="11.5" r="1.4" fill="#ffffff"/>`;
+
+    case 'locket': return `
+      <defs>
+        <linearGradient id="${metA}" x1="10" y1="8" x2="38" y2="40" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fff5f7"/><stop offset="32%" stop-color="#fbcfe8"/><stop offset="65%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient>
+        <linearGradient id="${metB}" x1="14" y1="10" x2="34" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fef9c3"/><stop offset="50%" stop-color="#ffd36b"/><stop offset="100%" stop-color="#b45309"/></linearGradient>
+      </defs>
+      <path d="M16 14c1.5-5.5 14.5-5.5 16 0" fill="none" stroke="url(#${metB})" stroke-width="2.4" stroke-linecap="round"/>
+      <circle cx="24" cy="12" r="2.2" fill="#fef08a" stroke="#b45309" stroke-width=".9"/>
+      <path d="M24 39.5S11 31.2 11 21.8a7.4 7.4 0 0 1 13-4.8 7.4 7.4 0 0 1 13 4.8c0 9.4-13 17.7-13 17.7z" fill="url(#${metA})" stroke="url(#${metB})" stroke-width="2.1"/>
+      <path d="M24 35.6S14.5 29.2 14.5 22.2a4.9 4.9 0 0 1 9.5-1.8 4.9 4.9 0 0 1 9.5 1.8c0 7-9.5 13.4-9.5 13.4z" fill="#831843" fill-opacity=".35" stroke="#fff" stroke-opacity=".45" stroke-width=".9"/>
+      <polygon points="24,19 28.2,24.2 24,30.2 19.8,24.2" fill="#ffffff" stroke="#fde047" stroke-width="1"/>
+      <polygon points="24,20.4 26.6,24.2 24,28.2 21.4,24.2" fill="#f472b6" fill-opacity=".75"/>
+      <ellipse cx="18.2" cy="19.2" rx="3.2" ry="1.4" transform="rotate(-30 18.2 19.2)" fill="#ffffff" opacity=".75"/>`;
+
+    case 'bro_crest': return `
+      <defs>
+        <linearGradient id="${metA}" x1="10" y1="6" x2="38" y2="42" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#f8fafc"/><stop offset="30%" stop-color="#7dd3fc"/><stop offset="72%" stop-color="#0284c7"/><stop offset="100%" stop-color="#1e3a8a"/></linearGradient>
+        <linearGradient id="${metB}" x1="12" y1="8" x2="36" y2="40" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="45%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#475569"/></linearGradient>
+      </defs>
+      <path d="M24 6.5l14.5 5.8v11.5c0 8.8-5.9 14.8-14.5 18-8.6-3.2-14.5-9.2-14.5-18V12.3L24 6.5z" fill="url(#${metA})" stroke="url(#${metB})" stroke-width="2.1" stroke-linejoin="round"/>
+      <path d="M24 10.2l11 4.4v8.8c0 6.8-4.5 11.4-11 14-6.5-2.6-11-7.2-11-14v-8.8l11-4.4z" fill="#0f172a" fill-opacity=".35" stroke="#bae6fd" stroke-opacity=".55" stroke-width=".9"/>
+      <polygon points="24,14 26.8,20.2 33.4,21 28.4,25.4 29.8,32 24,28.6 18.2,32 19.6,25.4 14.6,21 21.2,20.2" fill="#fef08a" stroke="#b45309" stroke-width=".9" stroke-linejoin="round"/>
+      <polygon points="24,16.5 25.8,21 24,25.5 22.2,21" fill="#ffffff" opacity=".75"/>
+      <ellipse cx="19" cy="13.5" rx="5.5" ry="1.8" transform="rotate(-18 19 13.5)" fill="#ffffff" opacity=".55"/>`;
+
+    case 'ferrari': return `
+      <defs>
+        <linearGradient id="${metA}" x1="5" y1="14" x2="43" y2="34" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="42%" stop-color="#ef4444"/><stop offset="82%" stop-color="#991b1b"/><stop offset="100%" stop-color="#450a0a"/></linearGradient>
+        <linearGradient id="${metB}" x1="12" y1="17" x2="34" y2="25" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e0f2fe"/><stop offset="50%" stop-color="#1e293b"/><stop offset="100%" stop-color="#020617"/></linearGradient>
+      </defs>
+      <ellipse cx="24" cy="34.8" rx="18" ry="2.8" fill="rgba(0,0,0,.55)"/>
+      <path d="M5 29.5l3.5-6.2 9.2-4.4h11.6l8.6 4.2 5.4 2.2v4.8H5z" fill="url(#${metA})" stroke="#fca5a5" stroke-width="1.1" stroke-linejoin="round"/>
+      <path d="M14.5 22.4l5.2-3.4h8.6l4.6 3.4H14.5z" fill="url(#${metB})" stroke="#fde047" stroke-width=".85"/>
+      <path d="M9 26.5h29" stroke="#ffffff" stroke-opacity=".42" stroke-width="1.2" stroke-linecap="round"/>
+      <path d="M38.5 25.5l4.2.9" stroke="#fef08a" stroke-width="2.1" stroke-linecap="round"/>
+      <circle cx="14.8" cy="30.8" r="4.3" fill="#090d16" stroke="#ffd36b" stroke-width="1.5"/>
+      <circle cx="14.8" cy="30.8" r="1.8" fill="#ef4444"/>
+      <circle cx="34.2" cy="30.8" r="4.3" fill="#090d16" stroke="#ffd36b" stroke-width="1.5"/>
+      <circle cx="34.2" cy="30.8" r="1.8" fill="#ef4444"/>`;
+
+    case 'lambo': return `
+      <defs>
+        <linearGradient id="${metA}" x1="5" y1="15" x2="43" y2="34" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fef9c3"/><stop offset="40%" stop-color="#facc15"/><stop offset="85%" stop-color="#b45309"/></linearGradient>
+      </defs>
+      <ellipse cx="24" cy="35" rx="18.2" ry="2.7" fill="rgba(0,0,0,.55)"/>
+      <path d="M5 30.2l6.2-6.4 9.5-5.2h8.5l13.2 6.2 1 5.4H5z" fill="url(#${metA})" stroke="#fef08a" stroke-width="1.15" stroke-linejoin="round"/>
+      <polygon points="14.8,23.2 22.2,18.8 29.4,18.8 34.6,23.2" fill="#0f172a" stroke="#e2e8f0" stroke-width=".75"/>
+      <path d="M8.5 26.4h7.5" stroke="#ef4444" stroke-width="1.9" stroke-linecap="round"/>
+      <path d="M22 26.8h14" stroke="#111827" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round"/>
+      <circle cx="14.8" cy="31" r="4.3" fill="#0b1020" stroke="#f8fafc" stroke-width="1.5"/>
+      <circle cx="14.8" cy="31" r="1.7" fill="#facc15"/>
+      <circle cx="34.2" cy="31" r="4.3" fill="#0b1020" stroke="#f8fafc" stroke-width="1.5"/>
+      <circle cx="34.2" cy="31" r="1.7" fill="#facc15"/>`;
+
+    case 'bugatti': return `
+      <defs>
+        <linearGradient id="${metA}" x1="5" y1="15" x2="43" y2="34" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#bae6fd"/><stop offset="42%" stop-color="#0284c7"/><stop offset="85%" stop-color="#1e3a8a"/></linearGradient>
+      </defs>
+      <ellipse cx="24" cy="34.8" rx="18" ry="2.7" fill="rgba(0,0,0,.55)"/>
+      <path d="M5.5 29.5c2.2-5.4 8.2-9.6 17.5-9.6h8.2c5 0 9.2 3.1 11.2 6.2v3.4H5.5z" fill="url(#${metA})" stroke="#e0f2fe" stroke-width="1.15"/>
+      <path d="M15.8 20.8c3.2-2.2 9.4-2.2 13.4 0l3.2 3.2H13.8l2-3.2z" fill="#0f172a" stroke="#7dd3fc" stroke-width=".75"/>
+      <path d="M21 23.6c4.2 0 6.2 4.2 2.1 6.4" fill="none" stroke="#ffd36b" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="14.8" cy="30.8" r="4.3" fill="#090d16" stroke="#7dd3fc" stroke-width="1.5"/>
+      <circle cx="34.2" cy="30.8" r="4.3" fill="#090d16" stroke="#7dd3fc" stroke-width="1.5"/>`;
+
+    case 'dreampalace': return `
+      <defs>
+        <linearGradient id="${metA}" x1="12" y1="6" x2="36" y2="36" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fffbeb"/><stop offset="45%" stop-color="#ffd36b"/><stop offset="100%" stop-color="#b45309"/></linearGradient>
+        <linearGradient id="${metB}" x1="8" y1="18" x2="40" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#a855f7"/><stop offset="55%" stop-color="#6d28d9"/><stop offset="100%" stop-color="#2e1065"/></linearGradient>
+      </defs>
+      <path d="M8 36.5V22.5h5v-5l4-4 4 4v5h6v-5l4-4 4 4v5h5v14H8z" fill="url(#${metB})" stroke="url(#${metA})" stroke-width="1.35" stroke-linejoin="round"/>
+      <path d="M15.5 22.5c0-7.2 4.2-12.5 8.5-14.8 4.3 2.3 8.5 7.6 8.5 14.8h-17z" fill="url(#${metA})" stroke="#ffffff" stroke-width="1"/>
+      <path d="M24 4.8v4.2" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="24" cy="5.5" r="1.4" fill="#fef08a"/>
+      <rect x="20.2" y="26.5" width="7.6" height="10" rx="3.8" fill="#fef08a" stroke="#f59e0b" stroke-width="1"/>
+      <rect x="11.5" y="26" width="4.2" height="6.5" rx="2" fill="#fde047" opacity=".88"/>
+      <rect x="32.3" y="26" width="4.2" height="6.5" rx="2" fill="#fde047" opacity=".88"/>
+      <rect x="6.5" y="35.5" width="35" height="2.6" rx="1.3" fill="url(#${metA})"/>`;
+
+    case 'megayacht': return `
+      <defs>
+        <linearGradient id="${metA}" x1="8" y1="14" x2="40" y2="36" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fef9c3"/><stop offset="50%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#b45309"/></linearGradient>
+      </defs>
+      <ellipse cx="24" cy="36.8" rx="17" ry="2.4" fill="rgba(56,189,248,.42)"/>
+      <path d="M6.5 28.5h35l-5.2 8.2H11.7l-5.2-8.2z" fill="#f8fafc" stroke="#fde047" stroke-width="1.3"/>
+      <path d="M12 23.2h24l-3.2 5.3H12v-5.3z" fill="url(#${metA})" stroke="#ffffff" stroke-width=".9"/>
+      <path d="M16.5 18.2h14.5l-2.4 5H16.5v-5z" fill="#fffbeb" stroke="#f59e0b" stroke-width="1"/>
+      <rect x="18.5" y="19.6" width="9.5" height="2.2" rx="1" fill="#0f172a"/>
+      <path d="M11 32h26" stroke="url(#${metA})" stroke-width="1.9" stroke-linecap="round"/>`;
+
+    case 'privatejet': return `
+      <defs>
+        <linearGradient id="${metA}" x1="8" y1="10" x2="40" y2="36" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="55%" stop-color="#e0f2fe"/><stop offset="100%" stop-color="#38bdf8"/></linearGradient>
+      </defs>
+      <path d="M7.5 29.2l12.5-4.4 14.2-12.2 6.2-1.2-9.2 12.2 7.2 3.2-3 3.2-9.2-2.2-7 8-3.2-1.1 3.1-7.2-11.6-1.1z" fill="url(#${metA})" stroke="#0284c7" stroke-width="1.25" stroke-linejoin="round"/>
+      <path d="M21 22.5l13-9.8" stroke="#ffd36b" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="34.5" cy="12.5" r="1.5" fill="#ffffff"/>`;
+
+    case 'crown':
+    case 'infcrown': return `
+      <defs>
+        <linearGradient id="${metA}" x1="9" y1="10" x2="39" y2="36" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fffbeb"/><stop offset="40%" stop-color="#ffd36b"/><stop offset="85%" stop-color="#d97706"/></linearGradient>
+      </defs>
+      <polygon points="9.5,32.5 12.8,15.5 19.8,22.5 24,10.8 28.2,22.5 35.2,15.5 38.5,32.5" fill="url(#${metA})" stroke="#fef9c3" stroke-width="1.3" stroke-linejoin="round"/>
+      <rect x="10.5" y="32" width="27" height="4.4" rx="2" fill="${c2}" stroke="#fef08a" stroke-width="1"/>
+      <circle cx="24" cy="11" r="2.2" fill="#ffffff"/>
+      <polygon points="24,21.5 26.8,26 24,30 21.2,26" fill="#ef4444" stroke="#ffffff" stroke-width=".75"/>
+      <circle cx="15.8" cy="27.2" r="1.8" fill="#38bdf8"/>
+      <circle cx="32.2" cy="27.2" r="1.8" fill="#38bdf8"/>`;
+
+    case 'diamond': return `
+      <defs>
+        <linearGradient id="${gemG}" x1="16" y1="7" x2="32" y2="23" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="45%" stop-color="#bae6fd"/><stop offset="100%" stop-color="#0284c7"/></linearGradient>
+      </defs>
+      <circle cx="24" cy="28" r="9.8" fill="none" stroke="#ffd36b" stroke-width="3.6"/>
+      <circle cx="24" cy="28" r="9.8" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width="1" stroke-dasharray="12 24"/>
+      <polygon points="24,7.5 32,14.8 24,22 16,14.8" fill="url(#${gemG})" stroke="#ffffff" stroke-width="1.2"/>
+      <polygon points="24,7.5 28,14.8 24,22 20,14.8" fill="#ffffff" fill-opacity=".42"/>`;
+
+    case 'rose': return `<path d="M24 36.5V23" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/><path d="M24 30c-5 0-7-3-7-5 3 0 6 1 7 5zm0-2c5 0 7-3 7-5-3 0-6 1-7 5z" fill="#4ade80"/><path d="M24 9.5c5.4 0 8.5 4.2 8.5 8.5S28.8 25.5 24 25.5 15.5 22.3 15.5 18s3.1-8.5 8.5-8.5z" fill="${c2}" stroke="#fecdd3" stroke-width=".9"/><path d="M24 11.8c3.2 0 5.4 2.6 5.4 5.6S27.2 22.5 24 22.5s-5.4-1.8-5.4-5.1 2.2-5.6 5.4-5.6z" fill="${c1}"/><path d="M21.2 15.8c1.6-2 4.2-2 5.4 0" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/>`;
+    case 'coffee': return `<rect x="13" y="18" width="18" height="15" rx="4" fill="${c1}" stroke="#fef3c7" stroke-width="1"/><path d="M31 20h3a4 4 0 0 1 0 8h-3" stroke="${c1}" stroke-width="2.6" fill="none"/><path d="M11 35h22" stroke="${c2}" stroke-width="2.8" stroke-linecap="round"/><path d="M18 14c0-2 2-2 2-4M24 14c0-2 2-2 2-4" stroke="#fde68a" stroke-width="1.8" stroke-linecap="round" fill="none"/>`;
     case 'plane': return `<path d="M37 11L11 22l9 4 4 10 13-25z" fill="${c1}" stroke="${c2}" stroke-width="1.4" stroke-linejoin="round"/><path d="M20 26L37 11" stroke="#fff" stroke-width="1.5"/>`;
     case 'clover': return `<circle cx="19" cy="18" r="5.5" fill="${c1}"/><circle cx="29" cy="18" r="5.5" fill="${c1}"/><circle cx="19" cy="27" r="5.5" fill="${c2}"/><circle cx="29" cy="27" r="5.5" fill="${c2}"/><path d="M24 29c0 4 2 7 5 8" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" fill="none"/>`;
     case 'pencil': return `<path d="M13 35l3-9L30 12l6 6-14 14-9 3z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><path d="M28 14l6 6" stroke="#fff" stroke-width="1.8"/><circle cx="14" cy="14" r="2.2" fill="#fff"/>`;
-    case 'candy': return `<path d="M11 24l6-5v10l-6-5zm26 0l-6-5v10l6-5z" fill="${c2}"/><circle cx="24" cy="24" r="7.5" fill="${c1}"/><path d="M19 21c3-2 7-2 10 0M19 27c3 2 7 2 10 0" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/>`;
+    case 'candy': return `<path d="M11 24l6-5v10l-6-5zm26 0l-6-5v10l6-5z" fill="${c2}"/><circle cx="24" cy="24" r="7.5" fill="${c1}" stroke="#fff" stroke-width=".9"/><path d="M19 21c3-2 7-2 10 0M19 27c3 2 7 2 10 0" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/>`;
     case 'paw': return `<ellipse cx="24" cy="28" rx="7.5" ry="6" fill="${c1}"/><circle cx="15" cy="20" r="3" fill="${c2}"/><circle cx="21" cy="16" r="3" fill="${c2}"/><circle cx="27" cy="16" r="3" fill="${c2}"/><circle cx="33" cy="20" r="3" fill="${c2}"/>`;
-    case 'heart': return `<path d="M24 36s-12-7.5-12-16a7 7 0 0 1 12-4.8A7 7 0 0 1 36 20c0 8.5-12 16-12 16z" fill="${c1}" stroke="${c2}" stroke-width="1.4"/><path d="M17 18a3 3 0 0 1 3-2.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/>`;
+    case 'heart': return `<path d="M24 36s-12-7.5-12-16a7 7 0 0 1 12-4.8A7 7 0 0 1 36 20c0 8.5-12 16-12 16z" fill="${c1}" stroke="#fff" stroke-width="1.2"/><path d="M17 18a3 3 0 0 1 3-2.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/>`;
     case 'sun': return `<circle cx="24" cy="24" r="7.5" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M24 10v4M24 34v4M10 24h4M34 24h4M14 14l3 3M31 31l3 3M34 14l-3 3M17 31l-3 3" stroke="${c1}" stroke-width="2.2" stroke-linecap="round"/>`;
     case 'note': return `<path d="M20 31V15l14-3v15" stroke="${c1}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="17" cy="31" r="4" fill="${c2}"/><circle cx="31" cy="28" r="4" fill="${c1}"/>`;
     case 'boba': return `<path d="M15 17h18l-2 19H17l-2-19z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M24 9v10" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/><circle cx="20" cy="32" r="1.8" fill="#1e293b"/><circle cx="24" cy="33" r="1.8" fill="#1e293b"/><circle cx="28" cy="32" r="1.8" fill="#1e293b"/>`;
     case 'crane': return `<path d="M10 25l14-9 14 7-12 5-4 8-4-7-8-4z" fill="${c1}" stroke="${c2}" stroke-width="1.4" stroke-linejoin="round"/><path d="M24 16l2 12" stroke="#fff" stroke-width="1.4"/>`;
-    case 'bouquet': return `<path d="M16 25l8 12 8-12z" fill="#fde68a"/><circle cx="19" cy="19" r="5" fill="${c1}"/><circle cx="29" cy="19" r="5" fill="${c2}"/><circle cx="24" cy="15" r="5.5" fill="#fb7185"/>`;
+    case 'bouquet': return `<path d="M16 25l8 12 8-12z" fill="#fde68a" stroke="#d97706" stroke-width="1"/><circle cx="19" cy="19" r="5" fill="${c1}"/><circle cx="29" cy="19" r="5" fill="${c2}"/><circle cx="24" cy="15" r="5.5" fill="#fb7185" stroke="#fff" stroke-width=".9"/>`;
     case 'choco': return `<rect x="12" y="14" width="24" height="20" rx="4" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M24 14v20M12 24h24" stroke="#fde047" stroke-width="2.4"/><circle cx="24" cy="24" r="3" fill="#f43f5e"/>`;
     case 'bear': return `<circle cx="16" cy="16" r="4.5" fill="${c2}"/><circle cx="32" cy="16" r="4.5" fill="${c2}"/><circle cx="24" cy="25" r="10.5" fill="${c1}"/><ellipse cx="24" cy="28" rx="4.5" ry="3.5" fill="#fef3c7"/><circle cx="20.5" cy="23" r="1.4" fill="#1e293b"/><circle cx="27.5" cy="23" r="1.4" fill="#1e293b"/><circle cx="24" cy="26.5" r="1.3" fill="#78350f"/>`;
     case 'cupcake': return `<path d="M15 24h18l-2.5 11h-13L15 24z" fill="${c2}"/><path d="M13 24c0-5 5-8 11-8s11 3 11 8H13z" fill="${c1}"/><circle cx="24" cy="13.5" r="2.8" fill="#ef4444"/>`;
@@ -152,7 +309,7 @@ function giftGlyphPath(icon, c1, c2) {
     case 'moon': return `<path d="M29 12a12 12 0 1 0 6 22 10 10 0 1 1-6-22z" fill="${c1}" stroke="${c2}" stroke-width="1.4"/><circle cx="31" cy="17" r="2" fill="#fff"/>`;
     case 'fox': return `<path d="M13 13l6 7h10l6-7 1 13-12 10-12-10 1-13z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><path d="M19 25l5 8 5-8z" fill="#fff7ed"/><circle cx="20" cy="23" r="1.4" fill="#1e293b"/><circle cx="28" cy="23" r="1.4" fill="#1e293b"/>`;
     case 'sparkler': return `<path d="M13 35l14-14" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round"/><path d="M29 11l2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6z" fill="${c1}" stroke="${c2}" stroke-width="1.2"/>`;
-    case 'crystal': return `<polygon points="24,9 36,19 24,38 12,19" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><polygon points="24,9 30,19 24,38 18,19" fill="#fff" opacity=".32"/>`;
+    case 'crystal': return `<polygon points="24,8.5 36.5,19 24,38.5 11.5,19" fill="${c1}" stroke="#fff" stroke-width="1.3"/><polygon points="24,8.5 30,19 24,38.5 18,19" fill="#fff" opacity=".42"/>`;
     case 'wand': return `<path d="M12 36l15-15" stroke="${c2}" stroke-width="3" stroke-linecap="round"/><polygon points="29,9 31.5,15 38,15.5 33,19.5 34.5,26 29,22.5 23.5,26 25,19.5 20,15.5 26.5,15" fill="${c1}" stroke="#fff" stroke-width="1"/>`;
     case 'book': return `<path d="M11 15c4-2 9-2 13 1 4-3 9-3 13-1v19c-4-2-9-2-13 1-4-3-9-3-13-1V15z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M24 16v19" stroke="${c2}" stroke-width="1.8"/>`;
     case 'skate': return `<rect x="10" y="20" width="28" height="8" rx="4" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><circle cx="17" cy="31" r="3" fill="#fde047"/><circle cx="31" cy="31" r="3" fill="#fde047"/>`;
@@ -163,24 +320,22 @@ function giftGlyphPath(icon, c1, c2) {
     case 'pearl': return `<path d="M11 27c2-9 9-14 13-14s11 5 13 14c-4 5-9 7-13 7s-9-2-13-7z" fill="${c2}"/><circle cx="24" cy="25" r="5.5" fill="#f8fafc" stroke="${c1}" stroke-width="1.6"/>`;
     case 'perfume': return `<rect x="15" y="19" width="18" height="17" rx="5" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><rect x="20" y="12" width="8" height="6" rx="1.5" fill="#fde047"/><path d="M19 26h10" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>`;
     case 'maneki': return `<circle cx="24" cy="25" r="11" fill="#fff7ed" stroke="${c2}" stroke-width="1.8"/><polygon points="15,17 17,11 22,15" fill="${c2}"/><polygon points="33,17 31,11 26,15" fill="${c2}"/><circle cx="24" cy="31" r="3" fill="${c1}"/>`;
-    case 'prism': return `<polygon points="24,10 37,22 24,37 11,22" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M24 10v27M11 22h26" stroke="#fff" stroke-width="1.2" opacity=".7"/>`;
-    case 'crown': return `<polygon points="10,32 13,16 20,23 24,12 28,23 35,16 38,32" fill="${c1}" stroke="${c2}" stroke-width="1.6" stroke-linejoin="round"/><rect x="11" y="32" width="26" height="4" rx="1.5" fill="${c2}"/><circle cx="24" cy="12" r="2" fill="#fff"/>`;
-    case 'diamond': return `<circle cx="24" cy="27" r="9.5" fill="none" stroke="#ffd36b" stroke-width="3"/><polygon points="24,9 31,15 24,21 17,15" fill="${c1}" stroke="${c2}" stroke-width="1.4"/>`;
+    case 'prism': return `<polygon points="24,10 37,22 24,37 11,22" fill="${c1}" stroke="#fff" stroke-width="1.4"/><path d="M24 10v27M11 22h26" stroke="#fff" stroke-width="1.2" opacity=".7"/>`;
     case 'katana': return `<path d="M12 36L35 12" stroke="${c1}" stroke-width="3.2" stroke-linecap="round"/><path d="M16 27l5 5" stroke="#ffd36b" stroke-width="3" stroke-linecap="round"/><path d="M12 36l6-6" stroke="${c2}" stroke-width="4" stroke-linecap="round"/>`;
     case 'drone': return `<rect x="18" y="20" width="12" height="8" rx="3" fill="${c1}" stroke="${c2}" stroke-width="1.5"/><path d="M12 16h8M28 16h8M12 32h8M28 32h8M18 22l-4-6M30 22l4-6M18 26l-4 6M30 26l4 6" stroke="${c1}" stroke-width="2" stroke-linecap="round"/>`;
     case 'guitar': return `<path d="M29 12l7 7-12 12c-3 3-8 3-11 0s-3-8 0-11l16-8z" fill="${c1}" stroke="${c2}" stroke-width="1.5"/><circle cx="19" cy="29" r="3" fill="#0f172a"/>`;
     case 'brooch': return `<ellipse cx="24" cy="24" rx="10" ry="13" fill="${c1}" stroke="#ffd36b" stroke-width="2.4"/><ellipse cx="24" cy="24" rx="5.5" ry="8" fill="${c2}"/>`;
-    case 'trophy': return `<path d="M15 13h18v9a9 9 0 0 1-18 0v-9z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M15 16h-4a3 3 0 0 0 3 6h1M33 16h4a3 3 0 0 1-3 6h-1M24 31v5M17 36h14" stroke="${c1}" stroke-width="2.4" stroke-linecap="round" fill="none"/>`;
+    case 'trophy': return `<path d="M15 13h18v9a9 9 0 0 1-18 0v-9z" fill="${c1}" stroke="#fef9c3" stroke-width="1.4"/><path d="M15 16h-4a3 3 0 0 0 3 6h1M33 16h4a3 3 0 0 1-3 6h-1M24 31v5M17 36h14" stroke="#ffd36b" stroke-width="2.4" stroke-linecap="round" fill="none"/>`;
     case 'sneaker': return `<path d="M10 29c4-6 10-8 16-8l5 5h7v6H10v-3z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><path d="M17 21l-5-7 8 3" fill="#fff"/>`;
     case 'compass': return `<circle cx="24" cy="24" r="12" fill="none" stroke="${c1}" stroke-width="2.6"/><polygon points="24,14 28,24 24,34 20,24" fill="${c2}"/><polygon points="24,14 28,24 24,24" fill="#ef4444"/>`;
     case 'chalice': return `<path d="M15 13h18l-3 12a6 6 0 0 1-12 0l-3-12z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M24 29v7M17 36h14" stroke="#ffd36b" stroke-width="2.6" stroke-linecap="round"/>`;
     case 'harp': return `<path d="M15 35V13c7 0 14 4 18 11l-4 11H15z" fill="none" stroke="${c1}" stroke-width="2.6" stroke-linejoin="round"/><path d="M19 15v20M23 17v18M27 20v15" stroke="${c2}" stroke-width="1.5"/>`;
     case 'feather': return `<path d="M35 11C24 11 14 20 13 35c14-1 22-11 22-24z" fill="${c1}" stroke="${c2}" stroke-width="1.5"/><path d="M12 36L33 14" stroke="#fef08a" stroke-width="1.8" stroke-linecap="round"/>`;
-    case 'supercar': return `<path d="M8 28l4-7h12l7-4 9 5v6H8z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><circle cx="16" cy="30" r="3.6" fill="#0f172a" stroke="#ffd36b" stroke-width="1.6"/><circle cx="33" cy="30" r="3.6" fill="#0f172a" stroke="#ffd36b" stroke-width="1.6"/>`;
+    case 'supercar': return `<path d="M8 28l4-7h12l7-4 9 5v6H8z" fill="${c1}" stroke="#fca5a5" stroke-width="1.3" stroke-linejoin="round"/><circle cx="16" cy="30" r="3.6" fill="#0f172a" stroke="#ffd36b" stroke-width="1.6"/><circle cx="33" cy="30" r="3.6" fill="#0f172a" stroke="#ffd36b" stroke-width="1.6"/>`;
     case 'yacht': return `<path d="M9 28h30l-4 7H13l-4-7z" fill="#f8fafc" stroke="${c2}" stroke-width="1.5"/><polygon points="22,11 22,26 12,26" fill="${c1}"/><polygon points="25,14 25,26 35,26" fill="${c2}"/>`;
     case 'dragon': return `<path d="M11 28c2-9 9-15 17-15 5 0 9 3 9 8 0 6-6 9-12 9 3 3 7 4 11 4-6 4-16 4-25-6z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><circle cx="30" cy="19" r="1.8" fill="#dc2626"/>`;
     case 'castle': return `<path d="M12 36V20h5v4h4V14l3-4 3 4v10h4v-4h5v16H12z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><rect x="21" y="28" width="6" height="8" rx="3" fill="#0f172a"/>`;
-    case 'scepter': return `<path d="M13 36l16-16" stroke="#ffd36b" stroke-width="3" stroke-linecap="round"/><circle cx="31" cy="17" r="6" fill="${c1}" stroke="${c2}" stroke-width="1.8"/><circle cx="31" cy="17" r="2.2" fill="#fff"/>`;
+    case 'scepter': return `<path d="M13 36l16-16" stroke="#ffd36b" stroke-width="3" stroke-linecap="round"/><circle cx="31" cy="17" r="6" fill="${c1}" stroke="#fff" stroke-width="1.4"/><circle cx="31" cy="17" r="2.2" fill="#fff"/>`;
     case 'phoenix': return `<path d="M24 35c-4-7-12-9-14-17 5 1 9 4 11 7 0-6 1-11 3-14 2 3 3 8 3 14 2-3 6-6 11-7-2 8-10 10-14 17z" fill="${c1}" stroke="${c2}" stroke-width="1.4"/>`;
     case 'chariot': return `<path d="M12 24h22l-3 7H15l-3-7z" fill="${c1}" stroke="${c2}" stroke-width="1.5"/><circle cx="18" cy="32" r="4" fill="none" stroke="#ffd36b" stroke-width="2.2"/><circle cx="30" cy="32" r="4" fill="none" stroke="#ffd36b" stroke-width="2.2"/><path d="M17 20l7-8 7 8" stroke="#fff" stroke-width="1.8" fill="none"/>`;
     case 'wings': return `<path d="M23 28C14 26 9 18 10 11c5 3 10 7 13 13 3-6 8-10 13-13 1 7-4 15-13 17z" fill="${c1}" stroke="${c2}" stroke-width="1.5"/><circle cx="24" cy="29" r="3" fill="#ffd36b"/>`;
@@ -191,24 +346,14 @@ function giftGlyphPath(icon, c1, c2) {
     case 'rocket': return `<path d="M24 8c6 5 8 13 7 21H17c-1-8 1-16 7-21z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><circle cx="24" cy="19" r="3.2" fill="#fff"/><path d="M17 25l-5 6h5M31 25l5 6h-5M21 31l3 7 3-7" fill="#f59e0b"/>`;
     case 'island': return `<ellipse cx="24" cy="31" rx="14" ry="5" fill="${c2}"/><polygon points="24,10 34,25 24,31 14,25" fill="${c1}" stroke="#fff" stroke-width="1.3"/>`;
     case 'universe': return `<circle cx="24" cy="24" r="7.5" fill="${c1}"/><ellipse cx="24" cy="24" rx="16" ry="5.5" transform="rotate(-20 24 24)" fill="none" stroke="#ffd36b" stroke-width="2"/><ellipse cx="24" cy="24" rx="16" ry="5.5" transform="rotate(28 24 24)" fill="none" stroke="${c2}" stroke-width="1.8"/>`;
-    case 'infcrown': return `<polygon points="9,31 13,14 20,22 24,10 28,22 35,14 39,31" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M16 35c3-3 6 3 8 0s5-3 8 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>`;
     case 'palace': return `<path d="M10 35V22l14-11 14 11v13H10z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M8 22l16-12 16 12" stroke="#ffd36b" stroke-width="2.4" fill="none"/><rect x="20" y="25" width="8" height="10" rx="2" fill="${c2}"/>`;
-    case 'supernova': return `<polygon points="24,7 28,18 40,18 30,25 34,37 24,30 14,37 18,25 8,18 20,18" fill="${c1}" stroke="${c2}" stroke-width="1.4"/><circle cx="24" cy="23" r="5" fill="#fff"/>`;
+    case 'supernova': return `<polygon points="24,7 28,18 40,18 30,25 34,37 24,30 14,37 18,25 8,18 20,18" fill="${c1}" stroke="#fff" stroke-width="1.3"/><circle cx="24" cy="23" r="5" fill="#fff"/>`;
     case 'pegasus': return `<path d="M12 29c2-9 9-16 19-16-2 5-1 8 4 10-5 2-8 6-9 12-5-1-10-3-14-6z" fill="${c1}" stroke="${c2}" stroke-width="1.5"/><path d="M16 19l-7-7 11 3" fill="#fff"/>`;
     case 'airship': return `<ellipse cx="24" cy="20" rx="14" ry="8.5" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><rect x="19" y="30" width="10" height="5" rx="2" fill="#ffd36b"/><path d="M20 28v2M28 28v2" stroke="#fff" stroke-width="1.6"/>`;
     case 'citadel': return `<polygon points="24,8 35,16 32,35 16,35 13,16" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><polygon points="24,14 29,22 24,30 19,22" fill="#fff" opacity=".85"/>`;
     case 'aurora': return `<path d="M10 32c4-14 10-20 14-20s10 6 14 20H10z" fill="${c1}" stroke="${c2}" stroke-width="1.6"/><path d="M13 24c4-5 18-5 22 0" stroke="#fff" stroke-width="2" fill="none"/>`;
     case 'vault': return `<rect x="11" y="12" width="26" height="24" rx="5" fill="${c1}" stroke="${c2}" stroke-width="1.8"/><circle cx="24" cy="24" r="6" fill="#0f172a" stroke="#ffd36b" stroke-width="2"/><path d="M24 19v10M19 24h10" stroke="#ffd36b" stroke-width="1.8"/>`;
-    case 'privatejet': return `<path d="M8 29l12-4 14-12 6-1-9 12 7 3-3 3-9-2-7 8-3-1 3-7-11-1z" fill="${c1}" stroke="${c2}" stroke-width="1.4" stroke-linejoin="round"/><path d="M22 22l12-9" stroke="#ffd36b" stroke-width="1.6" stroke-linecap="round"/>`;
-    case 'megayacht': return `<path d="M7 29h34l-5 8H12l-5-8z" fill="#f8fafc" stroke="${c2}" stroke-width="1.5"/><path d="M13 24h22l-3 5H13v-5z" fill="${c1}" stroke="${c2}" stroke-width="1.3"/><path d="M17 19h13l-2 5H17v-5z" fill="#fef08a"/><path d="M12 32h24" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round"/>`;
-    case 'ferrari': return `<path d="M6 29l3-6 9-4h11l8 4 5 2v4H6z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><path d="M15 22l5-3h8l4 3H15z" fill="#1e293b" stroke="#fde047" stroke-width=".9"/><circle cx="15" cy="30.5" r="4" fill="#0f172a" stroke="#ffd36b" stroke-width="1.6"/><circle cx="34" cy="30.5" r="4" fill="#0f172a" stroke="#ffd36b" stroke-width="1.6"/><path d="M39 26h3" stroke="#fef08a" stroke-width="2" stroke-linecap="round"/>`;
-    case 'lambo': return `<path d="M6 30l6-6 9-5h8l13 6 1 5H6z" fill="${c1}" stroke="${c2}" stroke-width="1.5" stroke-linejoin="round"/><polygon points="15,23 22,19 29,19 34,23" fill="#0f172a"/><circle cx="15" cy="31" r="4" fill="#111827" stroke="#fff" stroke-width="1.5"/><circle cx="34" cy="31" r="4" fill="#111827" stroke="#fff" stroke-width="1.5"/><path d="M9 26h5" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/>`;
-    case 'bugatti': return `<path d="M6 29c2-5 8-9 17-9h8c5 0 9 3 11 6v3H6z" fill="${c1}" stroke="${c2}" stroke-width="1.5"/><path d="M16 21c3-2 9-2 13 0l3 3H14l2-3z" fill="#0f172a"/><path d="M21 24c4 0 6 4 2 6" fill="none" stroke="#ffd36b" stroke-width="1.6"/><circle cx="15" cy="30.5" r="4" fill="#0f172a" stroke="#7dd3fc" stroke-width="1.6"/><circle cx="34" cy="30.5" r="4" fill="#0f172a" stroke="#7dd3fc" stroke-width="1.6"/>`;
-    case 'dreampalace': return `<path d="M8 36V23h5v-5l4-4 4 4v5h6v-5l4-4 4 4v5h5v13H8z" fill="${c2}" stroke="${c1}" stroke-width="1.4" stroke-linejoin="round"/><path d="M16 23c0-7 4-12 8-14 4 2 8 7 8 14H16z" fill="${c1}" stroke="#fff" stroke-width="1.1"/><path d="M24 6v4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><rect x="20.5" y="27" width="7" height="9" rx="3.5" fill="#fef08a"/><circle cx="13" cy="11" r="1.4" fill="#fff"/><circle cx="35" cy="11" r="1.4" fill="#fff"/>`;
-    case 'ring_band': return `<circle cx="24" cy="27" r="10" fill="none" stroke="${c1}" stroke-width="3.4"/><circle cx="24" cy="27" r="10" fill="none" stroke="${c2}" stroke-width="1.2" stroke-dasharray="6 4"/><polygon points="24,7 31,14 24,20 17,14" fill="${c1}" stroke="#fff" stroke-width="1.2"/><polygon points="24,9 28,14 24,18 20,14" fill="#fff" opacity=".65"/>`;
-    case 'locket': return `<path d="M17 12c2-4 12-4 14 0" fill="none" stroke="#ffd36b" stroke-width="2" stroke-linecap="round"/><path d="M24 37s-11-7-11-15a6.5 6.5 0 0 1 11-4.5A6.5 6.5 0 0 1 35 22c0 8-11 15-11 15z" fill="${c1}" stroke="#ffd36b" stroke-width="1.8"/><circle cx="24" cy="24" r="3" fill="#fff"/>`;
-    case 'bro_crest': return `<path d="M24 9l12 5v10c0 7.5-5 12-12 15-7-3-12-7.5-12-15V14l12-5z" fill="${c2}" stroke="${c1}" stroke-width="2"/><path d="M19 24l3.5 3.5L30 20" stroke="#ffd36b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`;
-    default: return `<circle cx="24" cy="24" r="11" fill="${c2}" stroke="${c1}" stroke-width="2.2"/><circle cx="24" cy="24" r="5" fill="#fff"/><ellipse cx="24" cy="24" rx="16" ry="5" fill="none" stroke="${c1}" stroke-width="1.8" transform="rotate(-25 24 24)"/>`;
+    default: return `<circle cx="24" cy="24" r="10.5" fill="${c2}" stroke="#ffd36b" stroke-width="2.2"/><circle cx="24" cy="24" r="5" fill="#fff"/><ellipse cx="24" cy="24" rx="16.5" ry="5.5" fill="none" stroke="${c1}" stroke-width="2" transform="rotate(-24 24 24)"/><ellipse cx="24" cy="24" rx="16.5" ry="5.5" fill="none" stroke="#fef08a" stroke-opacity=".75" stroke-width="1.4" transform="rotate(26 24 24)"/>`;
   }
 }
 
@@ -218,22 +363,35 @@ function giftSvg(giftOrId, size = 44) {
   if (!g) return '';
   const tier = GIFT_TIERS[g.tier] || GIFT_TIERS[1];
   const gid = esc(g.id || 'g') + '_' + (++_giftSvgSeq);
-  return `<svg class="gift-svg" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">
+  const isLux10k = isLuxuryAnimatedGift(g);
+  const isRing = g.cat === 'ring';
+  return `<svg class="gift-svg gift-3d-emblem ${isLux10k ? 'lux-10k-art' : ''} ${isRing ? 'gift-ring-art' : ''}" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">
     <defs>
-      <radialGradient id="gbg_${gid}" cx="32%" cy="24%" r="78%">
-        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.34"/>
-        <stop offset="42%" stop-color="${g.c1}" stop-opacity="0.28"/>
-        <stop offset="100%" stop-color="${g.c2}" stop-opacity="0.42"/>
+      <radialGradient id="gbg_${gid}" cx="30%" cy="18%" r="85%">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="${isLux10k ? '0.68' : '0.52'}"/>
+        <stop offset="28%" stop-color="${g.c1}" stop-opacity="${isRing ? '0.42' : '0.54'}"/>
+        <stop offset="72%" stop-color="${g.c2}" stop-opacity="0.82"/>
+        <stop offset="100%" stop-color="#070a18" stop-opacity="0.96"/>
       </radialGradient>
-      <linearGradient id="grm_${gid}" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <linearGradient id="grm_${gid}" x1="3" y1="3" x2="45" y2="45" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="32%" stop-color="${isLux10k ? '#fef08a' : tier.color}"/>
+        <stop offset="68%" stop-color="${g.c1}"/>
+        <stop offset="100%" stop-color="${isLux10k ? '#b45309' : g.c2}"/>
+      </linearGradient>
+      <linearGradient id="gspec_${gid}" x1="12" y1="4" x2="34" y2="21" gradientUnits="userSpaceOnUse">
         <stop offset="0%" stop-color="#ffffff" stop-opacity="0.72"/>
-        <stop offset="50%" stop-color="${tier.color}" stop-opacity="0.88"/>
-        <stop offset="100%" stop-color="${g.c2}" stop-opacity="0.78"/>
+        <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
       </linearGradient>
     </defs>
-    <circle cx="24" cy="24" r="21.5" fill="url(#gbg_${gid})" stroke="url(#grm_${gid})" stroke-width="1.6"/>
-    <ellipse cx="19" cy="11.5" rx="10" ry="4" fill="#ffffff" opacity="0.26"/>
-    <g filter="drop-shadow(0 2px 3px rgba(0,0,0,0.42))">${giftGlyphPath(g.icon, g.c1, g.c2)}</g>
+    <ellipse cx="24" cy="44.2" rx="14.5" ry="3" fill="rgba(0,0,0,0.52)"/>
+    <circle cx="24" cy="23.5" r="21.4" fill="url(#gbg_${gid})" stroke="url(#grm_${gid})" stroke-width="${isLux10k ? '2.4' : '1.9'}"/>
+    <circle cx="24" cy="23.5" r="18.6" fill="none" stroke="rgba(255,255,255,${isLux10k ? '0.4' : '0.22'})" stroke-width="0.95"/>
+    ${isLux10k ? `<circle cx="24" cy="23.5" r="16.2" fill="none" stroke="rgba(255,229,143,0.28)" stroke-width="0.75" stroke-dasharray="3 3"/>` : ''}
+    <ellipse cx="20.5" cy="11" rx="13" ry="5.6" fill="url(#gspec_${gid})"/>
+    <g transform="translate(0,-0.4)" filter="drop-shadow(0 3.5px 4.5px rgba(0,0,0,0.62))">${giftGlyphPath(g.icon, g.c1, g.c2, gid)}</g>
+    <circle cx="35.5" cy="11.5" r="1.8" fill="#ffffff" opacity="0.92"/>
+    ${isLux10k ? `<path d="M10.5 11.5l1.1 2.8 2.8 1.1-2.8 1.1-1.1 2.8-1.1-2.8-2.8-1.1 2.8-1.1z" fill="#fef08a" opacity="0.9"/>` : ''}
   </svg>`;
 }
 
@@ -400,11 +558,12 @@ function getGiftWallStatsForUser(targetUserOrUid) {
   let unmergedCharm = 0;
 
   (giftEvents || []).forEach(ev => {
-    if (!ev || ev.toUid !== targetUid || !GIFT_BY_ID[ev.giftId]) return;
+    const isGuestSeedMatch = Boolean(ev && ev.isDemoSeed && targetUid === uid && me.accountType !== 'account');
+    if (!ev || (!isGuestSeedMatch && ev.toUid !== targetUid) || !GIFT_BY_ID[ev.giftId]) return;
     const evTs = Number(ev.ts || 0);
     if (resetAt > 0 && evTs <= resetAt) return;
     receivedLog.push(ev);
-    const qty = clampSafeInt(ev.qty || 1, 1, 99);
+    const qty = clampSafeInt(ev.qty || 1, 1, 100);
     countedByEvent[ev.giftId] = (countedByEvent[ev.giftId] || 0) + qty;
     if (!ev.claimedByRecipient && evTs > devUpdatedAt) {
       unmergedCounts[ev.giftId] = (unmergedCounts[ev.giftId] || 0) + qty;
@@ -496,19 +655,87 @@ function rollGiftTransactionRewards(gift, qty) {
   return { totalCost, recipientCharm, senderCharm, luckyCoins, luckLabel, minLucky, maxLucky };
 }
 
-/* Sleek World-Chat-Style Floating Gift Broadcast Banner Animation */
+/* Multi-Style Gift Animation Classifier + Fixed 50x/100x Combo Scaling */
+function getGiftAnimProfile(gift, qtyRaw) {
+  const qty = clampSafeInt(qtyRaw || 1, 1, 100);
+  const unitPrice = Number(gift?.price || 10);
+  const totalCost = unitPrice * qty;
+  let style = 'burst';
+  if (unitPrice >= 5000 || totalCost >= 5000) style = 'fullscreen';
+  else if (unitPrice >= 500 || totalCost >= 1000) style = 'spotlight';
+  else if (unitPrice >= 80 || qty >= 10) style = 'orbit';
+
+  let comboLabel = '';
+  let comboScale = 1;
+  let particles = 12;
+  if (qty >= 100) {
+    comboLabel = '×100 ULTRA';
+    comboScale = 1.42;
+    particles = 36;
+  } else if (qty >= 50) {
+    comboLabel = '×50 MEGA';
+    comboScale = 1.28;
+    particles = 28;
+  } else if (qty >= 10) {
+    comboLabel = `×${qty} COMBO`;
+    comboScale = 1.14;
+    particles = 18;
+  }
+  return { qty, totalCost, style, comboLabel, comboScale, particles };
+}
+
+/* Multi-Style 3D Gift Animation Stage (Burst, Float/Orbit, Spotlight Sweep + Fixed Combo Scaling) */
 function showGiftBroadcastAnim(ev) {
   const g = GIFT_BY_ID[ev.giftId];
   if (!g) return;
   const tier = GIFT_TIERS[g.tier] || GIFT_TIERS[1];
-  $$('.gift-banner-anim').forEach(el => el.remove());
+  const prof = getGiftAnimProfile(g, ev.qty || 1);
+  if (prof.style === 'fullscreen') {
+    showLuxuryGiftShowcase(ev, g);
+    return;
+  }
+
+  $$('.gift-banner-anim, .gift-fx-stage').forEach(el => el.remove());
+
+  /* 1. Multi-Style Animated Center/Upper FX Overlay */
+  const layer = document.getElementById('giftAnimLayer') || document.body;
+  const fx = document.createElement('div');
+  fx.className = `gift-fx-stage gift-style-${prof.style} gift-tier-${g.tier}`;
+  fx.style.setProperty('--g-c1', g.c1 || tier.color);
+  fx.style.setProperty('--g-c2', g.c2 || '#4f46e5');
+  fx.style.setProperty('--g-scale', String(prof.comboScale));
+
+  const sparks = Array.from({ length: prof.particles }, (_, i) => {
+    const ang = (360 / prof.particles) * i;
+    const dist = 54 + (i % 4) * 20;
+    const delay = ((i % 6) * 0.04).toFixed(2);
+    return `<i style="--ang:${ang}deg;--dist:${dist}px;--d:${delay}s"></i>`;
+  }).join('');
+
+  fx.innerHTML = `
+    ${prof.style === 'spotlight' ? '<div class="gfx-beams"><span></span><span></span></div>' : ''}
+    ${prof.style === 'orbit' ? '<div class="gfx-orbit-ring r1"><i></i><i></i></div><div class="gfx-orbit-ring r2"><i></i></div>' : ''}
+    <div class="gfx-sparks">${sparks}</div>
+    <div class="gfx-emblem-wrap">
+      ${giftSvg(g, Math.round(78 * Math.min(1.25, prof.comboScale)))}
+      ${prof.comboLabel ? `<div class="gfx-combo-badge">${esc(prof.comboLabel)}</div>` : ''}
+    </div>
+  `;
+  layer.appendChild(fx);
+  requestAnimationFrame(() => fx.classList.add('in'));
+  setTimeout(() => {
+    fx.classList.remove('in');
+    setTimeout(() => fx.remove(), 420);
+  }, prof.style === 'spotlight' ? 2800 : 2200);
+
+  /* 2. Crisp Floating Broadcast Banner */
   const box = document.createElement('div');
-  box.className = `gift-banner-anim gift-tier-${g.tier}`;
+  box.className = `gift-banner-anim gift-tier-${g.tier} style-${prof.style}`;
   box.innerHTML = `
     <div class="gba-ico">${giftSvg(g, 48)}</div>
     <div class="gba-copy">
-      <div class="gba-top"><b>${esc(ev.fromName || 'Player')}</b> <span>sent to</span> <b>${esc(ev.toName || 'Player')}</b></div>
-      <div class="gba-mid">${esc(g.name)} <strong style="color:${tier.color}">x${ev.qty}</strong> · <span style="color:#f472b6">+${fmtNum(ev.charm)} Charm</span> · <span style="color:#ffd36b">+${fmtNum(ev.luckyCoins)} Lucky 🪙</span></div>
+      <div class="gba-top"><b>${esc(ev.fromName || 'Player')}</b> <span>→</span> <b>${esc(ev.toName || 'Player')}</b></div>
+      <div class="gba-mid">${esc(g.name)} <strong class="gba-qty" style="color:${tier.color}">×${prof.qty}</strong> · <span style="color:#f9a8d4">+${fmtNum(ev.charm)} 💎</span> · <span style="color:#ffd36b">+${fmtNum(ev.luckyCoins)} 🪙</span></div>
     </div>
   `;
   document.body.appendChild(box);
@@ -519,21 +746,23 @@ function showGiftBroadcastAnim(ev) {
   }, 3400);
 }
 
-/* Full-Stage Luxury Showcase Overlay (Car Drive-Across + Engine SFX & Grand Dream Palace Reveal) */
+/* Full-Screen 5,000+ Coin Celebration Showcase (Car Drive-By, Jet, Yacht, Dream Palace, Grand Emblem + Fixed 50x/100x Combo Scaling) */
 function showLuxuryGiftShowcase(ev, giftArg) {
   const g = giftArg || GIFT_BY_ID[ev?.giftId];
   if (!g) return;
   const isCar = g.fx === 'car';
   const tier = GIFT_TIERS[g.tier] || GIFT_TIERS[7];
-  $$('.lux-showcase').forEach(el => el.remove());
+  const prof = getGiftAnimProfile(g, ev?.qty || 1);
+  $$('.lux-showcase, .gift-fx-stage').forEach(el => el.remove());
 
   const overlay = document.createElement('div');
-  overlay.className = `lux-showcase ${isCar ? 'lux-mode-car' : 'lux-mode-palace'}`;
+  overlay.className = `lux-showcase ${isCar ? 'lux-mode-car' : 'lux-mode-palace'} ${prof.qty >= 50 ? 'lux-mega-combo' : ''}`;
   overlay.setAttribute('role', 'status');
   overlay.setAttribute('aria-live', 'polite');
   overlay.dataset.luxGift = g.id;
+  overlay.style.setProperty('--g-scale', String(prof.comboScale));
 
-  const qty = clampSafeInt(ev?.qty || 1, 1, 99);
+  const qty = prof.qty;
   const fromName = esc(ev?.fromName || ev?.name || 'Player');
   const toName = esc(ev?.toName || 'Player');
   const charmTxt = fmtNum(ev?.charm || g.charm * qty);
@@ -541,8 +770,9 @@ function showLuxuryGiftShowcase(ev, giftArg) {
 
   overlay.innerHTML = `
     <div class="lux-stage">
+      <div class="lux-spotbeams" aria-hidden="true"><span></span><span></span></div>
       <button type="button" class="lux-close" aria-label="Close showcase">✕</button>
-      <div class="lux-kicker">${esc(tier.stars)} ${esc(tier.name)} ULTRA-LUXURY ARRIVAL</div>
+      <div class="lux-kicker">${esc(tier.stars)} ${esc(tier.name)} 5,000+ CELEBRATION${prof.comboLabel ? ` · ${esc(prof.comboLabel)}` : ''}</div>
       ${isCar ? `
         <div class="lux-car-track">
           <div class="lux-speed-lines" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
@@ -556,8 +786,8 @@ function showLuxuryGiftShowcase(ev, giftArg) {
         </div>
       `}
       <div class="lux-caption">
-        <div class="lux-title">${esc(g.name)} <span>×${qty}</span></div>
-        <div class="lux-sub"><b>${fromName}</b> gifted <b>${toName}</b> · <em style="color:#f9a8d4">+${charmTxt} Charm</em>${luckyTxt && Number(ev?.luckyCoins) > 0 ? ` · <em style="color:#fde047">+${luckyTxt} Lucky 🪙</em>` : ''}</div>
+        <div class="lux-title">${esc(g.name)} <span class="lux-combo-chip">×${qty}</span></div>
+        <div class="lux-sub"><b>${fromName}</b> → <b>${toName}</b> · <em style="color:#f9a8d4">+${charmTxt} 💎</em>${luckyTxt && Number(ev?.luckyCoins) > 0 ? ` · <em style="color:#fde047">+${luckyTxt} 🪙</em>` : ''}</div>
       </div>
     </div>
   `;
@@ -566,9 +796,10 @@ function showLuxuryGiftShowcase(ev, giftArg) {
   requestAnimationFrame(() => overlay.classList.add('in'));
 
   if (typeof playSfx === 'function') {
-    if (isCar) playSfx('carDrive', { model: g.id });
-    else if (g.cat === 'ring') playSfx('weddingBell');
-    else playSfx('palaceReveal', { model: g.id });
+    if (isCar) playSfx('giftLuxuryCar', { model: g.id });
+    else if (g.cat === 'ring') playSfx('weddingBells');
+    else playSfx('giftLuxuryPalace', { model: g.id });
+    if (qty >= 50) setTimeout(() => playSfx('comboTick', { qty }), 350);
   }
 
   let closed = false;
@@ -584,72 +815,209 @@ function showLuxuryGiftShowcase(ev, giftArg) {
   setTimeout(dismiss, isCar ? 4300 : 4500);
 }
 
-/* Pending Couple / Bestie / Bro Proposal Inbox Modal */
+/* ===== Exclusive 1-to-1 Relationship Bonds Engine (Couple Ring, Bro Tag, Bestie Tag) ===== */
+const BOND_SLOT_META = {
+  couple: { slot: 'couple', label: 'Couple Ring', short: 'Couple', defaultGiftId: 'g_ring_royal', accent: '#f472b6', desc: 'Exclusive 1-to-1 Couple Ring · Unlocks Grand Wedding Room' },
+  bro: { slot: 'bro', label: 'Bro Tag', short: 'Bro', defaultGiftId: 'g_bond_bro', accent: '#38bdf8', desc: 'Exclusive 1-to-1 Squad Bro Crest' },
+  bestie: { slot: 'bestie', label: 'Bestie Tag', short: 'Bestie', defaultGiftId: 'g_bond_bestie', accent: '#c084fc', desc: 'Exclusive 1-to-1 Golden Bestie Locket' }
+};
+
+function normalizeExclusiveUserBonds(rawBonds) {
+  if (!Array.isArray(rawBonds)) return [];
+  const bySlot = {};
+  rawBonds.forEach(b => {
+    if (!b || !BOND_SLOT_META[b.type] || !b.partnerUid) return;
+    const prev = bySlot[b.type];
+    if (!prev || Number(b.since || 0) >= Number(prev.since || 0)) {
+      bySlot[b.type] = {
+        type: b.type,
+        partnerUid: b.partnerUid,
+        partnerName: b.partnerName || b.name || 'Partner',
+        partnerAvatar: b.partnerAvatar || b.avatar || (b.type === 'bro' ? 'av_b2' : 'av_g1'),
+        giftId: b.giftId || BOND_SLOT_META[b.type].defaultGiftId,
+        level: Math.max(1, Number(b.level || (b.type === 'couple' ? 3 : b.type === 'bro' ? 2 : 1))),
+        since: Number(b.since || Date.now())
+      };
+    }
+  });
+  return ['couple', 'bro', 'bestie'].map(s => bySlot[s]).filter(Boolean);
+}
+
+function getUserBondInSlot(userObj, slot) {
+  return normalizeExclusiveUserBonds(userObj?.bonds).find(b => b.type === slot) || null;
+}
+
+function getPendingBondRequestsForMe() {
+  const list = Array.isArray(me.pendingProposals) ? me.pendingProposals : [];
+  return list.filter(p => p && p.id && BOND_SLOT_META[p.bondType] && p.fromUid !== uid);
+}
+
+function unbindMyBondSlot(slot, opts) {
+  opts = opts || {};
+  const meta = BOND_SLOT_META[slot];
+  if (!meta) return false;
+  const current = getUserBondInSlot(me, slot);
+  if (!current) return false;
+
+  me.bonds = normalizeExclusiveUserBonds(me.bonds).filter(b => b.type !== slot);
+  saveMe();
+  patchUser(uid, { bonds: me.bonds });
+  dbOp(() => F.setDoc(userRef(uid), { bonds: me.bonds }, { merge: true }));
+
+  if (current.partnerUid) {
+    const partner = allUsers().find(u => u.uid === current.partnerUid);
+    if (partner) {
+      const pBonds = normalizeExclusiveUserBonds(partner.bonds).filter(b => !(b.type === slot && b.partnerUid === uid));
+      patchUser(current.partnerUid, { bonds: pBonds });
+      dbOp(() => F.setDoc(userRef(current.partnerUid), { bonds: pBonds }, { merge: true }));
+    }
+  }
+  if (typeof buildProfile === 'function') buildProfile();
+  if (typeof renderChats === 'function') renderChats();
+  if (!opts.silent) toast(`Unbound ${meta.label} with ${current.partnerName}. Slot is now open!`);
+  return true;
+}
+
+function openBondSlotOccupiedModal(slot, currentBond, onAfterUnbind) {
+  const meta = BOND_SLOT_META[slot] || BOND_SLOT_META.couple;
+  const g = GIFT_BY_ID[currentBond?.giftId || meta.defaultGiftId] || GIFT_CATALOG[0];
+  const m = modal(`${meta.label} Slot Occupied`, `
+    <div class="prop-modal-box">
+      <div style="margin-bottom:8px">${giftSvg(g, 74)}</div>
+      <b style="font-size:16px">Exclusive 1-to-1 Bond Rule</b>
+      <p style="font-size:13px;color:var(--mu);margin:6px 0 12px">
+        Your <b>${esc(meta.label)}</b> is currently active with <b>${esc(currentBond?.partnerName || 'Partner')}</b>.
+        Each tag/ring can only be held with <b>1 person at a time</b>. Unbind your current bond first before sending or accepting a new request.
+      </p>
+      <div class="row" style="gap:8px;margin-top:10px">
+        <button type="button" class="btn ghost" id="bsoKeep" style="flex:1">Keep Current</button>
+        <button type="button" class="btn red" id="bsoUnbind" style="flex:1">Unbind ${esc(currentBond?.partnerName || 'Partner')}</button>
+      </div>
+    </div>
+  `, 'prop-sheet');
+  $('#bsoKeep', m).onclick = () => m.close();
+  $('#bsoUnbind', m).onclick = () => {
+    unbindMyBondSlot(slot);
+    m.close();
+    if (typeof onAfterUnbind === 'function') onAfterUnbind();
+  };
+}
+
+function declinePendingBondProposal(propId) {
+  const prop = getPendingBondRequestsForMe().find(p => p.id === propId);
+  if (!prop) return false;
+  me.pendingProposals = (me.pendingProposals || []).filter(x => x.id !== propId);
+  saveMe();
+  patchUser(uid, { pendingProposals: me.pendingProposals });
+  dbOp(() => F.setDoc(userRef(uid), { pendingProposals: me.pendingProposals }, { merge: true }));
+  if (typeof playSfx === 'function') playSfx('tap');
+  if (typeof buildProfile === 'function') buildProfile();
+  if (typeof renderChats === 'function') renderChats();
+  toast(`Declined ${(BOND_SLOT_META[prop.bondType] || BOND_SLOT_META.bestie).label} request from ${prop.fromName}`);
+  return true;
+}
+
+function acceptPendingBondProposal(propId) {
+  const prop = getPendingBondRequestsForMe().find(p => p.id === propId);
+  if (!prop) return false;
+  const meta = BOND_SLOT_META[prop.bondType] || BOND_SLOT_META.bestie;
+  const existingInSlot = getUserBondInSlot(me, prop.bondType);
+  if (existingInSlot) {
+    openBondSlotOccupiedModal(prop.bondType, existingInSlot, () => acceptPendingBondProposal(propId));
+    return false;
+  }
+
+  const g = GIFT_BY_ID[prop.giftId] || GIFT_BY_ID[meta.defaultGiftId] || GIFT_CATALOG[0];
+  const nowTs = Date.now();
+  const isCouple = prop.bondType === 'couple';
+  const myBond = {
+    type: prop.bondType,
+    partnerUid: prop.fromUid,
+    partnerName: prop.fromName || 'Player',
+    partnerAvatar: prop.fromAvatar || 'av_b1',
+    giftId: g.id,
+    level: isCouple ? 3 : (prop.bondType === 'bro' ? 2 : 1),
+    since: nowTs
+  };
+  const partnerBond = {
+    type: prop.bondType,
+    partnerUid: uid,
+    partnerName: me.name || 'Player',
+    partnerAvatar: me.avatar || 'av_g1',
+    giftId: g.id,
+    level: myBond.level,
+    since: nowTs
+  };
+
+  me.pendingProposals = (me.pendingProposals || []).filter(x => x.id !== propId);
+  me.bonds = normalizeExclusiveUserBonds([...normalizeExclusiveUserBonds(me.bonds).filter(b => b.type !== prop.bondType), myBond]);
+  saveMe();
+  patchUser(uid, { bonds: me.bonds, pendingProposals: me.pendingProposals });
+  dbOp(() => F.setDoc(userRef(uid), { bonds: me.bonds, pendingProposals: me.pendingProposals }, { merge: true }));
+
+  const sender = allUsers().find(u => u.uid === prop.fromUid) || { uid: prop.fromUid, bonds: [] };
+  const sBonds = normalizeExclusiveUserBonds([...normalizeExclusiveUserBonds(sender.bonds).filter(b => b.type !== prop.bondType), partnerBond]);
+  patchUser(prop.fromUid, { bonds: sBonds });
+  dbOp(() => F.setDoc(userRef(prop.fromUid), { bonds: sBonds }, { merge: true }));
+
+  if (typeof playSfx === 'function') playSfx(isCouple ? 'weddingBells' : 'win');
+  if (isCouple && typeof createWeddingPartyRoom === 'function') {
+    createWeddingPartyRoom(prop.fromUid, prop.fromName, prop.weddingDays || 3, g.name);
+  }
+  if (typeof buildProfile === 'function') buildProfile();
+  if (typeof renderChats === 'function') renderChats();
+  toast(isCouple
+    ? `💍 Exclusive Couple Ring accepted with ${prop.fromName}! ${prop.weddingDays || 3}-Day Wedding Room unlocked!`
+    : `✨ Exclusive ${meta.label} activated with ${prop.fromName}!`);
+  return true;
+}
+
+/* Pending Couple / Bestie / Bro Proposal Inbox Modal (Only auto-pops for fresh live incoming requests, not pre-seeded demo requests) */
 let shownProposalIds = new Set();
 function checkPendingProposals() {
-  const list = Array.isArray(me.pendingProposals) ? me.pendingProposals : [];
-  const pending = list.filter(p => p && p.id && !shownProposalIds.has(p.id));
+  const list = getPendingBondRequestsForMe();
+  const pending = list.filter(p => !p.isDemoSeed && !shownProposalIds.has(p.id));
   if (!pending.length) return;
   const prop = pending[0];
   shownProposalIds.add(prop.id);
   const g = GIFT_BY_ID[prop.giftId] || GIFT_CATALOG[0];
+  const meta = BOND_SLOT_META[prop.bondType] || BOND_SLOT_META.bestie;
   const isCouple = prop.bondType === 'couple';
-  const title = isCouple ? '💍 Romantic Couple Proposal' : (prop.bondType === 'bestie' ? '💖 Bestie Bond Request' : '🛡️ Squad Bro Bond Request');
-  if (typeof playSfx === 'function') playSfx(isCouple ? 'weddingBell' : 'giftReceive');
+  const title = isCouple ? '💍 Exclusive Couple Ring Request' : (prop.bondType === 'bestie' ? '💖 Exclusive Bestie Tag Request' : '🛡️ Exclusive Bro Tag Request');
+  if (typeof playSfx === 'function') playSfx(isCouple ? 'weddingBells' : 'giftReceive');
 
   const m = modal(title, `
     <div class="prop-modal-box">
-      <div style="margin-bottom:8px">${giftSvg(g, 72)}</div>
+      <div style="margin-bottom:8px">${giftSvg(g, 82)}</div>
       <b style="font-size:16px">${esc(prop.fromName || 'Player')}</b>
-      <p style="font-size:13px;color:var(--mu);margin:6px 0 10px">sent you <b>${esc(g.name)}</b> and invited you to become their <b>${isCouple ? 'Official Couple' : (prop.bondType === 'bestie' ? 'Bestie' : 'Squad Bro')}</b>!</p>
+      <p style="font-size:13px;color:var(--mu);margin:6px 0 10px">sent you <b>${esc(g.name)}</b> and wants to form an exclusive 1-to-1 <b>${esc(meta.label)}</b> on both profiles.</p>
       ${isCouple ? `<div class="prop-wed-pill">✨ Accepting unlocks a ${prop.weddingDays || 3}-Day Grand Wedding Room!</div>` : ''}
-      <div class="row" style="margin-top:12px">
+      <div class="row" style="margin-top:12px;gap:8px">
         <button type="button" class="btn ghost" id="propDecline" style="flex:1">Decline</button>
-        <button type="button" class="btn gold" id="propAccept" style="flex:1">Accept Bond</button>
+        <button type="button" class="btn gold" id="propAccept" style="flex:1">Accept ${esc(meta.short)}</button>
       </div>
     </div>
   `, 'prop-sheet');
 
-  const removeProp = () => {
-    me.pendingProposals = (me.pendingProposals || []).filter(x => x.id !== prop.id);
-    saveMe();
-    dbOp(() => F.setDoc(userRef(uid), { pendingProposals: me.pendingProposals }, { merge: true }));
-  };
-
   $('#propDecline', m).onclick = () => {
-    removeProp();
+    declinePendingBondProposal(prop.id);
     m.close();
-    toast('Proposal declined');
   };
   $('#propAccept', m).onclick = () => {
-    removeProp();
-    const nowTs = Date.now();
-    const myBond = { type: prop.bondType, partnerUid: prop.fromUid, partnerName: prop.fromName, partnerAvatar: prop.fromAvatar || 'av_b1', giftId: prop.giftId, since: nowTs };
-    const partnerBond = { type: prop.bondType, partnerUid: uid, partnerName: me.name || 'Player', partnerAvatar: me.avatar || 'av_g1', giftId: prop.giftId, since: nowTs };
-
-    me.bonds = [...(me.bonds || []).filter(b => !(b.type === prop.bondType && b.partnerUid === prop.fromUid)), myBond].slice(-10);
-    saveMe();
-    patchUser(uid, { bonds: me.bonds });
-    dbOp(() => F.setDoc(userRef(uid), { bonds: me.bonds }, { merge: true }));
-
-    const sender = allUsers().find(u => u.uid === prop.fromUid) || { uid: prop.fromUid, bonds: [] };
-    const sBonds = [...(Array.isArray(sender.bonds) ? sender.bonds.filter(b => !(b.type === prop.bondType && b.partnerUid === uid)) : []), partnerBond].slice(-10);
-    patchUser(prop.fromUid, { bonds: sBonds });
-    dbOp(() => F.setDoc(userRef(prop.fromUid), { bonds: sBonds }, { merge: true }));
-
-    if (isCouple && typeof createWeddingPartyRoom === 'function') {
-      createWeddingPartyRoom(prop.fromUid, prop.fromName, prop.weddingDays || 3, g.name);
-    }
-    if (typeof buildProfile === 'function') buildProfile();
     m.close();
-    toast(isCouple ? `💍 Couple Bond formed! ${prop.weddingDays || 3}-Day Wedding Room unlocked!` : `Bonded with ${prop.fromName}!`);
+    acceptPendingBondProposal(prop.id);
   };
 }
 
 /* Recipient Auto-Ingest for Incoming Gifts (adds to Gift Wallet, Charm Box, and Lucky Coins once) */
 function ingestIncomingGiftEvents(list) {
   if (!Array.isArray(list)) return;
-  giftEvents = list.slice(0, 250);
+  const keepSeeds = me.accountType !== 'account'
+    ? (giftEvents || []).filter(ev => ev && ev.isDemoSeed).map(ev => ({ ...ev, toUid: uid }))
+    : [];
+  const merged = [...list.slice(0, 250)];
+  keepSeeds.forEach(s => { if (!merged.some(x => x && x.id === s.id)) merged.push(s); });
+  giftEvents = merged.slice(0, 250);
   ls.set('sg_gift_events', giftEvents);
 
   let changedMe = false;
@@ -658,7 +1026,7 @@ function ingestIncomingGiftEvents(list) {
   const resetAt = Number(me.giftResetAt || 0);
 
   giftEvents.forEach(ev => {
-    if (!ev || !ev.id || ev.toUid !== uid || !GIFT_BY_ID[ev.giftId]) return;
+    if (!ev || !ev.id || ev.isDemoSeed || ev.toUid !== uid || !GIFT_BY_ID[ev.giftId]) return;
     if (resetAt > 0 && Number(ev.ts || 0) <= resetAt) return;
     const doneKey = 'gift_rx_' + ev.id;
     if (me.done[doneKey]) return;
@@ -697,16 +1065,17 @@ function ingestIncomingGiftEvents(list) {
     if (typeof renderRanking === 'function') renderRanking();
     if (latestIncoming) {
       const gLatest = GIFT_BY_ID[latestIncoming.giftId];
-      if (gLatest && Number(gLatest.price || 0) >= 5000) {
+      const latestProf = gLatest ? getGiftAnimProfile(gLatest, latestIncoming.qty || 1) : null;
+      if (latestProf && latestProf.style === 'fullscreen') {
         showLuxuryGiftShowcase(latestIncoming, gLatest);
       } else {
         showGiftBroadcastAnim(latestIncoming);
         if (typeof playSfx === 'function') {
-          playSfx('giftReceive');
+          playSfx('giftSend', { tier: gLatest?.tier || 2, style: latestProf?.style || 'burst' });
           if (totalNewLucky > 0) setTimeout(() => playSfx('luckyDrop'), 220);
         }
       }
-      toast(`Received gift! +${fmtNum(totalNewLucky)} Lucky Coins & Charm added!`);
+      toast(`Received gift! +${fmtNum(totalNewLucky)} Lucky 🪙 & Charm!`);
     }
   }
 }
@@ -758,9 +1127,30 @@ function executeSendGift(targetUid, giftId, qty, contextOpts) {
     return toast(`Need ${fmtNum(rewards.totalCost)} coins (You have ${fmtNum(me.coins)})`);
   }
 
+  /* Strict 1-to-1 Bond Exclusivity Check BEFORE charging coins or sending request */
+  const targetUserPre = allUsers().find(u => u.uid === targetUid) || { uid: targetUid, name: (contextOpts && contextOpts.targetName) || 'Player' };
+  if (gift.bondType && BOND_SLOT_META[gift.bondType]) {
+    const slotMeta = BOND_SLOT_META[gift.bondType];
+    const myCurrentBond = getUserBondInSlot(me, gift.bondType);
+    if (myCurrentBond) {
+      openBondSlotOccupiedModal(gift.bondType, myCurrentBond);
+      return null;
+    }
+    const targetCurrentBond = getUserBondInSlot(targetUserPre, gift.bondType);
+    if (targetCurrentBond) {
+      toast(`${targetUserPre.name || 'Player'} already holds an active ${slotMeta.label} with ${targetCurrentBond.partnerName}`);
+      return null;
+    }
+    const targetPending = Array.isArray(targetUserPre.pendingProposals) ? targetUserPre.pendingProposals : [];
+    if (targetPending.some(p => p && p.bondType === gift.bondType && p.fromUid === uid)) {
+      toast(`Your ${slotMeta.label} request is already pending for ${targetUserPre.name || 'Player'}`);
+      return null;
+    }
+  }
+
   inFlightOps.add(lockKey);
   try {
-    const targetUser = allUsers().find(u => u.uid === targetUid) || { uid: targetUid, name: (contextOpts && contextOpts.targetName) || 'Player' };
+    const targetUser = targetUserPre;
     const nowTs = Date.now();
     const evId = 'gf_' + nowTs.toString(36) + Math.random().toString(36).slice(2, 6);
 
@@ -776,20 +1166,24 @@ function executeSendGift(targetUid, giftId, qty, contextOpts) {
     if (typeof bumpStat === 'function') bumpStat('gifts_sent');
     if (typeof addClanGlory === 'function') addClanGlory(Math.max(10, Math.floor(rewards.totalCost / 5)));
 
-    /* If Ring / Bond gift, send proposal to recipient */
-    if (gift.bondType) {
+    /* Mandatory Request -> Accept Flow: NEVER auto-attach bond; deliver pending request to recipient */
+    if (gift.bondType && BOND_SLOT_META[gift.bondType]) {
       const prop = {
         id: 'pr_' + evId,
         fromUid: uid,
         fromName: me.name || 'Player',
         fromAvatar: me.avatar || 'av_b1',
+        toUid: targetUid,
+        toName: targetUser.name || 'Player',
         giftId: gift.id,
+        giftName: gift.name,
         bondType: gift.bondType,
         weddingDays: gift.weddingDays || 3,
+        status: 'pending',
         ts: nowTs
       };
       const existingProps = Array.isArray(targetUser.pendingProposals) ? targetUser.pendingProposals : [];
-      const nextProps = [...existingProps, prop].slice(-15);
+      const nextProps = [...existingProps.filter(p => !(p.bondType === gift.bondType && p.fromUid === uid)), prop].slice(-15);
       patchUser(targetUid, { pendingProposals: nextProps });
       dbOp(() => F.setDoc(userRef(targetUid), { pendingProposals: nextProps }, { merge: true }));
     }
@@ -872,8 +1266,9 @@ function executeSendGift(targetUid, giftId, qty, contextOpts) {
       appendPartyRoomGift(contextOpts.inPartyRoom, evObj);
     }
 
-    /* Trigger Full-Screen Animated Showcase for EVERY gift >= 5,000 coins */
-    if (Number(gift.price || 0) >= 5000) {
+    /* Trigger Multi-Style Gift Animation (Burst, Orbit, Spotlight, or 5,000+ Fullscreen Celebration) */
+    const animProf = getGiftAnimProfile(gift, safeQty);
+    if (animProf.style === 'fullscreen') {
       showLuxuryGiftShowcase(evObj, gift);
       if (typeof playSfx === 'function' && rewards.luckLabel !== 'Lucky Drop') {
         setTimeout(() => playSfx('luckyDrop'), 1200);
@@ -881,9 +1276,10 @@ function executeSendGift(targetUid, giftId, qty, contextOpts) {
     } else {
       showGiftBroadcastAnim(evObj);
       if (typeof playSfx === 'function') {
-        playSfx(gift.bondType === 'couple' ? 'weddingBell' : 'giftSend', { tier: gift.tier, qty: safeQty });
+        playSfx(gift.bondType === 'couple' ? 'weddingBells' : 'giftSend', { tier: gift.tier, qty: safeQty, style: animProf.style });
+        if (safeQty >= 50) setTimeout(() => playSfx('comboTick', { qty: safeQty }), 180);
         if (rewards.luckLabel !== 'Lucky Drop') {
-          setTimeout(() => playSfx('luckyDrop'), 240);
+          setTimeout(() => playSfx('luckyDrop'), 260);
         }
       }
     }
@@ -898,15 +1294,54 @@ function executeSendGift(targetUid, giftId, qty, contextOpts) {
   }
 }
 
-/* ===== WePlay-Style Multi-Tier Gift Wall Component (Profile & Public Profile) ===== */
+/* ===== v13 Upgraded Animated Gift Wall (Top Gifter Spotlight + Rarity Filters + 10k+ Ambient Motion) ===== */
+function getTopGifterForUser(st) {
+  const bySender = {};
+  (st.receivedLog || []).forEach(ev => {
+    const sid = ev.fromUid || ev.fromName || 'vip';
+    if (!bySender[sid]) {
+      bySender[sid] = {
+        uid: ev.fromUid || '',
+        name: ev.fromName || 'VIP Gifter',
+        avatar: ev.fromAvatar || 'av_g1',
+        frame: ev.fromFrame || 'fx_gold',
+        charm: 0,
+        gifts: 0
+      };
+    }
+    bySender[sid].charm += Number(ev.charm || 0);
+    bySender[sid].gifts += Number(ev.qty || 1);
+  });
+  return Object.values(bySender).sort((a, b) => b.charm - a.charm)[0] || null;
+}
+
 function renderGiftWallHtml(targetUser, isSelf) {
   const st = getGiftWallStatsForUser(targetUser);
-  const topGift = GIFT_BY_ID['g75_ferrari'] || GIFT_CATALOG[GIFT_CATALOG.length - 1];
+  const luxOwned = GIFT_CATALOG.filter(g => isLuxuryAnimatedGift(g) && Number(st.counts[g.id] || 0) > 0).length;
+  const topGift = GIFT_CATALOG.find(g => isLuxuryAnimatedGift(g) && Number(st.counts[g.id] || 0) > 0) || GIFT_BY_ID['g75_ferrari'] || GIFT_CATALOG[GIFT_CATALOG.length - 1];
+  const topGifter = getTopGifterForUser(st);
+  const topGifterHtml = topGifter ? `
+    <div class="gw-top-gifter" ${topGifter.uid ? `data-prof-link="${esc(topGifter.uid)}"` : ''}>
+      <div class="gw-tg-left">
+        <span class="gw-tg-crown" aria-hidden="true">👑</span>
+        ${av({ avatar: topGifter.avatar, frame: topGifter.frame || 'fx_gold' }, 34)}
+        <div class="gw-tg-meta">
+          <small>TOP GIFTER SPOTLIGHT</small>
+          <b>${esc(topGifter.name)}</b>
+        </div>
+      </div>
+      <div class="gw-tg-right">
+        <b>+${fmtNum(topGifter.charm)} 💎</b>
+        <small>${fmtNum(topGifter.gifts)} gifts</small>
+      </div>
+    </div>
+  ` : '';
+
   return `
     <div class="gw-shell" data-gw-uid="${esc(targetUser.uid)}" data-gw-self="${isSelf ? '1' : '0'}">
       <div class="wp-gift-summary">
         <div class="wp-gs-left">
-          <div class="wp-gs-title">Gift Wall</div>
+          <div class="wp-gs-title">Animated Gift Wall ${luxOwned > 0 ? `<span class="gw-lux-pill">✨ ${luxOwned} 10k+ Live</span>` : ''}</div>
           <div class="wp-gs-nums">
             <div class="wp-gs-stat"><b>${fmtNum(st.totalReceivedCount)}</b><small>Gifts</small></div>
             <div class="wp-gs-div"></div>
@@ -916,10 +1351,15 @@ function renderGiftWallHtml(targetUser, isSelf) {
           </div>
         </div>
         <div class="wp-gs-right">
-          ${giftSvg(topGift, 46)}
+          <div class="gw-hero-thumb ${isLuxuryAnimatedGift(topGift) ? 'lux-10k-card' : ''}">
+            ${renderLuxury10kFxHtml(topGift, true)}
+            ${giftSvg(topGift, 48)}
+          </div>
           ${!isSelf ? `<button type="button" class="btn gold sm" data-gw-send="${esc(targetUser.uid)}">Gift</button>` : ''}
         </div>
       </div>
+
+      ${topGifterHtml}
 
       <div class="gw-tabs" role="tablist">
         <button type="button" class="gw-tab on" data-gw-tab="wall" role="tab" aria-selected="true">Wall</button>
@@ -934,16 +1374,18 @@ function renderGiftWallHtml(targetUser, isSelf) {
 
 const VAULT_TABS = [
   ['all', 'All'],
-  ['t1', '1★ Starter'],
-  ['t2', '2★ Sweet'],
-  ['t3', '3★ Radiant'],
+  ['lux10k', '✨ 10k+ Luxury'],
+  ['rings', '💍 Rings & Bonds'],
+  ['t5', '5★+ Mythic'],
   ['t4', '4★ Royal'],
-  ['t5', '5★ Mythic'],
-  ['rings', '💍 Rings']
+  ['t3', '3★ Radiant'],
+  ['t2', '2★ Sweet'],
+  ['t1', '1★ Starter']
 ];
 
 function matchVaultFilter(g, filterKey) {
   if (filterKey === 'all') return true;
+  if (filterKey === 'lux10k') return isLuxuryAnimatedGift(g);
   if (filterKey === 'rings') return g.cat === 'ring';
   if (g.cat === 'ring') return false;
   if (filterKey === 't1') return g.tier === 1;
@@ -956,20 +1398,23 @@ function matchVaultFilter(g, filterKey) {
 
 function openGiftInspectModal(gift, ownedCount, targetUser, isSelf, onAfterGiftSent) {
   const tMeta = GIFT_TIERS[gift.tier] || GIFT_TIERS[1];
+  const isLux10k = isLuxuryAnimatedGift(gift);
   const m = modal('Gift Vault Details', `
-    <div class="gw-inspect-box" style="border-color:${tMeta.border}">
-      <div class="gw-inspect-art">${giftSvg(gift, 84)}</div>
-      <div class="gw-stars" style="color:${tMeta.color};margin-top:6px">${esc(tMeta.stars)} ${esc(gift.cat === 'ring' ? 'Luxury Ring & Bond' : tMeta.name)}</div>
+    <div class="gw-inspect-box ${isLux10k ? 'lux-10k-card' : ''}" style="border-color:${tMeta.border}">
+      ${renderLuxury10kFxHtml(gift, false)}
+      <div class="gw-inspect-art">${giftSvg(gift, 92)}</div>
+      <div class="gw-stars" style="color:${tMeta.color};margin-top:6px">${esc(tMeta.stars)} ${esc(gift.cat === 'ring' ? '3D Luxury Ring & Exclusive Bond' : tMeta.name)}</div>
       <h4 style="margin:4px 0 6px;font-size:18px">${esc(gift.name)}</h4>
       <div class="row wrap" style="justify-content:center;gap:8px;margin-bottom:8px">
         <span class="chip">${fmtNum(gift.price)} 🪙</span>
         <span class="charm-chip">+${fmtNum(gift.charm)} Charm (5:1)</span>
         <span class="exp-chip">Owned: x${fmtNum(ownedCount)}</span>
       </div>
-      ${gift.bondType === 'couple' ? `<p style="font-size:12px;color:var(--gold)">💍 Forms Couple Bond & unlocks a ${gift.weddingDays || 3}-Day Grand Wedding Room upon acceptance.</p>` : ''}
-      ${gift.price >= 5000 ? `<p style="font-size:12px;color:#38bdf8">✨ Triggers Full-Screen Animated Showcase & Sound FX!</p>` : ''}
-      <div class="row" style="margin-top:12px">
-        ${gift.price >= 5000 ? `<button type="button" class="btn ghost" id="giPreview" style="flex:1">Preview Animation</button>` : ''}
+      ${isLux10k ? `<p style="font-size:12px;color:#fde047;margin:4px 0">✨ 10,000+ Luxury Gift: Continuous 3D shimmer & ambient Gift Wall particles!</p>` : ''}
+      ${gift.bondType ? `<p style="font-size:12px;color:#f9a8d4;margin:4px 0">💎 Exclusive 1-to-1 ${(BOND_SLOT_META[gift.bondType] || BOND_SLOT_META.couple).label} — sends a request that activates only after acceptance.</p>` : ''}
+      ${gift.price >= 5000 ? `<p style="font-size:12px;color:#38bdf8;margin:4px 0">🎬 Triggers Full-Screen 3D Celebration Showcase & Sound FX!</p>` : ''}
+      <div class="row" style="margin-top:12px;gap:8px">
+        ${gift.price >= 5000 ? `<button type="button" class="btn ghost" id="giPreview" style="flex:1">Preview 3D Show</button>` : ''}
         ${!isSelf ? `<button type="button" class="btn gold" id="giSend" style="flex:1">Send Gift</button>` : `<button type="button" class="btn" id="giOk" style="flex:1">Close</button>`}
       </div>
     </div>
@@ -998,14 +1443,8 @@ function bindGiftWallEvents(rootEl, targetUser, isSelf, onAfterGiftSent) {
     const panel = shell.querySelector('[data-gw-panel]');
     if (!panel) return;
 
-    const scoreEl = shell.querySelector('.gw-charm-score');
-    if (scoreEl) scoreEl.innerHTML = `${fmtNum(st.totalCharm)} <span>Charm</span>`;
-    const metricsEl = shell.querySelector('.gw-charm-metrics');
-    if (metricsEl) {
-      metricsEl.innerHTML = `<span>Collected <b>${st.collectedCount}/${st.totalCatalog}</b></span><span aria-hidden="true">·</span><span>Received <b>${fmtNum(st.totalReceivedCount)}</b></span><span aria-hidden="true">·</span><span>Gifter Charm <b>${fmtNum(st.sentCharm)}</b></span>`;
-    }
     const rxTab = shell.querySelector('[data-gw-tab="received"]');
-    if (rxTab) rxTab.textContent = `Received (${st.receivedLog.length})`;
+    if (rxTab) rxTab.textContent = `Log (${st.receivedLog.length})`;
 
     if (activeTab === 'wall') {
       const tierBtns = VAULT_TABS.map(([k, lbl]) =>
@@ -1014,7 +1453,15 @@ function bindGiftWallEvents(rootEl, targetUser, isSelf, onAfterGiftSent) {
 
       const list = GIFT_CATALOG
         .filter(g => matchVaultFilter(g, activeFilter))
-        .sort((a, b) => (Number(st.counts[b.id] || 0) > 0 ? 1 : 0) - (Number(st.counts[a.id] || 0) > 0 ? 1 : 0) || a.tier - b.tier || a.price - b.price);
+        .sort((a, b) => {
+          const ao = Number(st.counts[a.id] || 0) > 0 ? 1 : 0;
+          const bo = Number(st.counts[b.id] || 0) > 0 ? 1 : 0;
+          if (bo !== ao) return bo - ao;
+          const al = isLuxuryAnimatedGift(a) ? 1 : 0;
+          const bl = isLuxuryAnimatedGift(b) ? 1 : 0;
+          if (ao && bo && bl !== al) return bl - al;
+          return b.price - a.price;
+        });
 
       panel.innerHTML = `
         <div class="gw-tier-bar">${tierBtns}</div>
@@ -1022,12 +1469,15 @@ function bindGiftWallEvents(rootEl, targetUser, isSelf, onAfterGiftSent) {
           ${list.map(g => {
             const cnt = Number(st.counts[g.id] || 0);
             const tMeta = GIFT_TIERS[g.tier];
-            return `<button type="button" class="gw-card ${cnt > 0 ? 'owned' : 'locked'} gw-t${g.tier}" data-gw-gift="${esc(g.id)}" style="${cnt > 0 ? `border-color:${tMeta.border}` : ''}">
+            const isLux10k = isLuxuryAnimatedGift(g);
+            const animateWall = isLux10k && cnt > 0;
+            return `<button type="button" class="gw-card ${cnt > 0 ? 'owned' : 'locked'} gw-t${g.tier} ${animateWall ? 'lux-10k-card lux-10k-wall' : (isLux10k ? 'lux-10k-preview' : '')}" data-gw-gift="${esc(g.id)}" data-lux10k="${isLux10k ? '1' : '0'}" style="${cnt > 0 ? `border-color:${tMeta.border}` : ''}">
+              ${animateWall ? renderLuxury10kFxHtml(g, true) : ''}
               <div class="gw-card-top">
-                <span class="gw-stars" style="color:${tMeta.color}">${g.cat === 'ring' ? '💍' : esc(tMeta.stars.slice(0, 5))}</span>
+                <span class="gw-stars" style="color:${tMeta.color}">${isLux10k ? '✦ 10k+' : (g.cat === 'ring' ? '💍' : esc(tMeta.stars.slice(0, 5)))}</span>
                 <span class="gw-cnt ${cnt > 0 ? 'has' : ''}">x${fmtNum(cnt)}</span>
               </div>
-              <div class="gw-art">${giftSvg(g, 46)}</div>
+              <div class="gw-art">${giftSvg(g, 50)}</div>
               <div class="gw-name">${esc(g.name)}</div>
               <div class="gw-sub">${fmtNum(g.price)} 🪙 · +${fmtNum(g.charm)}</div>
             </button>`;
@@ -1110,7 +1560,7 @@ function bindGiftWallEvents(rootEl, targetUser, isSelf, onAfterGiftSent) {
   };
 }
 
-/* ===== Send Gift Modal (Single & Fixed 10x/25x/50x/100x Combo Modes + Rings) ===== */
+/* ===== Send Gift Modal (3D Luxury 10k+ Continuous FX + Exclusive 1-to-1 Bond Request Flow) ===== */
 function openGiftSendModal(targetUid, opts) {
   opts = opts || {};
   const otherPlayers = allUsers().filter(u => u.uid !== uid);
@@ -1118,21 +1568,22 @@ function openGiftSendModal(targetUid, opts) {
   if (!selectedTargetUid) return toast('No other players available to gift yet');
 
   let selectedFilter = opts.preselectFilter || 'all';
-  let selectedGiftId = opts.preselectGiftId && GIFT_BY_ID[opts.preselectGiftId] ? opts.preselectGiftId : GIFT_CATALOG[0].id;
+  let selectedGiftId = opts.preselectGiftId && GIFT_BY_ID[opts.preselectGiftId] ? opts.preselectGiftId : (selectedFilter === 'lux10k' ? 'g75_ferrari' : (selectedFilter === 'rings' ? 'g_ring_royal' : GIFT_CATALOG[0].id));
   let sendMode = 'single';
   let qty = 1;
 
   const getTargetObj = () => allUsers().find(u => u.uid === selectedTargetUid) || { uid: selectedTargetUid, name: opts.targetName || 'Player', avatar: 'av_b1', frame: 'none' };
 
-  const m = modal('Send Luxury Gift', `
+  const m = modal('Send 3D Luxury Gift', `
     <div class="gs-wrap">
       <div class="gs-top-row">
         <div class="gs-recip" id="gsRecip"></div>
-        <div class="gs-wallet">Your Wallet: <b id="gsBal">${fmtNum(me.coins)}</b> 🪙</div>
+        <div class="gs-wallet">Wallet: <b id="gsBal">${fmtNum(me.coins)}</b> 🪙</div>
       </div>
       ${opts.allowPickPlayer ? `<label for="gsPickUser" style="margin-top:6px">Recipient</label><select id="gsPickUser">${otherPlayers.slice(0, 40).map(u => `<option value="${esc(u.uid)}" ${u.uid === selectedTargetUid ? 'selected' : ''}>${esc(u.name || u.uid)} (LVL ${fmtNum(calcLevel(u.exp), MAX_LEVEL)})</option>`).join('')}</select>` : ''}
       <div class="gw-tier-bar" id="gsTiers" style="margin-top:10px"></div>
       <div class="gs-grid" id="gsGrid"></div>
+      <div id="gsBondNote" class="gs-bond-note" hidden></div>
       <div class="gs-footer">
         <div class="gs-mode-row">
           <div class="gs-seg" role="group" aria-label="Gift send mode">
@@ -1166,30 +1617,88 @@ function openGiftSendModal(targetUid, opts) {
     $('#gsGrid', m).innerHTML = list.map(item => {
       const tMeta = GIFT_TIERS[item.tier];
       const active = item.id === selectedGiftId;
-      return `<button type="button" class="gs-item ${active ? 'on' : ''}" data-gsid="${esc(item.id)}" style="${active ? `border-color:${tMeta.color}` : ''}">
-        <span class="gw-stars" style="color:${tMeta.color}">${item.cat === 'ring' ? '💍' : esc(tMeta.stars.slice(0, 5))}</span>
-        ${giftSvg(item, 42)}
+      const isLux10k = isLuxuryAnimatedGift(item);
+      return `<button type="button" class="gs-item ${active ? 'on' : ''} ${isLux10k ? 'lux-10k-card' : ''}" data-gsid="${esc(item.id)}" data-lux10k="${isLux10k ? '1' : '0'}" style="${active ? `border-color:${tMeta.color}` : ''}">
+        ${isLux10k ? renderLuxury10kFxHtml(item, true) : ''}
+        <span class="gw-stars" style="color:${tMeta.color}">${isLux10k ? '✦ 10k+' : (item.cat === 'ring' ? '💍' : esc(tMeta.stars.slice(0, 5)))}</span>
+        ${giftSvg(item, 46)}
         <b class="gs-iname">${esc(item.name)}</b>
         <small class="gs-iprice">${fmtNum(item.price)} 🪙 · +${fmtNum(item.charm)}</small>
       </button>`;
     }).join('');
 
+    const bondNote = $('#gsBondNote', m);
+    if (bondNote) {
+      if (g.bondType && BOND_SLOT_META[g.bondType]) {
+        const meta = BOND_SLOT_META[g.bondType];
+        const myCur = getUserBondInSlot(me, g.bondType);
+        bondNote.hidden = false;
+        bondNote.className = 'gs-bond-note ' + (myCur ? 'occupied' : 'open');
+        bondNote.innerHTML = myCur
+          ? `<span>🔒 Your exclusive <b>${esc(meta.label)}</b> is active with <b>${esc(myCur.partnerName)}</b>. Unbind first to send a new request.</span>`
+          : `<span>💎 <b>Exclusive 1-to-1 ${esc(meta.label)}</b>: Sends a Request — activates on both profiles only after <b>${esc(target.name || 'Player')}</b> accepts.</span>`;
+      } else {
+        bondNote.hidden = true;
+      }
+    }
+
+    const animProf = getGiftAnimProfile(g, qty);
+    const fxLabels = { burst: '✨ Burst FX', orbit: '🪐 Orbit FX', spotlight: '🔦 Spotlight FX', fullscreen: isLuxuryAnimatedGift(g) ? '🎬 10k+ Continuous 3D' : '🎬 5k+ Full-Screen' };
     $('#gsCombos', m).hidden = sendMode !== 'combo';
     $('#gsSummary', m).innerHTML = `
       <span><b>${esc(g.name)} ×${qty}</b></span>
       <span>Cost: <b>${fmtNum(range.totalCost)} 🪙</b></span>
-      <span>Charm (5:1): <b style="color:#f472b6">+${fmtNum(totalCharm)}</b></span>
-      <span>Lucky Drop: <b style="color:#ffd36b">+${fmtNum(range.minLucky)}–${fmtNum(range.maxLucky)} 🪙</b></span>
+      <span>Charm: <b style="color:#f472b6">+${fmtNum(totalCharm)}</b></span>
+      <span class="gs-fx-pill style-${animProf.style}">${fxLabels[animProf.style] || '✨ Burst FX'}${animProf.comboLabel ? ' · ' + animProf.comboLabel : ''}</span>
     `;
 
     const sendBtn = $('#gsSendBtn', m);
-    sendBtn.textContent = sendMode === 'combo'
-      ? `Send Combo ${g.name} ×${qty} (${fmtNum(range.totalCost)} 🪙)`
-      : `Send ${g.name} (${fmtNum(range.totalCost)} 🪙)`;
-    sendBtn.disabled = me.coins < range.totalCost;
+    const isBondOccupied = Boolean(g.bondType && getUserBondInSlot(me, g.bondType));
+    sendBtn.textContent = isBondOccupied
+      ? `Manage / Unbind ${(BOND_SLOT_META[g.bondType] || BOND_SLOT_META.couple).label}`
+      : (g.bondType
+        ? `Send ${(BOND_SLOT_META[g.bondType] || BOND_SLOT_META.couple).short} Request (${fmtNum(range.totalCost)} 🪙)`
+        : (sendMode === 'combo'
+          ? `Send ×${qty} (${fmtNum(range.totalCost)} 🪙)`
+          : `Send ${g.name} (${fmtNum(range.totalCost)} 🪙)`));
+    sendBtn.disabled = !isBondOccupied && me.coins < range.totalCost;
   };
 
+  /* Add Preview FX button next to Send */
+  const sendRow = document.createElement('div');
+  sendRow.className = 'row';
+  sendRow.style.gap = '8px';
+  const prevBtn = document.createElement('button');
+  prevBtn.type = 'button';
+  prevBtn.className = 'btn ghost sm';
+  prevBtn.id = 'gsPreviewBtn';
+  prevBtn.textContent = 'Preview FX';
+  const origSend = $('#gsSendBtn', m);
+  origSend.parentNode.insertBefore(sendRow, origSend);
+  sendRow.appendChild(prevBtn);
+  sendRow.appendChild(origSend);
+  origSend.style.flex = '1';
+
   renderModalBody();
+
+  prevBtn.onclick = () => {
+    const g = GIFT_BY_ID[selectedGiftId] || GIFT_CATALOG[0];
+    const target = getTargetObj();
+    const prof = getGiftAnimProfile(g, qty);
+    const evPreview = {
+      giftId: g.id,
+      fromName: me.name || 'You',
+      toName: target.name || 'VIP',
+      qty: prof.qty,
+      charm: calcExactCharmForCoins(prof.totalCost),
+      luckyCoins: Math.round(prof.totalCost * 0.25)
+    };
+    if (prof.style === 'fullscreen') showLuxuryGiftShowcase(evPreview, g);
+    else {
+      showGiftBroadcastAnim(evPreview);
+      if (typeof playSfx === 'function') playSfx('giftSend', { tier: g.tier, qty: prof.qty, style: prof.style });
+    }
+  };
 
   if ($('#gsPickUser', m)) {
     $('#gsPickUser', m).onchange = e => {
@@ -1202,12 +1711,14 @@ function openGiftSendModal(targetUid, opts) {
     const tBtn = e.target.closest('[data-gst]');
     if (tBtn) {
       selectedFilter = tBtn.dataset.gst || 'all';
+      if (typeof playSfx === 'function') playSfx('tap');
       renderModalBody();
       return;
     }
     const gBtn = e.target.closest('[data-gsid]');
     if (gBtn) {
       selectedGiftId = gBtn.dataset.gsid;
+      if (typeof playSfx === 'function') playSfx('tap');
       renderModalBody();
       return;
     }
@@ -1217,6 +1728,7 @@ function openGiftSendModal(targetUid, opts) {
       qty = sendMode === 'combo' ? 10 : 1;
       $$('[data-gsmode]', m).forEach(b => b.classList.toggle('on', b === mBtn));
       $$('[data-gsqty]', m).forEach(b => b.classList.toggle('on', Number(b.dataset.gsqty) === qty));
+      if (typeof playSfx === 'function') playSfx('tap');
       renderModalBody();
       return;
     }
@@ -1224,12 +1736,21 @@ function openGiftSendModal(targetUid, opts) {
     if (qBtn) {
       qty = clampSafeInt(qBtn.dataset.gsqty, 1, 100);
       $$('[data-gsqty]', m).forEach(b => b.classList.toggle('on', b === qBtn));
+      if (typeof playSfx === 'function') playSfx('comboTick', { qty });
       renderModalBody();
       return;
     }
   };
 
   $('#gsSendBtn', m).onclick = () => {
+    const gSel = GIFT_BY_ID[selectedGiftId];
+    if (gSel && gSel.bondType && BOND_SLOT_META[gSel.bondType]) {
+      const curBond = getUserBondInSlot(me, gSel.bondType);
+      if (curBond) {
+        openBondSlotOccupiedModal(gSel.bondType, curBond, () => renderModalBody());
+        return;
+      }
+    }
     const sent = executeSendGift(selectedTargetUid, selectedGiftId, qty, {
       inDm: Boolean(opts.inDm),
       inRoom: opts.inRoom || '',

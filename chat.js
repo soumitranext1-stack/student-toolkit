@@ -130,7 +130,8 @@ function ingestRemoteDmDocs(dmDocs){
 }
 
 function updateUnreadDots(){
-  const hasUnread=Object.values(me.unreadFrom||{}).some(Boolean);
+  const hasPendingBond=typeof getPendingBondRequestsForMe==='function'&&getPendingBondRequestsForMe().length>0;
+  const hasUnread=Object.values(me.unreadFrom||{}).some(Boolean)||hasPendingBond;
   const dot=$('#chatNavDot');if(dot)dot.hidden=!hasUnread;
 }
 const mid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -300,10 +301,12 @@ function renderChats(){
     <button type="button" class="wp-ftab ${chatFilterTab==='official'?'on':''}" data-cf="official">Rooms</button>
   </div>`;
 
+  const bondReqBanner=typeof renderPendingBondRequestsBannerHtml==='function'?renderPendingBondRequestsBannerHtml(true):'';
+
   let body='';
-  if(chatFilterTab==='friends')body=dmHtml||'<div class="empty" style="padding:18px">No friend chats yet</div>';
+  if(chatFilterTab==='friends')body=bondReqBanner+(dmHtml||'<div class="empty" style="padding:18px">No friend chats yet</div>');
   else if(chatFilterTab==='official')body=worldHtml+devHtml+inboxHtml;
-  else body=worldHtml+devHtml+dmHtml+inboxHtml;
+  else body=bondReqBanner+worldHtml+devHtml+dmHtml+inboxHtml;
 
   $('#chatList').innerHTML=tabsHtml+body;
   const cft=$('#chatFilterTabs');
@@ -322,6 +325,18 @@ $('#clearDevInboxBtn').onclick=()=>{
   devInbox={};ls.set('sg_dev_inbox',devInbox);renderChats();toast('Inbox cleared');
 };
 $('#chatList').onclick=e=>{
+  const accBtn=e.target.closest('[data-accept-bond]');
+  if(accBtn){
+    e.stopPropagation();
+    if(typeof acceptPendingBondProposal==='function')acceptPendingBondProposal(accBtn.dataset.acceptBond);
+    return;
+  }
+  const decBtn=e.target.closest('[data-decline-bond]');
+  if(decBtn){
+    e.stopPropagation();
+    if(typeof declinePendingBondProposal==='function')declinePendingBondProposal(decBtn.dataset.declineBond);
+    return;
+  }
   const cp=e.target.closest('[data-chatprof]');
   if(cp&&cp.dataset.chatprof){
     e.stopPropagation();

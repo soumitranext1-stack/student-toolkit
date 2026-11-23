@@ -8,7 +8,8 @@ function applyDevUI(){
 }
 
 function switchToIdentity(nextUid,nextProfileObj){
-  $$('#modals .mb').forEach(b=>b.remove());
+  const isAccountSwitch=nextUid!==uid||(nextProfileObj&&nextProfileObj.accountType&&nextProfileObj.accountType!==me.accountType);
+  if(isAccountSwitch)$$('#modals .mb').forEach(b=>b.remove());
   cur=null;$('#thread').hidden=true;
   uid=nextUid;localStorage.setItem('sg_uid',uid);
   me=normalizeProfile(nextProfileObj,nextUid);
@@ -421,7 +422,7 @@ function buildProfile(){
   const curMsgLabel=labelForPair(msgList,me.msgStyle,'Normal');
   const curBioLabel=labelForPair(BIOS,me.bioStyle,'Normal');
   const vip=typeof getActiveVipTier==='function'?getActiveVipTier(me):null;
-  const pendingReportsCount=typeof userReports!=='undefined'?userReports.filter(r=>r.status==='open').length:0;
+  const pendingReportsCount=typeof reportsList!=='undefined'&&Array.isArray(reportsList)?reportsList.filter(r=>r.status==='open').length:0;
   const gSvg=typeof GLOSSY_SVG!=='undefined'?GLOSSY_SVG:{};
   const lvl=calcLevel(me.exp);
   const expInLvl=Number(me.exp||0)%100;
@@ -468,8 +469,12 @@ function buildProfile(){
     </div>
   `:'';
 
+  const giftWallSt = typeof getGiftWallStatsForUser === 'function' ? getGiftWallStatsForUser(me) : { totalReceivedCount: 0, totalCharm: Number(me.charm || 0) };
+  const streakDays = calcStreak(me.activeDays);
+  const rankBadgeObj = typeof getActiveRankBadge === 'function' ? getActiveRankBadge(me) : null;
+
   $('#v-profile').innerHTML=`
-    <div class="wp-prof-cover bn-box pf-banner-tap ${esc(me.banner||'bn-aurora')}" id="pBanner">
+    <div class="wp-prof-cover bn-box pf-banner-tap v13-prof-hero ${esc(me.banner||'bn-aurora')}" id="pBanner">
       <div class="wp-prof-cover-acts">
         <button type="button" class="wp-cover-pill" id="editProfileBtn">Edit</button>
         <button type="button" class="wp-cover-pill" id="accBtn">${me.accountType==='account'?'Google ✓':'Sign In'}</button>
@@ -477,7 +482,8 @@ function buildProfile(){
       </div>
       <div class="wp-prof-top">
         <button type="button" class="pf-av-btn" id="tapAvatarBtn" aria-label="Change Avatar">
-          ${av(me,76)}
+          ${av(me,78)}
+          <span class="pf-live-dot" title="Online"></span>
           <span class="pf-av-edit-dot">${UI_SVG.edit}</span>
         </button>
         <div class="wp-prof-id">
@@ -486,25 +492,30 @@ function buildProfile(){
             <span>${flag}</span>
             ${genderChip}
           </div>
+          <div class="wp-prof-pills">
+            ${vip?`<span class="wp-pill vip">👑 ${esc(vip.toUpperCase())}</span>`:`<span class="wp-pill rank">✦ LVL ${fmtNum(lvl,MAX_LEVEL)}</span>`}
+            ${rankBadgeObj?`<span class="wp-pill gold">${esc(rankBadgeObj.badge)}</span>`:''}
+            ${me.clanTag?`<span class="wp-pill clan">[${esc(me.clanTag)}]</span>`:''}
+          </div>
           <div class="wp-lv-bar">
             <span>Lv.${fmtNum(lvl,MAX_LEVEL)}</span>
             <div class="wp-lv-track"><i style="width:${Math.max(8,expInLvl)}%"></i></div>
             <small>${expInLvl}/100</small>
           </div>
-          <div class="wp-prof-pills">
-            <span class="wp-pill gold">🪙 <span class="coinval"></span></span>
-            <span class="wp-pill charm">💎 ${fmtNum(me.charm||0)}</span>
-            ${me.clanTag?`<span class="wp-pill clan">[${esc(me.clanTag)}]</span>`:''}
-            ${vip?`<span class="wp-pill vip">${esc(vip.toUpperCase())}</span>`:''}
-          </div>
           <div class="wp-prof-sub">
             <button type="button" class="wp-id-copy" id="pfCopyMyId">ID ${esc(shortId)} ⧉</button>
-            <span>🔥 ${calcStreak(me.activeDays)}d</span>
             <span>❤️ ${fmtNum(me.likesCount||0)}</span>
           </div>
         </div>
       </div>
       ${renderTags(me.tags,me)}
+      <div class="v13-stats-strip" aria-label="Profile Quick Stats">
+        <div class="v13-st-cell"><b>Lv.${fmtNum(lvl,MAX_LEVEL)}</b><small>Level</small></div>
+        <div class="v13-st-cell gold"><b class="coinval">${fmtNum(me.coins)}</b><small>Coins</small></div>
+        <div class="v13-st-cell charm"><b>${fmtNum(giftWallSt.totalCharm||me.charm||0)}</b><small>Charm</small></div>
+        <div class="v13-st-cell"><b>${fmtNum(giftWallSt.totalReceivedCount||0)}</b><small>Gifts</small></div>
+        <div class="v13-st-cell"><b>${streakDays}d 🔥</b><small>Streak</small></div>
+      </div>
     </div>
 
     ${me.bio?`<div class="wp-sig-box"><span class="${esc(me.bioStyle||'')}">${esc(me.bio)}</span></div>`:''}
@@ -577,6 +588,10 @@ function buildProfile(){
         <span class="wp-er-lbl">Sound FX</span>
         <span class="wp-er-val"><em data-sfx-label>${typeof SFX!=='undefined'&&SFX.isMuted()?'Off':'On'}</em><i class="wp-chev">›</i></span>
       </button>
+      <button type="button" class="wp-edit-row" id="pfVoiceToneRow" aria-label="Switch AI Voice Chat Tone">
+        <span class="wp-er-lbl">AI Quick Voice Tone</span>
+        <span class="wp-er-val"><em data-voice-tone-label>${typeof QuickVoice!=='undefined'&&QuickVoice.getTone()==='male'?'Male':'Female'}</em><i class="wp-chev">›</i></span>
+      </button>
       <button type="button" class="wp-edit-row" id="pfInstallRow" ${typeof PWA!=='undefined'&&PWA.isStandalone()?'hidden':''}>
         <span class="wp-er-lbl">Install App</span>
         <span class="wp-er-val"><em data-pwa-sub>PWA</em><i class="wp-chev">›</i></span>
@@ -604,7 +619,27 @@ function buildProfile(){
   $$('[data-unlock-bond]',$('#v-profile')).forEach(el=>{
     el.onclick=e=>{
       e.stopPropagation();
-      if(typeof openBondsShowcaseModal==='function')openBondsShowcaseModal(me);
+      const preGift=el.dataset.bondGift||'g_ring_royal';
+      if(typeof openGiftSendModal==='function')openGiftSendModal('',{allowPickPlayer:true,preselectFilter:'rings',preselectGiftId:preGift});
+    };
+  });
+  $$('[data-unbind-slot]',$('#v-profile')).forEach(el=>{
+    el.onclick=e=>{
+      e.stopPropagation();
+      const slot=el.dataset.unbindSlot;
+      if(typeof unbindMyBondSlot==='function')unbindMyBondSlot(slot);
+    };
+  });
+  $$('[data-accept-bond]',$('#v-profile')).forEach(el=>{
+    el.onclick=e=>{
+      e.stopPropagation();
+      if(typeof acceptPendingBondProposal==='function')acceptPendingBondProposal(el.dataset.acceptBond);
+    };
+  });
+  $$('[data-decline-bond]',$('#v-profile')).forEach(el=>{
+    el.onclick=e=>{
+      e.stopPropagation();
+      if(typeof declinePendingBondProposal==='function')declinePendingBondProposal(el.dataset.declineBond);
     };
   });
   $$('[data-prof-link]',$('#v-profile')).forEach(btn=>{
@@ -614,6 +649,12 @@ function buildProfile(){
     if(typeof SFX!=='undefined'){
       const isOff=SFX.toggle();
       toast(isOff?'Sound FX muted':'Sound FX enabled');
+    }
+  };
+  if($('#pfVoiceToneRow'))$('#pfVoiceToneRow').onclick=()=>{
+    if(typeof QuickVoice!=='undefined'){
+      const next=QuickVoice.toggleTone();
+      toast(`AI Voice Tone set to ${next==='male'?'Male':'Female'}`);
     }
   };
   if($('#pfInstallRow'))$('#pfInstallRow').onclick=()=>{

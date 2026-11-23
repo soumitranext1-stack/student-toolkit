@@ -1,277 +1,331 @@
 "use strict";
-/* ===== Study Game: Lightweight Web Audio API Sound FX System (Zero External Files) ===== */
-
+/* Study Game — Crisp Web Audio API Sound FX Engine (v11)
+ * Zero external audio files, zero broken URLs, instant tactile cues.
+ * Preserves all existing playSfx(...) keys + adds micPass, turnStart, stakeLock,
+ * matchLose, giftBurst, giftOrbit, giftSpotlight, comboTick, reactionPop, tap.
+ */
 const SFX = (() => {
-  const MUTE_KEY = 'sg_sfx_muted';
   let ctx = null;
   let muted = false;
   let unlocked = false;
-  let lastChatRecvTs = 0;
-
-  try {
-    muted = localStorage.getItem(MUTE_KEY) === '1';
-  } catch {}
+  try { muted = localStorage.getItem('sg_sfx_muted') === '1'; } catch {}
 
   function getCtx() {
     if (muted || !unlocked) return null;
-    if (typeof window === 'undefined') return null;
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return null;
-    if (!ctx) {
-      try { ctx = new AudioCtx(); } catch { return null; }
-    }
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
-    }
-    return ctx;
-  }
-
-  function unlock() {
-    if (unlocked) return;
-    unlocked = true;
-    const c = getCtx();
-    if (c && c.state === 'suspended') c.resume().catch(() => {});
-  }
-
-  if (typeof window !== 'undefined') {
-    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
-    window.addEventListener('keydown', unlock, { once: true, passive: true });
-    window.addEventListener('click', unlock, { once: true, passive: true });
-  }
-
-  function tone(c, freq, startOffset, duration, type = 'sine', gainPeak = 0.09, endFreq = null) {
     try {
-      const now = c.currentTime + startOffset;
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(Math.max(60, freq), now);
-      if (endFreq && endFreq !== freq) {
-        osc.frequency.exponentialRampToValueAtTime(Math.max(60, endFreq), now + duration);
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        ctx = new AC();
       }
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(Math.max(0.001, gainPeak), now + Math.min(0.02, duration * 0.3));
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-      osc.connect(gain);
-      gain.connect(c.destination);
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      return ctx;
+    } catch { return null; }
+  }
+
+  function tone(freq, opts = {}) {
+    const c = getCtx();
+    if (!c) return;
+    const now = c.currentTime + (opts.delay || 0);
+    const dur = opts.dur || 0.12;
+    const type = opts.type || 'sine';
+    const vol = opts.vol != null ? opts.vol : 0.12;
+    const endFreq = opts.endFreq || freq;
+    try {
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+      if (endFreq !== freq) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(24, endFreq), now + dur);
+      }
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.linearRampToValueAtTime(vol, now + Math.min(0.015, dur * 0.25));
+      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      osc.connect(g);
+      g.connect(c.destination);
       osc.start(now);
-      osc.stop(now + duration + 0.02);
+      osc.stop(now + dur + 0.02);
     } catch {}
   }
 
-  function play(name, opts) {
-    if (muted) return false;
+  function noiseBurst(opts = {}) {
     const c = getCtx();
-    if (!c) return false;
-    opts = opts || {};
+    if (!c) return;
+    const now = c.currentTime + (opts.delay || 0);
+    const dur = opts.dur || 0.16;
+    const vol = opts.vol != null ? opts.vol : 0.05;
+    try {
+      const len = Math.max(1, Math.floor(c.sampleRate * dur));
+      const buf = c.createBuffer(1, len, c.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const flt = c.createBiquadFilter();
+      flt.type = opts.filterType || 'bandpass';
+      flt.frequency.setValueAtTime(opts.freq || 1800, now);
+      const g = c.createGain();
+      g.gain.setValueAtTime(vol, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      src.connect(flt);
+      flt.connect(g);
+      g.connect(c.destination);
+      src.start(now);
+    } catch {}
+  }
 
-    switch (name) {
-      case 'coin': {
-        const amt = Number(opts.amount || 10);
-        const boost = amt >= 500 ? 1.16 : (amt >= 100 ? 1.08 : 1);
-        tone(c, 988 * boost, 0, 0.09, 'triangle', 0.09);
-        tone(c, 1318.5 * boost, 0.065, 0.16, 'sine', 0.1);
-        if (amt >= 100) tone(c, 1568 * boost, 0.13, 0.18, 'sine', 0.08);
-        return true;
-      }
-      case 'taskClaim': {
-        tone(c, 587.3, 0, 0.09, 'triangle', 0.09);
-        tone(c, 880, 0.07, 0.11, 'triangle', 0.095);
-        tone(c, 1174.7, 0.14, 0.2, 'sine', 0.1);
-        return true;
-      }
-      case 'giftSend': {
-        const tier = Math.max(1, Math.min(7, Number(opts.tier || 1)));
-        const base = 523.25 * (1 + (tier - 1) * 0.055);
-        tone(c, base, 0, 0.1, 'triangle', 0.085);
-        tone(c, base * 1.25, 0.065, 0.12, 'sine', 0.09);
-        tone(c, base * 1.5, 0.13, 0.18, 'sine', 0.095);
-        if (tier >= 4 || Number(opts.qty || 1) >= 5) {
-          tone(c, base * 2, 0.2, 0.24, 'triangle', 0.09);
-        }
-        return true;
-      }
-      case 'carDrive': {
-        /* Synthesized Supercar Engine Ignition -> Rev -> Gear-Shift Drive-By */
-        try {
-          const isLambo = String(opts.model || '').includes('lambo');
-          const isBugatti = String(opts.model || '').includes('bugatti');
-          const root = isLambo ? 76 : (isBugatti ? 64 : 88);
-          const now = c.currentTime;
+  function click() {
+    tone(720, { dur: 0.042, type: 'triangle', vol: 0.065, endFreq: 960 });
+  }
 
-          const filter = c.createBiquadFilter();
-          filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(340, now);
-          filter.frequency.exponentialRampToValueAtTime(1400, now + 0.55);
-          filter.frequency.exponentialRampToValueAtTime(620, now + 0.72);
-          filter.frequency.exponentialRampToValueAtTime(2200, now + 1.55);
-          filter.frequency.exponentialRampToValueAtTime(420, now + 2.15);
-          filter.Q.value = 3.2;
+  function tap() {
+    tone(580, { dur: 0.036, type: 'sine', vol: 0.055, endFreq: 840 });
+  }
 
-          const master = c.createGain();
-          master.gain.setValueAtTime(0.001, now);
-          master.gain.exponentialRampToValueAtTime(0.11, now + 0.12);
-          master.gain.setValueAtTime(0.11, now + 1.45);
-          master.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
-
-          const osc1 = c.createOscillator();
-          const osc2 = c.createOscillator();
-          osc1.type = 'sawtooth';
-          osc2.type = 'triangle';
-
-          // Rev 1 -> shift -> high-RPM roar -> Doppler pass
-          osc1.frequency.setValueAtTime(root, now);
-          osc1.frequency.exponentialRampToValueAtTime(root * 2.5, now + 0.52);
-          osc1.frequency.setValueAtTime(root * 1.65, now + 0.62);
-          osc1.frequency.exponentialRampToValueAtTime(root * 3.8, now + 1.5);
-          osc1.frequency.exponentialRampToValueAtTime(root * 1.35, now + 2.15);
-
-          osc2.frequency.setValueAtTime(root * 1.5, now);
-          osc2.frequency.exponentialRampToValueAtTime(root * 3.75, now + 0.52);
-          osc2.frequency.setValueAtTime(root * 2.45, now + 0.62);
-          osc2.frequency.exponentialRampToValueAtTime(root * 5.7, now + 1.5);
-          osc2.frequency.exponentialRampToValueAtTime(root * 2.0, now + 2.15);
-
-          osc1.connect(filter);
-          osc2.connect(filter);
-          filter.connect(master);
-          master.connect(c.destination);
-          osc1.start(now);
-          osc2.start(now);
-          osc1.stop(now + 2.25);
-          osc2.stop(now + 2.25);
-
-          // Crisp luxury chime accent at peak pass
-          tone(c, 1046.5, 1.35, 0.25, 'sine', 0.075);
-          tone(c, 1568, 1.48, 0.35, 'triangle', 0.07);
-        } catch {}
-        return true;
-      }
-      case 'palaceReveal': {
-        /* Grand Dream Palace Orchestral Harp Glissando + Royal Golden Swell */
-        const harp = [392.0, 493.88, 587.33, 783.99, 987.77, 1174.66, 1567.98, 1975.53];
-        harp.forEach((f, i) => tone(c, f, i * 0.085, 0.42, 'sine', 0.075));
-        tone(c, 261.63, 0.2, 1.25, 'triangle', 0.07);
-        tone(c, 392.0, 0.35, 1.25, 'triangle', 0.065);
-        tone(c, 523.25, 0.55, 1.3, 'sine', 0.08);
-        tone(c, 1046.5, 0.85, 0.9, 'sine', 0.075);
-        tone(c, 1318.5, 1.02, 0.85, 'triangle', 0.07);
-        tone(c, 1567.98, 1.18, 0.95, 'sine', 0.085);
-        return true;
-      }
-      case 'giftReceive': {
-        tone(c, 659.25, 0, 0.11, 'sine', 0.09);
-        tone(c, 783.99, 0.075, 0.11, 'sine', 0.09);
-        tone(c, 1046.5, 0.15, 0.2, 'triangle', 0.1);
-        tone(c, 1318.5, 0.23, 0.25, 'sine', 0.085);
-        return true;
-      }
-      case 'luckyDrop': {
-        const notes = [784, 987.8, 1174.7, 1568, 1975.5];
-        notes.forEach((f, idx) => tone(c, f, idx * 0.055, 0.16, idx % 2 ? 'sine' : 'triangle', 0.085));
-        return true;
-      }
-      case 'chatSend': {
-        tone(c, 520, 0, 0.055, 'sine', 0.06, 680);
-        return true;
-      }
-      case 'chatRecv': {
-        const now = Date.now();
-        if (now - lastChatRecvTs < 1200) return false;
-        lastChatRecvTs = now;
-        tone(c, 620, 0, 0.07, 'sine', 0.055);
-        tone(c, 830, 0.06, 0.1, 'sine', 0.055);
-        return true;
-      }
-      case 'redPacketDrop': {
-        tone(c, 440, 0, 0.08, 'triangle', 0.09, 660);
-        tone(c, 880, 0.07, 0.14, 'sine', 0.1);
-        tone(c, 1320, 0.14, 0.2, 'sine', 0.09);
-        return true;
-      }
-      case 'redPacketClaim': {
-        [880, 1046.5, 1318.5, 1760].forEach((f, i) => tone(c, f, i * 0.05, 0.16, 'triangle', 0.095));
-        return true;
-      }
-      case 'levelUp': {
-        const chord = [523.25, 659.25, 783.99, 1046.5, 1318.5];
-        chord.forEach((f, i) => tone(c, f, i * 0.075, 0.26, i === 4 ? 'sine' : 'triangle', 0.1));
-        return true;
-      }
-      case 'duelCorrect': {
-        tone(c, 660, 0, 0.07, 'triangle', 0.08);
-        tone(c, 990, 0.055, 0.12, 'sine', 0.085);
-        return true;
-      }
-      case 'duelWrong': {
-        tone(c, 260, 0, 0.11, 'sawtooth', 0.05, 180);
-        return true;
-      }
-      case 'duelWin': {
-        [587.3, 740, 880, 1174.7].forEach((f, i) => tone(c, f, i * 0.07, 0.22, 'triangle', 0.095));
-        return true;
-      }
-      case 'vipEntrance': {
-        [392, 523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => tone(c, f, i * 0.055, 0.28, i % 2 ? 'sine' : 'triangle', 0.085));
-        return true;
-      }
-      case 'wheelTick': {
-        tone(c, 880 + Math.random() * 140, 0, 0.028, 'triangle', 0.055);
-        return true;
-      }
-      case 'wheelWin': {
-        [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98].forEach((f, i) => tone(c, f, i * 0.065, 0.26, 'triangle', 0.095));
-        return true;
-      }
-      case 'chestOpen': {
-        tone(c, 330, 0, 0.14, 'triangle', 0.08, 495);
-        [659.25, 880, 1174.7, 1567.98].forEach((f, i) => tone(c, f, 0.12 + i * 0.06, 0.22, 'sine', 0.09));
-        return true;
-      }
-      case 'reactionPop': {
-        tone(c, 580, 0, 0.06, 'sine', 0.06, 920);
-        return true;
-      }
-      case 'weddingBell': {
-        [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5].forEach((f, i) => tone(c, f, i * 0.14, 0.55, 'sine', 0.08));
-        return true;
-      }
-      case 'poolHit': {
-        const power = Math.max(0.2, Math.min(1, Number(opts.power || 0.6)));
-        tone(c, 220 + power * 260, 0, 0.045, 'triangle', 0.04 + power * 0.07, 110);
-        return true;
-      }
-      case 'warningAlert': {
-        tone(c, 420, 0, 0.14, 'sawtooth', 0.07, 300);
-        tone(c, 360, 0.17, 0.18, 'sawtooth', 0.07, 240);
-        return true;
-      }
-      case 'flashDrop': {
-        [987.8, 1318.5, 1567.98, 2093].forEach((f, i) => tone(c, f, i * 0.045, 0.15, 'triangle', 0.085));
-        return true;
-      }
-      case 'click':
-      default: {
-        tone(c, 740, 0, 0.04, 'sine', 0.045, 860);
-        return true;
-      }
+  function coin(amount) {
+    const big = Number(amount || 0) >= 80;
+    tone(987.77, { dur: 0.08, type: 'triangle', vol: 0.11 });
+    tone(1318.51, { delay: 0.065, dur: 0.15, type: 'sine', vol: 0.12 });
+    if (big) {
+      tone(1567.98, { delay: 0.13, dur: 0.16, type: 'sine', vol: 0.11 });
+      tone(1975.53, { delay: 0.2, dur: 0.22, type: 'triangle', vol: 0.1 });
     }
   }
 
-  function isMuted() {
-    return muted;
+  function stakeLock() {
+    tone(440, { dur: 0.07, type: 'triangle', vol: 0.1, endFreq: 660 });
+    tone(880, { delay: 0.07, dur: 0.12, type: 'sine', vol: 0.12 });
+    tone(1318.5, { delay: 0.14, dur: 0.14, type: 'triangle', vol: 0.09 });
   }
 
-  function setMuted(next) {
-    muted = Boolean(next);
-    try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch {}
-    syncButtons();
-    if (!muted) play('click');
-    return muted;
+  function taskClaim(amount) {
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      tone(f, { delay: i * 0.055, dur: 0.14, type: 'triangle', vol: 0.1 });
+    });
+    if (Number(amount || 0) >= 50) coin(amount);
   }
 
-  function toggle() {
-    return setMuted(!muted);
+  function levelUp() {
+    [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98].forEach((f, i) => {
+      tone(f, { delay: i * 0.065, dur: 0.24, type: i % 2 ? 'sine' : 'triangle', vol: 0.12 });
+    });
+    noiseBurst({ delay: 0.18, dur: 0.22, freq: 3400, vol: 0.04 });
+  }
+
+  function chatSend() {
+    tone(520, { dur: 0.055, type: 'sine', vol: 0.07, endFreq: 760 });
+  }
+
+  function chatRecv() {
+    tone(660, { dur: 0.06, type: 'sine', vol: 0.075 });
+    tone(880, { delay: 0.065, dur: 0.09, type: 'sine', vol: 0.08 });
+  }
+
+  function turnStart() {
+    tone(587.33, { dur: 0.08, type: 'triangle', vol: 0.1 });
+    tone(880, { delay: 0.08, dur: 0.14, type: 'sine', vol: 0.11 });
+  }
+
+  function micPass() {
+    tone(493.88, { dur: 0.07, type: 'sine', vol: 0.09, endFreq: 659.25 });
+    tone(783.99, { delay: 0.075, dur: 0.11, type: 'triangle', vol: 0.11, endFreq: 1046.5 });
+    noiseBurst({ delay: 0.04, dur: 0.07, freq: 2400, vol: 0.03 });
+  }
+
+  function reactionPop() {
+    tone(620, { dur: 0.06, type: 'sine', vol: 0.08, endFreq: 1180 });
+    tone(1240, { delay: 0.045, dur: 0.07, type: 'triangle', vol: 0.065 });
+  }
+
+  function comboTick(comboQty) {
+    const boost = Math.min(480, Number(comboQty || 1) * 5);
+    tone(740 + boost, { dur: 0.065, type: 'triangle', vol: 0.095, endFreq: 1080 + boost });
+  }
+
+  function giftBurst() {
+    [659.25, 880, 1174.66, 1567.98].forEach((f, i) => {
+      tone(f, { delay: i * 0.045, dur: 0.15, type: 'sine', vol: 0.1 });
+    });
+    noiseBurst({ delay: 0.05, dur: 0.14, freq: 3800, vol: 0.035 });
+  }
+
+  function giftOrbit() {
+    [523.25, 659.25, 783.99, 987.77, 1318.51].forEach((f, i) => {
+      tone(f, { delay: i * 0.055, dur: 0.2, type: 'triangle', vol: 0.105 });
+    });
+  }
+
+  function giftSpotlight() {
+    tone(220, { dur: 0.22, type: 'sawtooth', vol: 0.055, endFreq: 440 });
+    [587.33, 880, 1174.66, 1760].forEach((f, i) => {
+      tone(f, { delay: 0.08 + i * 0.06, dur: 0.24, type: 'triangle', vol: 0.115 });
+    });
+    noiseBurst({ delay: 0.12, dur: 0.24, freq: 2600, vol: 0.045 });
+  }
+
+  function giftSend(tier, style) {
+    if (style === 'spotlight') return giftSpotlight();
+    if (style === 'orbit') return giftOrbit();
+    if (style === 'burst') return giftBurst();
+    const t = Number(tier || 1);
+    const notes = t >= 6
+      ? [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98]
+      : t >= 4
+        ? [587.33, 739.99, 880, 1174.66, 1479.98]
+        : [659.25, 880, 1174.66];
+    notes.forEach((f, i) => tone(f, { delay: i * 0.055, dur: 0.18, type: i % 2 ? 'sine' : 'triangle', vol: 0.11 }));
+    if (t >= 5) noiseBurst({ delay: 0.12, dur: 0.22, freq: 3000, vol: 0.04 });
+  }
+
+  function giftReceive(tier) {
+    giftSend(Math.max(2, Number(tier || 2)));
+  }
+
+  function giftLuxuryCar() {
+    tone(95, { dur: 0.32, type: 'sawtooth', vol: 0.09, endFreq: 210 });
+    tone(160, { delay: 0.26, dur: 0.36, type: 'sawtooth', vol: 0.095, endFreq: 340 });
+    tone(240, { delay: 0.56, dur: 0.42, type: 'triangle', vol: 0.09, endFreq: 490 });
+    noiseBurst({ delay: 0.22, dur: 0.48, freq: 1400, vol: 0.05 });
+    [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((f, i) => {
+      tone(f, { delay: 0.62 + i * 0.065, dur: 0.24, type: 'triangle', vol: 0.11 });
+    });
+  }
+
+  function giftLuxuryPalace() {
+    [261.63, 329.63, 392.0, 523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((f, i) => {
+      tone(f, { delay: i * 0.07, dur: 0.35, type: 'sine', vol: 0.11 });
+    });
+    tone(1567.98, { delay: 0.58, dur: 0.42, type: 'triangle', vol: 0.12 });
+    tone(2093.0, { delay: 0.72, dur: 0.48, type: 'sine', vol: 0.1 });
+    noiseBurst({ delay: 0.32, dur: 0.35, freq: 3800, vol: 0.045 });
+  }
+
+  function redPacketDrop() {
+    tone(660, { dur: 0.09, type: 'triangle', vol: 0.1, endFreq: 920 });
+    tone(1046.5, { delay: 0.09, dur: 0.16, type: 'sine', vol: 0.11 });
+  }
+
+  function redPacketClaim() {
+    coin(150);
+  }
+
+  function duelCorrect() {
+    tone(783.99, { dur: 0.075, type: 'triangle', vol: 0.1 });
+    tone(1174.66, { delay: 0.065, dur: 0.11, type: 'sine', vol: 0.11 });
+  }
+
+  function duelWrong() {
+    tone(240, { dur: 0.13, type: 'sawtooth', vol: 0.075, endFreq: 165 });
+  }
+
+  function duelWin() {
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
+      tone(f, { delay: i * 0.07, dur: 0.22, type: 'triangle', vol: 0.12 });
+    });
+  }
+
+  function matchLose() {
+    [392.0, 349.23, 293.66, 220.0].forEach((f, i) => {
+      tone(f, { delay: i * 0.09, dur: 0.18, type: 'triangle', vol: 0.095 });
+    });
+  }
+
+  function vipEntrance() {
+    [392.0, 523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      tone(f, { delay: i * 0.055, dur: 0.24, type: 'triangle', vol: 0.11 });
+    });
+    noiseBurst({ delay: 0.16, dur: 0.22, freq: 3400, vol: 0.04 });
+  }
+
+  function weddingBells() {
+    [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5, 1318.51].forEach((f, i) => {
+      tone(f, { delay: i * 0.11, dur: 0.34, type: 'sine', vol: 0.115 });
+    });
+  }
+
+  function wheelTick() {
+    tone(920, { dur: 0.03, type: 'triangle', vol: 0.065, endFreq: 680 });
+  }
+
+  function wheelWin() {
+    [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98].forEach((f, i) => {
+      tone(f, { delay: i * 0.06, dur: 0.24, type: 'triangle', vol: 0.12 });
+    });
+    noiseBurst({ delay: 0.18, dur: 0.24, freq: 3200, vol: 0.04 });
+  }
+
+  function poolHit() {
+    tone(320, { dur: 0.045, type: 'triangle', vol: 0.12, endFreq: 140 });
+    noiseBurst({ dur: 0.04, freq: 2200, vol: 0.055 });
+  }
+
+  function diceRoll() {
+    for (let i = 0; i < 4; i++) {
+      tone(420 + i * 95, { delay: i * 0.045, dur: 0.04, type: 'triangle', vol: 0.07 });
+    }
+  }
+
+  function chestOpen() {
+    [440, 554.37, 659.25, 880, 1108.73].forEach((f, i) => {
+      tone(f, { delay: i * 0.055, dur: 0.2, type: 'sine', vol: 0.11 });
+    });
+  }
+
+  function flashDrop() {
+    tone(880, { dur: 0.09, type: 'sawtooth', vol: 0.07, endFreq: 1320 });
+    tone(1320, { delay: 0.1, dur: 0.14, type: 'triangle', vol: 0.1 });
+  }
+
+  function warningAlert() {
+    tone(420, { dur: 0.14, type: 'sawtooth', vol: 0.08, endFreq: 300 });
+    tone(360, { delay: 0.17, dur: 0.18, type: 'sawtooth', vol: 0.08, endFreq: 240 });
+  }
+
+  function play(name, opts = {}) {
+    if (muted) return false;
+    switch (name) {
+      case 'click': click(); break;
+      case 'tap': tap(); break;
+      case 'coin': coin(opts.amount); break;
+      case 'luckyDrop': coin(180); break;
+      case 'stakeLock': stakeLock(); break;
+      case 'taskClaim': taskClaim(opts.amount); break;
+      case 'levelUp': levelUp(); break;
+      case 'chatSend': chatSend(); break;
+      case 'chatRecv': chatRecv(); break;
+      case 'turnStart': turnStart(); break;
+      case 'micPass': micPass(); break;
+      case 'reactionPop': reactionPop(); break;
+      case 'comboTick': comboTick(opts.qty); break;
+      case 'giftBurst': giftBurst(); break;
+      case 'giftOrbit': giftOrbit(); break;
+      case 'giftSpotlight': giftSpotlight(); break;
+      case 'giftSend': giftSend(opts.tier, opts.style); break;
+      case 'giftReceive': giftReceive(opts.tier); break;
+      case 'giftLuxuryCar':
+      case 'carDrive': giftLuxuryCar(); break;
+      case 'giftLuxuryPalace':
+      case 'palaceReveal': giftLuxuryPalace(); break;
+      case 'redPacketDrop': redPacketDrop(); break;
+      case 'redPacketClaim': redPacketClaim(); break;
+      case 'duelCorrect': duelCorrect(); break;
+      case 'duelWrong': duelWrong(); break;
+      case 'duelWin': duelWin(); break;
+      case 'matchLose': matchLose(); break;
+      case 'vipEntrance': vipEntrance(); break;
+      case 'weddingBells':
+      case 'weddingBell': weddingBells(); break;
+      case 'wheelTick': wheelTick(); break;
+      case 'wheelWin': wheelWin(); break;
+      case 'poolHit': poolHit(); break;
+      case 'diceRoll': diceRoll(); break;
+      case 'chestOpen': chestOpen(); break;
+      case 'flashDrop': flashDrop(); break;
+      case 'warningAlert': warningAlert(); break;
+      default: click();
+    }
+    return true;
   }
 
   function iconSvg(isOff) {
@@ -283,13 +337,13 @@ const SFX = (() => {
 
   function syncButtons() {
     if (typeof document === 'undefined') return;
-    const hdrBtn = document.getElementById('sfxBtn');
-    if (hdrBtn) {
-      hdrBtn.innerHTML = iconSvg(muted);
-      hdrBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-      hdrBtn.setAttribute('aria-label', muted ? 'Unmute Sound FX' : 'Mute Sound FX');
-      hdrBtn.title = muted ? 'Sound FX: Muted (tap to unmute)' : 'Sound FX: On (tap to mute)';
-      hdrBtn.classList.toggle('is-muted', muted);
+    const b = document.getElementById('sfxBtn');
+    if (b) {
+      b.classList.toggle('is-muted', muted);
+      b.setAttribute('aria-pressed', muted ? 'true' : 'false');
+      b.setAttribute('aria-label', muted ? 'Unmute Sound FX' : 'Mute Sound FX');
+      b.title = muted ? 'Sound FX: Muted (tap to unmute)' : 'Sound FX: On (tap to mute)';
+      b.innerHTML = iconSvg(muted);
     }
     document.querySelectorAll('[data-sfx-toggle]').forEach(el => {
       el.setAttribute('aria-pressed', muted ? 'true' : 'false');
@@ -300,12 +354,28 @@ const SFX = (() => {
     });
   }
 
-  return { play, isMuted, setMuted, toggle, syncButtons, iconSvg };
+  function setMuted(v) {
+    muted = Boolean(v);
+    try { localStorage.setItem('sg_sfx_muted', muted ? '1' : '0'); } catch {}
+    syncButtons();
+    if (!muted) click();
+    return muted;
+  }
+
+  function toggle() { return setMuted(!muted); }
+
+  const unlock = () => {
+    unlocked = true;
+    if (!muted) getCtx();
+  };
+  window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+  window.addEventListener('keydown', unlock, { once: true, passive: true });
+  window.addEventListener('click', unlock, { once: true, passive: true });
+
+  return { play, toggle, setMuted, isMuted: () => muted, syncButtons, syncMuteBtn: syncButtons, iconSvg };
 })();
 
 function playSfx(name, opts) {
-  if (typeof SFX !== 'undefined' && SFX && typeof SFX.play === 'function') {
-    return SFX.play(name, opts);
-  }
+  if (typeof SFX !== 'undefined' && SFX && typeof SFX.play === 'function') return SFX.play(name, opts);
   return false;
 }

@@ -483,7 +483,7 @@ function refreshActiveRoomModal(){
         ${(room.chat||[]).map(c=>{
           if(c.type==='gift'){
             const g=typeof GIFT_BY_ID!=='undefined'?GIFT_BY_ID[c.giftId]:null;
-            return `<div class="mp-gift-line">${g&&typeof giftSvg==='function'?giftSvg(g,26):'🎁'} <span><b>${esc(c.name)}</b> sent <b>${esc(c.giftName)} ×${clampSafeInt(c.qty||1,1,99)}</b> to <b>${esc(c.toName)}</b> (+${fmtNum(c.charm||0)} Charm · +${fmtNum(c.luckyCoins||0)} 🪙)</span></div>`;
+            return `<div class="mp-gift-line">${g&&typeof giftSvg==='function'?giftSvg(g,26):'🎁'} <span><b>${esc(c.name)}</b> sent <b>${esc(c.giftName)} ×${clampSafeInt(c.qty||1,1,100)}</b> to <b>${esc(c.toName)}</b> (+${fmtNum(c.charm||0)} Charm · +${fmtNum(c.luckyCoins||0)} 🪙)</span></div>`;
           }
           if(c.type==='sys')return `<div class="mp-sys-line">${esc(c.text)}</div>`;
           return `<div class="mp-chat-line"><b>${esc(c.name||'Player')}:</b> <span>${esc(c.text)}</span></div>`;

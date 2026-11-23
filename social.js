@@ -114,45 +114,69 @@ const GLOSSY_SVG = {
       ${p[3]}
     </svg>`;
   },
-  coupleRings: `<svg class="g3d-rings" viewBox="0 0 88 56" fill="none" aria-hidden="true">
+  coupleRings: `<svg class="g3d-rings" viewBox="0 0 96 60" fill="none" aria-hidden="true">
     <defs>
-      <linearGradient id="cpr1" x1="12" y1="8" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fff9c4"/><stop offset="50%" stop-color="#ffd36b"/><stop offset="100%" stop-color="#d97706"/></linearGradient>
-      <linearGradient id="cpr2" x1="40" y1="8" x2="76" y2="48" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fdf2f8"/><stop offset="50%" stop-color="#f472b6"/><stop offset="100%" stop-color="#be185d"/></linearGradient>
+      <linearGradient id="cpr1" x1="10" y1="6" x2="54" y2="52" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="28%" stop-color="#fef08a"/><stop offset="68%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#b45309"/></linearGradient>
+      <linearGradient id="cpr2" x1="40" y1="6" x2="86" y2="52" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="28%" stop-color="#fbcfe8"/><stop offset="68%" stop-color="#ec4899"/><stop offset="100%" stop-color="#9d174d"/></linearGradient>
+      <linearGradient id="cprGem" x1="38" y1="3" x2="58" y2="25" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="45%" stop-color="#bae6fd"/><stop offset="100%" stop-color="#f472b6"/></linearGradient>
     </defs>
-    <circle cx="33" cy="31" r="16" stroke="url(#cpr1)" stroke-width="5"/>
-    <circle cx="55" cy="31" r="16" stroke="url(#cpr2)" stroke-width="5"/>
-    <polygon points="44,4 52,13 44,22 36,13" fill="#fff" stroke="#f472b6" stroke-width="1.5"/>
-    <polygon points="44,7 49,13 44,19 39,13" fill="#fbcfe8"/>
-    <circle cx="24" cy="19" r="2.2" fill="#fff"/><circle cx="64" cy="19" r="2" fill="#fef08a"/>
+    <ellipse cx="48" cy="53" rx="34" ry="4.5" fill="rgba(0,0,0,0.42)"/>
+    <circle cx="36" cy="33" r="16.5" stroke="rgba(0,0,0,0.38)" stroke-width="6.4" transform="translate(0,1.5)"/>
+    <circle cx="60" cy="33" r="16.5" stroke="rgba(0,0,0,0.38)" stroke-width="6.4" transform="translate(0,1.5)"/>
+    <circle cx="36" cy="32.5" r="16.5" stroke="url(#cpr1)" stroke-width="5.2"/>
+    <circle cx="36" cy="32.5" r="16.5" stroke="#ffffff" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="18 40"/>
+    <circle cx="60" cy="32.5" r="16.5" stroke="url(#cpr2)" stroke-width="5.2"/>
+    <circle cx="60" cy="32.5" r="16.5" stroke="#ffffff" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="18 40"/>
+    <polygon points="48,3.5 57.5,14 48,24.5 38.5,14" fill="url(#cprGem)" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="48,3.5 53,14 48,24.5 43,14" fill="#ffffff" fill-opacity=".48"/>
+    <polygon points="38.5,14 57.5,14 48,9.5" fill="#ffffff" fill-opacity=".62"/>
+    <circle cx="24" cy="20" r="2.2" fill="#ffffff"/><circle cx="72" cy="20" r="2.2" fill="#fef08a"/>
   </svg>`,
   bondEmblem(type) {
     const uid = ++GLOSSY_SVG._seq;
     if (type === 'couple') {
       return `<svg class="g3d-bond" viewBox="0 0 56 56" fill="none" aria-hidden="true">
-        <defs><linearGradient id="beCp_${uid}" x1="6" y1="6" x2="50" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fbcfe8"/><stop offset="50%" stop-color="#f472b6"/><stop offset="100%" stop-color="#be185d"/></linearGradient></defs>
-        <path d="M28 48S9 36.5 9 22.5C9 15.5 14.5 10 21 10c3.6 0 6.2 1.8 7 4.2.8-2.4 3.4-4.2 7-4.2 6.5 0 12 5.5 12 12.5C47 36.5 28 48 28 48z" fill="url(#beCp_${uid})" stroke="#fff" stroke-width="1.8"/>
-        <ellipse cx="20" cy="18" rx="4.5" ry="2.2" transform="rotate(-28 20 18)" fill="#fff" opacity=".55"/>
-        <circle cx="28" cy="27" r="6" fill="none" stroke="#fef08a" stroke-width="2.6"/>
+        <defs>
+          <linearGradient id="beCpV_${uid}" x1="10" y1="28" x2="46" y2="52" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#4a044e"/><stop offset="100%" stop-color="#170624"/></linearGradient>
+          <linearGradient id="beCpR_${uid}" x1="12" y1="16" x2="44" y2="46" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="30%" stop-color="#fef08a"/><stop offset="68%" stop-color="#f472b6"/><stop offset="100%" stop-color="#be185d"/></linearGradient>
+          <linearGradient id="beCpG_${uid}" x1="20" y1="5" x2="36" y2="24" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="45%" stop-color="#e0f2fe"/><stop offset="100%" stop-color="#f472b6"/></linearGradient>
+        </defs>
+        <path d="M10 34c0-3.5 5-6.5 18-6.5s18 3 18 6.5v8.5c0 3.8-7.5 6.5-18 6.5s-18-2.7-18-6.5V34z" fill="url(#beCpV_${uid})" stroke="#ffd36b" stroke-opacity=".55" stroke-width="1.2"/>
+        <ellipse cx="28" cy="33" rx="11.5" ry="9.8" stroke="url(#beCpR_${uid})" stroke-width="4.2"/>
+        <ellipse cx="28" cy="33" rx="11.5" ry="9.8" stroke="#ffffff" stroke-opacity=".55" stroke-width="1.1" stroke-dasharray="16 32"/>
+        <polygon points="28,6 37,15.5 28,25 19,15.5" fill="url(#beCpG_${uid})" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/>
+        <polygon points="28,6 33,15.5 28,25 23,15.5" fill="#ffffff" fill-opacity=".46"/>
+        <path d="M28 2.5v3M16 10l3 2M40 10l-3 2" stroke="#fef08a" stroke-width="1.4" stroke-linecap="round"/>
       </svg>`;
     }
     if (type === 'bro') {
       return `<svg class="g3d-bond" viewBox="0 0 56 56" fill="none" aria-hidden="true">
-        <defs><linearGradient id="beBr_${uid}" x1="6" y1="6" x2="50" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#bae6fd"/><stop offset="50%" stop-color="#0ea5e9"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient></defs>
-        <path d="M28 7l18 7.5v14c0 11.5-7.6 19-18 22.5-10.4-3.5-18-11-18-22.5v-14L28 7z" fill="url(#beBr_${uid})" stroke="#fff" stroke-width="1.8"/>
-        <polygon points="28,16 31.8,24 40.5,25.2 34.2,31.2 35.8,39.8 28,35.6 20.2,39.8 21.8,31.2 15.5,25.2 24.2,24" fill="#fef08a"/>
+        <defs>
+          <linearGradient id="beBr_${uid}" x1="8" y1="6" x2="48" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e0f2fe"/><stop offset="32%" stop-color="#38bdf8"/><stop offset="72%" stop-color="#1d4ed8"/><stop offset="100%" stop-color="#0f172a"/></linearGradient>
+          <linearGradient id="beBrR_${uid}" x1="10" y1="6" x2="46" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="45%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#475569"/></linearGradient>
+        </defs>
+        <path d="M28 6l19 7.5v14.5c0 11.6-7.8 19.2-19 22.8C16.8 47.2 9 39.6 9 28V13.5L28 6z" fill="url(#beBr_${uid})" stroke="url(#beBrR_${uid})" stroke-width="2.2" stroke-linejoin="round"/>
+        <path d="M28 10.5l14.5 5.8v11.5c0 8.8-5.8 14.6-14.5 17.6-8.7-3-14.5-8.8-14.5-17.6V16.3L28 10.5z" fill="#0f172a" fill-opacity=".32" stroke="#bae6fd" stroke-opacity=".55" stroke-width="1"/>
+        <polygon points="28,15.5 31.8,23.6 40.5,24.8 34.2,30.8 35.8,39.5 28,35.4 20.2,39.5 21.8,30.8 15.5,24.8 24.2,23.6" fill="#fef08a" stroke="#b45309" stroke-width="1.1" stroke-linejoin="round"/>
+        <polygon points="28,18.5 30.2,24.5 28,30.5 25.8,24.5" fill="#ffffff" opacity=".72"/>
       </svg>`;
     }
     return `<svg class="g3d-bond" viewBox="0 0 56 56" fill="none" aria-hidden="true">
-      <defs><linearGradient id="beBf_${uid}" x1="6" y1="6" x2="50" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e9d5ff"/><stop offset="50%" stop-color="#a855f7"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient></defs>
-      <circle cx="28" cy="28" r="20" fill="url(#beBf_${uid})" stroke="#fff" stroke-width="1.8"/>
-      <polygon points="28,14 39,26 28,42 17,26" fill="#fff" fill-opacity=".88"/>
-      <polygon points="28,17 35,26 28,37 21,26" fill="#c084fc"/>
+      <defs>
+        <linearGradient id="beBf_${uid}" x1="8" y1="8" x2="48" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fdf4ff"/><stop offset="32%" stop-color="#e879f9"/><stop offset="72%" stop-color="#9333ea"/><stop offset="100%" stop-color="#3b0764"/></linearGradient>
+        <linearGradient id="beBfG_${uid}" x1="16" y1="6" x2="40" y2="48" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fef9c3"/><stop offset="50%" stop-color="#ffd36b"/><stop offset="100%" stop-color="#b45309"/></linearGradient>
+      </defs>
+      <path d="M19 14c1.8-6 16.2-6 18 0" stroke="url(#beBfG_${uid})" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M28 48S10 37.5 10 24.5a9.4 9.4 0 0 1 18-3.4 9.4 9.4 0 0 1 18 3.4C46 37.5 28 48 28 48z" fill="url(#beBf_${uid})" stroke="url(#beBfG_${uid})" stroke-width="2.2"/>
+      <polygon points="28,20 34.5,27.5 28,36.5 21.5,27.5" fill="#ffffff" stroke="#fde047" stroke-width="1.2"/>
+      <polygon points="28,22.2 31.8,27.5 28,33.4 24.2,27.5" fill="#f472b6" fill-opacity=".8"/>
+      <ellipse cx="19.5" cy="21" rx="4" ry="1.8" transform="rotate(-28 19.5 21)" fill="#ffffff" opacity=".68"/>
     </svg>`;
   },
   _seq: 0
 };
 
-/* ===== WePlay-Style BFF / Couple & Bond Cards + Dual-Partner Showcase Modal ===== */
+/* ===== v13 Exclusive 1-to-1 Relationship Bonds Showcase (Couple Ring, Bro Tag, Bestie Tag) ===== */
 function normalizeBondItem(b, idx) {
   const type = b?.type || 'bestie';
   const partnerUid = b?.partnerUid || b?.uid || '';
@@ -160,36 +184,103 @@ function normalizeBondItem(b, idx) {
   const rawAv = b?.partnerAvatar || b?.avatar || b?.av || (type === 'bro' ? 'av_b2' : 'av_g1');
   const partnerAvatar = /^(b|g)[1-5]$/.test(rawAv) ? `av_${rawAv}` : rawAv;
   const lvNum = Number(b?.level) || (type === 'couple' ? 3 : (type === 'bro' ? 2 : (idx === 0 ? 2 : 1)));
-  return { type, partnerUid, partnerName, partnerAvatar, lvNum, since: b?.since };
+  const giftId = b?.giftId || (type === 'couple' ? 'g_ring_royal' : (type === 'bro' ? 'g_bond_bro' : 'g_bond_bestie'));
+  return { type, partnerUid, partnerName, partnerAvatar, lvNum, giftId, since: Number(b?.since || Date.now()) };
+}
+
+function renderPendingBondRequestsBannerHtml(compact) {
+  const reqs = typeof getPendingBondRequestsForMe === 'function' ? getPendingBondRequestsForMe() : [];
+  if (!reqs.length) return '';
+  return `
+    <div class="bond-req-inbox ${compact ? 'compact' : ''}" data-bond-req-box>
+      <div class="bond-req-head">
+        <b>💌 Incoming Bond Requests</b>
+        <span class="bond-req-cnt">${reqs.length} pending</span>
+      </div>
+      <div class="bond-req-list">
+        ${reqs.map(p => {
+          const meta = (typeof BOND_SLOT_META !== 'undefined' && BOND_SLOT_META[p.bondType]) || { label: 'Exclusive Bond', short: 'Bond', accent: '#f472b6' };
+          const g = (typeof GIFT_BY_ID !== 'undefined' && GIFT_BY_ID[p.giftId]) || null;
+          return `<div class="bond-req-card" data-req-id="${esc(p.id)}">
+            <div class="bond-req-art">${g && typeof giftSvg === 'function' ? giftSvg(g, 46) : GLOSSY_SVG.bondEmblem(p.bondType)}</div>
+            <div class="bond-req-info">
+              <div class="bond-req-top">
+                <b>${esc(p.fromName || 'Player')}</b>
+                <span class="bond-req-tag" style="color:${meta.accent}">${esc(meta.label)}</span>
+              </div>
+              <small>Sent ${esc(g ? g.name : meta.label)} · Exclusive 1-to-1 invite</small>
+            </div>
+            <div class="bond-req-acts">
+              <button type="button" class="btn gold sm" data-accept-bond="${esc(p.id)}" aria-label="Accept ${esc(meta.label)} from ${esc(p.fromName || 'Player')}">Accept</button>
+              <button type="button" class="btn ghost sm" data-decline-bond="${esc(p.id)}" aria-label="Decline ${esc(meta.label)} from ${esc(p.fromName || 'Player')}">Decline</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function renderBondsGridHtml(userObj, isSelf) {
-  const bonds = Array.isArray(userObj?.bonds) ? userObj.bonds : [];
-  const cards = bonds.slice(0, 3).map((raw, idx) => {
-    const b = normalizeBondItem(raw, idx);
-    const lvl = `LV${b.lvNum}`;
-    const cls = b.type === 'couple' ? 'lv3' : (b.type === 'bro' ? 'lv2' : 'lv1');
-    const lbl = b.type === 'couple' ? 'CP' : (b.type === 'bro' ? 'Bro' : 'BFF');
-    return `<button type="button" class="wp-bond-card ${cls}" data-open-bonds="${esc(userObj.uid || '')}">
-      <span class="wp-bond-lv">${lvl} · ${lbl}</span>
-      <div class="wp-bond-art">${GLOSSY_SVG.bondEmblem(b.type)}</div>
-      <div class="wp-bond-av">${av({ avatar: b.partnerAvatar, frame: 'none' }, 34)}</div>
-      <b class="wp-bond-name">${esc(b.partnerName)}</b>
-    </button>`;
+  const normList = typeof normalizeExclusiveUserBonds === 'function'
+    ? normalizeExclusiveUserBonds(userObj?.bonds)
+    : (Array.isArray(userObj?.bonds) ? userObj.bonds : []);
+  const bySlot = {};
+  normList.forEach((raw, idx) => {
+    const item = normalizeBondItem(raw, idx);
+    if (!bySlot[item.type]) bySlot[item.type] = item;
   });
-  while (cards.length < 3) {
-    cards.push(`<button type="button" class="wp-bond-card empty-slot" data-unlock-bond="${esc(userObj.uid || '')}">
+
+  const slotConfigs = [
+    { slot: 'couple', label: 'Couple Ring', cls: 'lv3', giftId: 'g_ring_royal' },
+    { slot: 'bro', label: 'Bro Tag', cls: 'lv2', giftId: 'g_bond_bro' },
+    { slot: 'bestie', label: 'Bestie Tag', cls: 'lv1', giftId: 'g_bond_bestie' }
+  ];
+
+  const activeCount = Object.keys(bySlot).length;
+  const pendingReqs = isSelf && typeof getPendingBondRequestsForMe === 'function' ? getPendingBondRequestsForMe() : [];
+
+  const cards = slotConfigs.map(cfg => {
+    const b = bySlot[cfg.slot];
+    if (b) {
+      const days = Math.max(1, Math.floor((Date.now() - Number(b.since || Date.now())) / 86400000) + 1);
+      const giftObj = typeof GIFT_BY_ID !== 'undefined' ? GIFT_BY_ID[b.giftId] : null;
+      const isLux10k = giftObj && typeof isLuxuryAnimatedGift === 'function' && isLuxuryAnimatedGift(giftObj);
+      return `<div class="wp-bond-card ${cfg.cls} exclusive-active ${isLux10k ? 'lux-10k-card lux-10k-wall' : ''}" data-bond-slot="${cfg.slot}">
+        ${isLux10k && typeof renderLuxury10kFxHtml === 'function' ? renderLuxury10kFxHtml(giftObj, true) : ''}
+        <div class="wp-bond-toprow">
+          <span class="wp-bond-lv">${esc(cfg.label)}</span>
+          <span class="wp-bond-days">${days}d</span>
+        </div>
+        <button type="button" class="wp-bond-mainbtn" data-open-bonds="${esc(userObj.uid || '')}" aria-label="View ${esc(cfg.label)} with ${esc(b.partnerName)}">
+          <div class="wp-bond-art">${GLOSSY_SVG.bondEmblem(cfg.slot)}</div>
+          <div class="wp-bond-av">${av({ avatar: b.partnerAvatar, frame: 'none' }, 34)}</div>
+          <b class="wp-bond-name">${esc(b.partnerName)}</b>
+          <small class="wp-bond-exc">1-to-1 Active</small>
+        </button>
+        ${isSelf ? `<button type="button" class="wp-bond-unbind" data-unbind-slot="${cfg.slot}" aria-label="Unbind ${esc(cfg.label)}">Unbind</button>` : ''}
+      </div>`;
+    }
+    return `<button type="button" class="wp-bond-card empty-slot exclusive-open" data-unlock-bond="${esc(userObj.uid || '')}" data-bond-gift="${cfg.giftId}" data-bond-slot="${cfg.slot}" aria-label="Send ${esc(cfg.label)} Request">
+      <span class="wp-bond-lv muted">${esc(cfg.label)}</span>
+      <div class="wp-bond-art ghost-art">${GLOSSY_SVG.bondEmblem(cfg.slot)}</div>
       <span class="wp-bond-plus">+</span>
-      <small>${isSelf ? 'Unlock Slot' : 'Bond'}</small>
-    </button>`);
-  }
+      <small>${isSelf ? 'Send Request' : 'Open Slot'}</small>
+    </button>`;
+  }).join('');
+
   return `
-    <div class="wp-section-card wp-bff-card">
+    <div class="wp-section-card wp-bff-card v13-bonds-card">
       <div class="wp-sec-head" data-open-bonds="${esc(userObj.uid || '')}">
-        <div class="row" style="gap:6px"><b>BFF</b><span class="wp-heart-cnt">♥ ${bonds.length}</span></div>
+        <div class="row" style="gap:6px">
+          <b>Exclusive Bonds</b>
+          <span class="wp-heart-cnt">♥ ${activeCount}/3</span>
+          ${pendingReqs.length ? `<span class="bond-req-pill">${pendingReqs.length} Request${pendingReqs.length > 1 ? 's' : ''}</span>` : ''}
+        </div>
         <span class="wp-chev">›</span>
       </div>
-      <div class="wp-bond-grid">${cards.join('')}</div>
+      <div class="wp-bond-grid">${cards}</div>
+      ${isSelf ? renderPendingBondRequestsBannerHtml(false) : ''}
     </div>
   `;
 }
@@ -197,27 +288,46 @@ function renderBondsGridHtml(userObj, isSelf) {
 function openBondsShowcaseModal(targetUser) {
   const u = targetUser || me;
   const isSelf = u.uid === uid;
-  const bonds = (Array.isArray(u.bonds) ? u.bonds : []).map((raw, i) => normalizeBondItem(raw, i));
-  const cp = bonds.find(b => b.type === 'couple') || bonds[0] || null;
-  const daysTogether = cp ? Math.max(1, Math.floor((Date.now() - Number(cp.since || Date.now() - 86400000)) / 86400000) + 1) : 0;
+  const normList = typeof normalizeExclusiveUserBonds === 'function'
+    ? normalizeExclusiveUserBonds(u.bonds)
+    : (Array.isArray(u.bonds) ? u.bonds : []);
+  const bonds = normList.map((raw, i) => normalizeBondItem(raw, i));
+  const cp = bonds.find(b => b.type === 'couple') || null;
+  const daysTogether = cp ? Math.max(1, Math.floor((Date.now() - Number(cp.since || Date.now())) / 86400000) + 1) : 0;
   const partnerUser = cp ? { uid: cp.partnerUid, name: cp.partnerName, avatar: cp.partnerAvatar, frame: 'fx_gold' } : null;
 
-  const bondCards = bonds.map(b => {
-    const cls = b.type === 'couple' ? 'lv3' : (b.type === 'bro' ? 'lv2' : 'lv1');
-    const lv = `LV${b.lvNum}`;
-    const tag = b.type === 'couple' ? 'Couple' : (b.type === 'bro' ? 'Bro' : 'Bestie');
-    return `<button type="button" class="wp-bond-card ${cls}" data-bp-uid="${esc(b.partnerUid)}">
-      <span class="wp-bond-lv">${lv}</span>
-      <div class="wp-bond-art">${GLOSSY_SVG.bondEmblem(b.type)}</div>
-      <div class="wp-bond-av">${av({ avatar: b.partnerAvatar, frame: 'none' }, 36)}</div>
-      <b class="wp-bond-name">${esc(b.partnerName)}</b>
-      <small class="wp-bond-sub">${tag}</small>
+  const slotConfigs = [
+    { slot: 'couple', label: 'Couple Ring', cls: 'lv3', giftId: 'g_ring_royal' },
+    { slot: 'bro', label: 'Bro Tag', cls: 'lv2', giftId: 'g_bond_bro' },
+    { slot: 'bestie', label: 'Bestie Tag', cls: 'lv1', giftId: 'g_bond_bestie' }
+  ];
+
+  const bondCards = slotConfigs.map(cfg => {
+    const b = bonds.find(x => x.type === cfg.slot);
+    if (b) {
+      const days = Math.max(1, Math.floor((Date.now() - Number(b.since || Date.now())) / 86400000) + 1);
+      return `<div class="wp-bond-card ${cfg.cls} exclusive-active">
+        <div class="wp-bond-toprow"><span class="wp-bond-lv">${esc(cfg.label)}</span><span class="wp-bond-days">${days}d</span></div>
+        <button type="button" class="wp-bond-mainbtn" data-bp-uid="${esc(b.partnerUid)}">
+          <div class="wp-bond-art">${GLOSSY_SVG.bondEmblem(cfg.slot)}</div>
+          <div class="wp-bond-av">${av({ avatar: b.partnerAvatar, frame: 'none' }, 36)}</div>
+          <b class="wp-bond-name">${esc(b.partnerName)}</b>
+          <small class="wp-bond-sub">Exclusive 1-to-1</small>
+        </button>
+        ${isSelf ? `<button type="button" class="wp-bond-unbind" data-modal-unbind="${cfg.slot}">Unbind</button>` : ''}
+      </div>`;
+    }
+    return `<button type="button" class="wp-bond-card empty-slot" data-modal-send-slot="${cfg.giftId}">
+      <span class="wp-bond-lv muted">${esc(cfg.label)}</span>
+      <div class="wp-bond-art ghost-art">${GLOSSY_SVG.bondEmblem(cfg.slot)}</div>
+      <span class="wp-bond-plus">+</span>
+      <small>Send Request</small>
     </button>`;
   }).join('');
 
-  const m = modal('My BFF & Couple', `
+  const m = modal('Exclusive 1-to-1 Bonds', `
     <div class="wp-cp-banner">
-      <div class="wp-cp-ribbon">${cp ? 'CP LV3' : 'COUPLE SLOT'}</div>
+      <div class="wp-cp-ribbon">${cp ? 'EXCLUSIVE COUPLE' : 'COUPLE RING SLOT'}</div>
       <div class="wp-cp-duo">
         <div class="wp-cp-person">
           ${av(u, 60)}
@@ -225,7 +335,7 @@ function openBondsShowcaseModal(targetUser) {
         </div>
         <div class="wp-cp-mid">
           ${GLOSSY_SVG.coupleRings}
-          <span class="wp-cp-days">${cp ? `Together ${daysTogether}d` : 'Send Ring'}</span>
+          <span class="wp-cp-days">${cp ? `Together ${daysTogether}d` : '1-to-1 Exclusive'}</span>
         </div>
         <div class="wp-cp-person">
           ${partnerUser ? av(partnerUser, 60) : `<div class="wp-cp-empty-av">+</div>`}
@@ -236,11 +346,8 @@ function openBondsShowcaseModal(targetUser) {
 
     <div class="wp-bond-grid" style="margin-top:12px">
       ${bondCards}
-      <button type="button" class="wp-bond-card empty-slot" id="bffUnlockBtn">
-        <span class="wp-bond-plus">+</span>
-        <small>Unlock Slot</small>
-      </button>
     </div>
+    ${isSelf ? renderPendingBondRequestsBannerHtml(false) : ''}
   `, 'wp-bff-sheet');
 
   $$('[data-bp-uid]', m).forEach(btn => {
@@ -248,14 +355,45 @@ function openBondsShowcaseModal(targetUser) {
       if (btn.dataset.bpUid) { m.close(); openPublicProfile(btn.dataset.bpUid); }
     };
   });
-  if ($('#bffUnlockBtn', m)) {
-    $('#bffUnlockBtn', m).onclick = () => {
+  $$('[data-modal-send-slot]', m).forEach(btn => {
+    btn.onclick = () => {
       m.close();
       if (typeof openGiftSendModal === 'function') {
-        openGiftSendModal(isSelf ? null : u.uid, { allowPickPlayer: isSelf, preselectGiftId: 'r01_promise' });
+        openGiftSendModal(isSelf ? null : u.uid, { allowPickPlayer: isSelf, preselectFilter: 'rings', preselectGiftId: btn.dataset.modalSendSlot });
       }
     };
-  }
+  });
+  $$('[data-modal-unbind]', m).forEach(btn => {
+    btn.onclick = e => {
+      e.stopPropagation();
+      const slot = btn.dataset.modalUnbind;
+      if (typeof unbindMyBondSlot === 'function') {
+        unbindMyBondSlot(slot);
+        m.close();
+        openBondsShowcaseModal(me);
+      }
+    };
+  });
+  $$('[data-accept-bond]', m).forEach(btn => {
+    btn.onclick = e => {
+      e.stopPropagation();
+      if (typeof acceptPendingBondProposal === 'function') {
+        acceptPendingBondProposal(btn.dataset.acceptBond);
+        m.close();
+        openBondsShowcaseModal(me);
+      }
+    };
+  });
+  $$('[data-decline-bond]', m).forEach(btn => {
+    btn.onclick = e => {
+      e.stopPropagation();
+      if (typeof declinePendingBondProposal === 'function') {
+        declinePendingBondProposal(btn.dataset.declineBond);
+        m.close();
+        openBondsShowcaseModal(me);
+      }
+    };
+  });
 }
 
 /* ===== 1. Charm Milestone Badges & Rank Progression ===== */
@@ -418,9 +556,9 @@ function showVipEntranceBanner(userObj, locationLabel) {
   const vip = getActiveVipTier(u);
   const fx = u.entryEffect || (vip === 'royal' ? 'entry-dragon' : (vip === 'gold' ? 'entry-gold' : (vip === 'silver' ? 'entry-cyber' : '')));
   if (!vip && !fx) return;
-  $$('.vip-entry-banner').forEach(el => el.remove());
+  $$('.vip-entrance-banner').forEach(el => el.remove());
   const el = document.createElement('div');
-  el.className = `vip-entry-banner ${fx || 'entry-gold'}`;
+  el.className = `vip-entrance-banner ${fx || 'entry-gold'}`;
   const badge = vip ? (vip === 'royal' ? '👑 ROYAL VIP' : (vip === 'gold' ? '✨ GOLD VIP' : '⚡ SILVER VIP')) : '✨ LUXURY ENTRY';
   el.innerHTML = `
     <div class="veb-av">${av(u, 42)}</div>

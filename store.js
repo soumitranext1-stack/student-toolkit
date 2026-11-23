@@ -70,6 +70,7 @@ let storeItems = [...DEFAULT_ITEMS, ...customItems];
 
 const CATS = [
   ['all', 'All'],
+  ['luxgifts', '💎 3D Gifts & Rings'],
   ['vip', '👑 VIP Pass'],
   ['frame', 'Frames'],
   ['banner', 'Banners'],
@@ -102,6 +103,44 @@ function itemPreview(it) {
   return `<span class="${esc(it.value)}" style="font-size:18px;font-weight:800">${esc(it.name)}</span>`;
 }
 
+function renderStoreLuxGiftsShowcase(onlyFeatured) {
+  if (typeof GIFT_CATALOG === 'undefined' || typeof giftSvg !== 'function') return '';
+  const luxList = GIFT_CATALOG.filter(g => (typeof isLuxuryAnimatedGift === 'function' && isLuxuryAnimatedGift(g)) || g.cat === 'ring')
+    .sort((a, b) => b.price - a.price);
+  const shown = onlyFeatured ? luxList.slice(0, 6) : luxList;
+  return `
+    <div class="store-lux-showcase" style="grid-column:1/-1">
+      <div class="store-lux-head">
+        <div>
+          <b>✨ 3D Luxury 10,000+ Gifts &amp; Exclusive Rings</b>
+          <small>Photorealistic 3D metallic art · Continuous shimmer &amp; ambient Gift Wall particles</small>
+        </div>
+        ${onlyFeatured ? `<button type="button" class="btn ghost sm" id="stViewAllLux">View All (${luxList.length})</button>` : ''}
+      </div>
+      <div class="store-lux-grid">
+        ${shown.map(g => {
+          const is10k = typeof isLuxuryAnimatedGift === 'function' && isLuxuryAnimatedGift(g);
+          const tMeta = (typeof GIFT_TIERS !== 'undefined' && GIFT_TIERS[g.tier]) || { color: '#ffd36b', name: 'Luxury' };
+          return `<div class="store-lux-tile ${is10k ? 'lux-10k-card' : ''}" data-lux10k="${is10k ? '1' : '0'}">
+            ${is10k && typeof renderLuxury10kFxHtml === 'function' ? renderLuxury10kFxHtml(g, false) : ''}
+            <div class="slt-top">
+              <span class="slt-badge" style="color:${tMeta.color}">${is10k ? '✦ 10k+ LIVE 3D' : (g.bondType ? '💎 1-to-1 BOND' : '💍 RING')}</span>
+              <span class="slt-price">${fmtNum(g.price)} 🪙</span>
+            </div>
+            <div class="slt-art">${giftSvg(g, 66)}</div>
+            <b class="slt-name">${esc(g.name)}</b>
+            <small class="slt-sub">+${fmtNum(g.charm)} Charm${g.bondType ? ' · Request → Accept' : ''}</small>
+            <div class="row" style="gap:6px;margin-top:8px;width:100%">
+              ${g.price >= 5000 ? `<button type="button" class="btn ghost sm" style="flex:1" data-st-prevgift="${esc(g.id)}">Preview</button>` : ''}
+              <button type="button" class="btn gold sm" style="flex:1" data-st-sendgift="${esc(g.id)}">${g.bondType ? 'Request' : 'Send'}</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
 function renderStore() {
   cleanExpiredUnlocks();
   const tabsEl = $('#storeTabs');
@@ -114,8 +153,8 @@ function renderStore() {
     <div class="store-quick-banner card" style="grid-column:1/-1">
       <div class="row wrap" style="justify-content:space-between;gap:10px">
         <div>
-          <b style="font-size:15px">💎 Luxury Rings, Gifts &amp; Lucky Wheel</b>
-          <p style="font-size:12px;color:var(--mu);margin:3px 0 0">Send Couple Rings to unlock Grand Wedding Rooms or spin the Lucky Wheel for rare prizes.</p>
+          <b style="font-size:15px">💎 3D Luxury Gifts, Rings &amp; Lucky Wheel</b>
+          <p style="font-size:12px;color:var(--mu);margin:3px 0 0">Send exclusive 1-to-1 Couple Rings, Bro/Bestie Tags, or 10,000+ animated luxury gifts.</p>
         </div>
         <div class="row wrap" style="gap:8px">
           <button type="button" class="btn gold sm" id="stOpenRings">💍 Rings &amp; Gifts</button>
@@ -125,33 +164,37 @@ function renderStore() {
     </div>
   `;
 
-  const cardsHtml = storeItems
-    .filter(it => storeCat === 'all' || it.kind === storeCat)
-    .map(it => {
-      const tierBadge = it.tier ? `<span class="tier-pill">${esc(it.tier)}</span>` : '';
-      if (it.kind === 'vip' || it.kind === 'bundle') {
-        const activeVip = it.kind === 'vip' && getActiveVipTier(me) === it.value;
+  if (storeCat === 'luxgifts') {
+    listEl.innerHTML = quickBar + renderStoreLuxGiftsShowcase(false);
+  } else {
+    const featuredLux = storeCat === 'all' ? renderStoreLuxGiftsShowcase(true) : '';
+    const cardsHtml = storeItems
+      .filter(it => storeCat === 'all' || it.kind === storeCat)
+      .map(it => {
+        const tierBadge = it.tier ? `<span class="tier-pill">${esc(it.tier)}</span>` : '';
+        if (it.kind === 'vip' || it.kind === 'bundle') {
+          const activeVip = it.kind === 'vip' && getActiveVipTier(me) === it.value;
+          return `<div class="card store-card-lux">
+            <div class="prod-stage">${itemPreview(it)}</div>
+            <div class="row" style="justify-content:space-between;gap:6px"><b>${esc(it.name)}</b>${tierBadge}</div>
+            <p style="color:var(--mu);font-size:12px;margin:4px 0 10px">${esc(it.desc || '')}</p>
+            <button type="button" class="btn ${it.kind === 'vip' ? 'gold' : ''} sm full" data-buyinstant="${esc(it.id)}">${activeVip ? 'Extend' : 'Buy Now'} · ${fmtNum(it.basePrice)} 🪙</button>
+          </div>`;
+        }
+        const exp = Number(me.tempUnlocks[itemKey(it)] || 0), isAct = exp > Date.now();
         return `<div class="card store-card-lux">
           <div class="prod-stage">${itemPreview(it)}</div>
-          <div class="row" style="justify-content:space-between;gap:6px"><b>${esc(it.name)}</b>${tierBadge}</div>
-          <p style="color:var(--mu);font-size:12px;margin:4px 0 10px">${esc(it.desc || '')}</p>
-          <button type="button" class="btn ${it.kind === 'vip' ? 'gold' : ''} sm full" data-buyinstant="${esc(it.id)}">${activeVip ? 'Extend' : 'Buy Now'} · ${fmtNum(it.basePrice)} 🪙</button>
+          <div class="row" style="justify-content:space-between;gap:6px">
+            <b>${esc(it.name)}</b>
+            <div class="row" style="gap:5px">${tierBadge}<span class="dur-pill">${isAct ? Math.max(1, Math.ceil((exp - Date.now()) / 3600000)) + 'h left' : 'Timed'}</span></div>
+          </div>
+          <p style="color:var(--mu);font-size:12px;margin:4px 0 8px">${esc(it.desc || '')}</p>
+          <div class="row wrap">${Object.entries(DURATIONS).map(([dk, dv]) => `<button class="btn sm ${isAct ? 'ghost' : ''}" data-buy="${esc(it.id)}" data-dur="${dk}" style="flex:1">${dv.label} · ${fmtNum(Math.max(5, Math.round((it.basePrice || 40) * dv.mult)))} 🪙</button>`).join('')}</div>
+          ${devMode && String(it.id).startsWith('c_') ? `<button class="btn red sm" style="margin-top:8px" data-delitem="${esc(it.id)}">Delete item</button>` : ''}
         </div>`;
-      }
-      const exp = Number(me.tempUnlocks[itemKey(it)] || 0), isAct = exp > Date.now();
-      return `<div class="card store-card-lux">
-        <div class="prod-stage">${itemPreview(it)}</div>
-        <div class="row" style="justify-content:space-between;gap:6px">
-          <b>${esc(it.name)}</b>
-          <div class="row" style="gap:5px">${tierBadge}<span class="dur-pill">${isAct ? Math.max(1, Math.ceil((exp - Date.now()) / 3600000)) + 'h left' : 'Timed'}</span></div>
-        </div>
-        <p style="color:var(--mu);font-size:12px;margin:4px 0 8px">${esc(it.desc || '')}</p>
-        <div class="row wrap">${Object.entries(DURATIONS).map(([dk, dv]) => `<button class="btn sm ${isAct ? 'ghost' : ''}" data-buy="${esc(it.id)}" data-dur="${dk}" style="flex:1">${dv.label} · ${fmtNum(Math.max(5, Math.round((it.basePrice || 40) * dv.mult)))} 🪙</button>`).join('')}</div>
-        ${devMode && String(it.id).startsWith('c_') ? `<button class="btn red sm" style="margin-top:8px" data-delitem="${esc(it.id)}">Delete item</button>` : ''}
-      </div>`;
-    }).join('');
-
-  listEl.innerHTML = quickBar + (cardsHtml || '<div class="empty">No items in this category</div>');
+      }).join('');
+    listEl.innerHTML = quickBar + featuredLux + (cardsHtml || '<div class="empty">No items in this category</div>');
+  }
 
   if ($('#stOpenRings', listEl)) {
     $('#stOpenRings', listEl).onclick = () => {
@@ -163,6 +206,29 @@ function renderStore() {
       if (typeof openLuckySpinModal === 'function') openLuckySpinModal();
     };
   }
+  if ($('#stViewAllLux', listEl)) {
+    $('#stViewAllLux', listEl).onclick = () => {
+      storeCat = 'luxgifts';
+      renderStore();
+    };
+  }
+  $$('[data-st-prevgift]', listEl).forEach(btn => {
+    btn.onclick = () => {
+      const g = typeof GIFT_BY_ID !== 'undefined' ? GIFT_BY_ID[btn.dataset.stPrevgift] : null;
+      if (g && typeof showLuxuryGiftShowcase === 'function') {
+        showLuxuryGiftShowcase({ fromName: me.name || 'You', toName: 'VIP Showcase', qty: 1, charm: g.charm, luckyCoins: Math.round(g.price * 0.25) }, g);
+      }
+    };
+  });
+  $$('[data-st-sendgift]', listEl).forEach(btn => {
+    btn.onclick = () => {
+      const gid = btn.dataset.stSendgift;
+      const g = typeof GIFT_BY_ID !== 'undefined' ? GIFT_BY_ID[gid] : null;
+      if (typeof openGiftSendModal === 'function') {
+        openGiftSendModal('', { allowPickPlayer: true, preselectFilter: g?.cat === 'ring' ? 'rings' : 'lux10k', preselectGiftId: gid });
+      }
+    };
+  });
 }
 
 $('#storeTabs').onclick = e => { const c = e.target.dataset.cat; if (c) { storeCat = c; renderStore(); } };

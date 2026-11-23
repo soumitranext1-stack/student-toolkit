@@ -205,7 +205,7 @@ function freshDefaultProfile(targetUid, isGuest){
     frame:'none',banner:'bn-aurora',textStyle:'',msgStyle:'',entryEffect:'',title:'',unlockedTitles:[],
     tags:[isGuest?'Guest Pass':'Newbie'],
     accountType:isGuest?'guest':'account',accountId:'',authProvider:isGuest?'anonymous':'google.com',
-    coins:50,exp:0,charm:0,charmSent:0,giftWallet:{},
+    coins:250,exp:0,charm:0,charmSent:0,giftWallet:{},
     vipTier:'',vipUntil:0,
     likesCount:0,likedBy:[],visitors:[],
     bonds:[],pendingProposals:[],
@@ -418,6 +418,16 @@ const saveStats=()=>ls.set('sg_stats_'+uid,stats);
 function bumpStat(k){stats[k]=(stats[k]||0)+1;saveStats();if(typeof renderTasks==='function')renderTasks()}
 
 let users=ls.get('sg_users_cache',[]);
+if(!Array.isArray(users)||!users.length){
+  const td=today();
+  const futureVip=Date.now()+86400000*14;
+  users=[
+    {uid:'bot_aria',name:'Aria Nova',avatar:'av_g1',frame:'crown',banner:'bn-aurora',region:'India',gender:'female',bio:'Voice lounge host & Blitz Dots champ',exp:1420,charm:3680,likesCount:48,vipTier:'gold',vipUntil:futureVip,clanTag:'NOVA',dailyCoinsByDay:{[td]:420},giftWallet:{g01_rose:24,g25_tiara:3},lastSeen:Date.now()},
+    {uid:'bot_leo',name:'Leo Blaze',avatar:'av_b3',frame:'flame',banner:'bn-crimson',region:'USA',gender:'male',bio:'Undercover Spy & 8-Ball Pool shark',exp:1890,charm:5120,likesCount:62,vipTier:'royal',vipUntil:futureVip,clanTag:'APEX',dailyCoinsByDay:{[td]:510},giftWallet:{g01_rose:18,g40_falcon:2},lastSeen:Date.now()},
+    {uid:'bot_zara',name:'Zara Star',avatar:'av_g3',frame:'star',banner:'bn-galaxy',region:'Japan',gender:'female',bio:'Trivia speedrunner & cinema fan',exp:1160,charm:2450,likesCount:39,vipTier:'silver',vipUntil:futureVip,clanTag:'STAR',dailyCoinsByDay:{[td]:340},giftWallet:{g01_rose:12},lastSeen:Date.now()},
+    {uid:'bot_kai',name:'Kai Volt',avatar:'av_b1',frame:'neon',banner:'bn-ocean',region:'UK',gender:'male',bio:'1v1 Stake Arena grinder',exp:920,charm:1790,likesCount:29,vipTier:'',vipUntil:0,clanTag:'VOLT',dailyCoinsByDay:{[td]:260},giftWallet:{g01_rose:8},lastSeen:Date.now()}
+  ];
+}
 let devInbox=ls.get('sg_dev_inbox',{});
 let worldMsgs=ls.get('sg_world_msgs',[]);
 let poems=ls.get('sg_poems_cache',[]);
@@ -1300,7 +1310,7 @@ function openPublicProfile(targetUid){
   });
   $$('[data-unlock-bond]',m).forEach(el=>{
     el.onclick=()=>{
-      if(typeof openGiftSendModal==='function')openGiftSendModal(u.uid,{targetName:u.name,preselectGiftId:'r01_promise'});
+      if(typeof openGiftSendModal==='function')openGiftSendModal(u.uid,{targetName:u.name,preselectGiftId:'g_ring_silver'});
     };
   });
   if(typeof bindGiftWallEvents==='function')bindGiftWallEvents(m,u,self);
