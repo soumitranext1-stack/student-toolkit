@@ -3,38 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#131b2e">
+<meta name="theme-color" content="#0b1122">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Study Game">
 <title>Study Game</title>
-<meta name="description" content="Student tools, study mini-games, daily leaderboard, glowing cosmetics store, world chat, and player gifts.">
+<meta name="description" content="Luxury gaming social arena, VR party rooms, YouTube watch-together, multiplayer games, gift vault, daily leaderboard, and student tools.">
 <meta property="og:title" content="Study Game">
-<meta property="og:description" content="Student tools, study mini-games, daily leaderboard, glowing cosmetics store, world chat, and player gifts.">
+<meta property="og:description" content="Luxury gaming social arena, VR party rooms, YouTube watch-together, multiplayer games, gift vault, daily leaderboard, and student tools.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=7">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=10">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=7">
-<link rel="stylesheet" href="fx-pack.css?v=7">
+<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="fx-pack.css?v=10">
 </head>
 <body>
 <div id="app">
   <header>
     <div class="brand">
+      <button type="button" class="icon-btn drawer-trigger-btn" id="toolsDrawerBtn" title="Open Student Tools Menu" aria-label="Open Student Tools Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 12h12M4 17h16"/>
+        </svg>
+      </button>
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 64 64" width="26" height="26" fill="none">
           <defs>
             <linearGradient id="hdrSgBg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stop-color="#4f6ef7"/>
-              <stop offset="55%" stop-color="#6c7eff"/>
-              <stop offset="100%" stop-color="#0ea5e9"/>
+              <stop offset="55%" stop-color="#8b5cf6"/>
+              <stop offset="100%" stop-color="#06b6d4"/>
             </linearGradient>
             <linearGradient id="hdrSgGold" x1="20" y1="12" x2="44" y2="34" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stop-color="#fef08a"/>
@@ -42,7 +47,7 @@
             </linearGradient>
           </defs>
           <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#hdrSgBg)"/>
-          <rect x="5" y="5" width="54" height="54" rx="15" stroke="#ffffff" stroke-opacity="0.22" stroke-width="2"/>
+          <rect x="5" y="5" width="54" height="54" rx="15" stroke="#ffffff" stroke-opacity="0.24" stroke-width="2"/>
           <path d="M16 40V25c0-1.5 1.4-2.6 2.9-2.1 4.7 1.5 9.2 3.4 13.1 6.1 3.9-2.7 8.4-4.6 13.1-6.1 1.5-.5 2.9.6 2.9 2.1v15c0 1.4-1.3 2.4-2.6 2-4.6-1.3-9.1-1-13.4 1.5-4.3-2.5-8.8-2.8-13.4-1.5-1.3.4-2.6-.6-2.6-2z" fill="#ffffff"/>
           <path d="M32 29v14.5" stroke="#4f6ef7" stroke-width="2.4" stroke-linecap="round"/>
           <path d="M32 10.5l2.5 5.4 5.9.7-4.4 4 1.2 5.8-5.2-2.9-5.2 2.9 1.2-5.8-4.4-4 5.9-.7 2.5-5.4z" fill="url(#hdrSgGold)"/>
@@ -51,7 +56,7 @@
       <b>Study Game</b>
       <span id="st" class="st"><i></i><em>Local mode</em></span>
     </div>
-    <div class="row" style="gap:6px">
+    <div class="row" style="gap:5px">
       <span id="devBadge" class="tg p-tag-dev-sig" hidden>DEV</span>
       <button class="icon-btn pwa-install-btn" id="pwaInstallBtn" title="Install Study Game App" aria-label="Install Study Game App" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
@@ -74,37 +79,38 @@
   </header>
 
   <main>
+    <!-- Gamer-First Home Arena & Party Hub -->
     <section id="v-tools" class="view on">
       <div id="noticeBox" class="notice" hidden></div>
       <div class="row dev-only" style="justify-content:flex-end;margin-bottom:8px" hidden>
         <button class="btn sm" id="noticeBtn">Set Notice</button>
       </div>
-      <div class="poster-track" id="posterTrack"></div>
-      <h2 id="hHome" data-i="tools">Student Tools</h2>
-      <div class="grid" id="toolGrid"></div>
-
-      <div class="row" style="justify-content:space-between;margin:18px 0 10px">
-        <h2 style="margin:0" data-i="poems">Poems &amp; Writing Wall</h2>
-        <button class="btn sm" id="openPoemReqBtn" data-i="req">Request Poem</button>
+      <div id="homeHubRoot"></div>
+      <div class="wp-sec-bar" style="margin-top:14px">
+        <b>Games</b>
+        <button type="button" class="wp-pill-btn" onclick="showTab('games')">Game Room ›</button>
       </div>
-      <div class="list" id="poemList"></div>
+      <div id="homeArenaPosters"></div>
+      <div id="homePartyRooms" style="margin-top:16px"></div>
     </section>
 
     <section id="v-games" class="view">
       <div class="row" style="justify-content:space-between;margin-bottom:10px;flex-wrap:wrap">
-        <h2 style="margin:0" data-i="gamesH">Games Hub</h2>
+        <h2 style="margin:0" data-i="gamesH">Games Arena</h2>
         <div class="row" style="gap:6px">
           <button class="btn sm" id="mpCreateBtn" type="button">+ Live Room</button>
           <button class="btn gold sm" id="gamesGiftBtn" type="button">Send Gift</button>
         </div>
       </div>
+      <div id="arenaGamesGrid" style="margin-bottom:14px"></div>
       <div id="mpRoomsHost"></div>
+      <h3 style="margin:14px 0 8px;font-size:14px;color:var(--mu)">Study Mini-Games</h3>
       <div class="grid" id="gameSlotsGrid"></div>
     </section>
 
     <section id="v-ranking" class="view">
       <div class="row" style="justify-content:space-between;margin-bottom:10px;flex-wrap:wrap">
-        <h2 style="margin:0" data-i="lb">Daily Leaderboard</h2>
+        <h2 style="margin:0" data-i="lb">Leaderboard &amp; Clans</h2>
         <div class="row dev-only" hidden>
           <button class="btn ghost sm" id="resetRewardsBtn">Reset Defaults</button>
           <button class="btn sm" id="addRewardBtn">+ Reward</button>
@@ -116,7 +122,7 @@
 
     <section id="v-tasks" class="view">
       <div class="row" style="justify-content:space-between;margin-bottom:10px">
-        <h2 style="margin:0" data-i="d5">Daily 5 Tasks</h2>
+        <h2 style="margin:0" data-i="d5">Missions &amp; 7-Day Streak</h2>
         <button class="btn sm dev-only" id="addTaskBtn" hidden>+ Task</button>
       </div>
       <div class="list" id="taskList"></div>
@@ -124,7 +130,7 @@
 
     <section id="v-store" class="view">
       <div class="row" style="justify-content:space-between;margin-bottom:10px">
-        <h2 style="margin:0" data-i="storeH">Store</h2>
+        <h2 style="margin:0" data-i="storeH">Luxury Store</h2>
         <button class="btn sm dev-only" id="addStoreBtn" hidden>+ Item</button>
       </div>
       <div class="row wrap" id="storeTabs" style="margin-bottom:10px;gap:6px"></div>
@@ -145,10 +151,32 @@
     <section id="v-profile" class="view"></section>
   </main>
 
+  <!-- Slide-Out Student Tools Side Drawer -->
+  <div id="toolsDrawerBackdrop" class="tools-drawer-backdrop" hidden></div>
+  <aside id="toolsDrawer" class="tools-drawer" aria-hidden="true" aria-label="Student Tools Menu">
+    <div class="tools-drawer-head">
+      <div>
+        <b style="font-size:16px">Student Tools</b>
+        <small style="display:block;color:var(--mu);font-size:11px">Utilities &amp; Writing Wall</small>
+      </div>
+      <button type="button" class="x" id="toolsDrawerClose" aria-label="Close Student Tools Menu">✕</button>
+    </div>
+    <div class="tools-drawer-body">
+      <div class="poster-track" id="posterTrack"></div>
+      <h3 style="margin:12px 0 8px;font-size:13px;color:var(--mu);text-transform:uppercase;letter-spacing:.6px" data-i="tools">Student Utilities</h3>
+      <div class="grid drawer-tool-grid" id="toolGrid"></div>
+      <div class="row" style="justify-content:space-between;margin:18px 0 10px">
+        <h3 style="margin:0;font-size:14px" data-i="poems">Poems &amp; Writing Wall</h3>
+        <button class="btn sm" id="openPoemReqBtn" data-i="req">Request Poem</button>
+      </div>
+      <div class="list" id="poemList"></div>
+    </div>
+  </aside>
+
   <nav id="nav" aria-label="Primary navigation">
     <button data-tab="tools" class="on">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9.5 20v-6h5v6"/></svg></span>
-      <em>Home</em>
+      <em>Arena</em>
     </button>
     <button data-tab="games">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="4"/><path d="M7 12h4M9 10v4M15.5 11h.01M17.5 13h.01"/></svg></span>
@@ -187,20 +215,23 @@
       <button class="btn gold sm" id="giftBtn" title="Send Gift" aria-label="Send Gift">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>
       </button>
-      <button class="btn crimson sm dev-only" id="rpBtn" title="Send Developer Red Packet" aria-label="Send Developer Red Packet" hidden>
+      <button class="btn crimson sm" id="rpBtn" title="Drop Coin Lifafa (Red Envelope)" aria-label="Drop Coin Lifafa">
         <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="2.5" width="16" height="19" rx="3" fill="#dc2626" stroke="#ffd36b" stroke-width="1.8"/><path d="M4 8.5c3 3 13 3 16 0" stroke="#ffd36b" stroke-width="1.6"/><circle cx="12" cy="11.5" r="2.6" fill="#ffd36b"/></svg>
       </button>
+      <button class="btn ghost sm" id="flashDropBtn" title="Launch 10-Second Chat Flash Drop" aria-label="Launch 10-Second Chat Flash Drop" hidden>⚡</button>
       <input id="msgIn" placeholder="Type a message" maxlength="500" autocomplete="off">
       <button class="btn" id="sendBtn">Send</button>
     </div>
   </div>
   <div id="modals"></div>
   <div id="banBox" class="ban-screen" hidden>
-    <div class="card" style="max-width:380px;text-align:center">
+    <div class="card ban-card">
+      <div class="ban-ico" aria-hidden="true">🚫</div>
       <h2 style="margin-bottom:6px;color:var(--bad)">Account Suspended</h2>
-      <p style="color:var(--mu);font-size:14px">Your access has been restricted by Developer.</p>
+      <p id="banReason" style="color:var(--tx);font-size:13.5px;font-weight:600;line-height:1.45">Your access has been restricted by Developer.</p>
+      <div id="banCountdown" class="ban-timer-box">Permanent Suspension</div>
       <p style="margin-top:10px;font-size:12px;color:var(--mu)">UID: <b id="banUid"></b></p>
-      <button class="btn ghost full" id="banLogin">Login / Switch account</button>
+      <button class="btn ghost full" id="banLogin" style="margin-top:10px">Switch Account</button>
     </div>
   </div>
   <div id="offlineBar" class="offline-bar" role="status" aria-live="polite" hidden>
@@ -208,20 +239,23 @@
     <span>Offline Mode — Using cached app shell</span>
   </div>
 </div>
-<script src="sfx.js?v=7"></script>
-<script src="fx-avatars.js?v=7"></script>
-<script src="fx-frames.js?v=7"></script>
-<script src="core.js?v=7"></script>
-<script src="gifts.js?v=7"></script>
-<script src="firebase.js?v=7"></script>
-<script src="home.js?v=7"></script>
-<script src="games.js?v=7"></script>
-<script src="ranking.js?v=7"></script>
-<script src="tasks.js?v=7"></script>
-<script src="store.js?v=7"></script>
-<script src="chat.js?v=7"></script>
-<script src="profile.js?v=7"></script>
-<script src="pwa.js?v=7"></script>
-<script src="boot.js?v=7"></script>
+<script src="sfx.js?v=10"></script>
+<script src="fx-avatars.js?v=10"></script>
+<script src="fx-frames.js?v=10"></script>
+<script src="core.js?v=10"></script>
+<script src="social.js?v=10"></script>
+<script src="party.js?v=10"></script>
+<script src="arena.js?v=10"></script>
+<script src="gifts.js?v=10"></script>
+<script src="firebase.js?v=10"></script>
+<script src="home.js?v=10"></script>
+<script src="games.js?v=10"></script>
+<script src="ranking.js?v=10"></script>
+<script src="tasks.js?v=10"></script>
+<script src="store.js?v=10"></script>
+<script src="chat.js?v=10"></script>
+<script src="profile.js?v=10"></script>
+<script src="pwa.js?v=10"></script>
+<script src="boot.js?v=10"></script>
 </body>
 </html>

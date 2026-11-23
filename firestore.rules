@@ -1,0 +1,311 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isDev() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.email != null
+        && request.auth.token.email == 'soumitranext1@gmail.com';
+    }
+
+    function notGuest() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
+
+    function isSafeNumber(val, minVal, maxVal) {
+      return val is number && val >= minVal && val <= maxVal;
+    }
+
+    function validSelfCoinsOnCreate(data) {
+      return !('coins' in data) || isSafeNumber(data.coins, 0, 200);
+    }
+
+    function validSelfCoinsOnUpdate(newData, oldData) {
+      return !('coins' in newData)
+        || (isSafeNumber(newData.coins, 0, 999999999)
+            && (!('coins' in oldData)
+                ? newData.coins <= 200
+                : newData.coins <= oldData.coins + 2500000));
+    }
+
+    function validSelfExpOnCreate(data) {
+      return !('exp' in data) || isSafeNumber(data.exp, 0, 500);
+    }
+
+    function validSelfExpOnUpdate(newData, oldData) {
+      return !('exp' in newData)
+        || (isSafeNumber(newData.exp, 0, 99999900)
+            && (!('exp' in oldData)
+                ? newData.exp <= 500
+                : newData.exp <= oldData.exp + 1000));
+    }
+
+    function selfDidNotTouchProtectedFields(newData, oldData) {
+      return (!('banned' in newData) || newData.banned == oldData.get('banned', false))
+        && (!('banReason' in newData) || newData.banReason == oldData.get('banReason', ''))
+        && (!('banUntil' in newData) || newData.banUntil == oldData.get('banUntil', 0))
+        && (!('mutedUntil' in newData) || newData.mutedUntil == oldData.get('mutedUntil', 0))
+        && (!('resetAt' in newData) || newData.resetAt == oldData.get('resetAt', 0))
+        && (!('devStatsUpdatedAt' in newData) || newData.devStatsUpdatedAt == oldData.get('devStatsUpdatedAt', 0))
+        && (!('giftResetAt' in newData) || newData.giftResetAt == oldData.get('giftResetAt', 0))
+        && (!('devGrants' in newData) || newData.devGrants == oldData.get('devGrants', {}))
+        && (!('accountId' in newData)
+            || newData.accountId == ''
+            || (request.auth.token.email != null && newData.accountId == request.auth.token.email));
+    }
+
+    // Users collection: strict bounds for normal players, full moderation control for Developer,
+    // plus social interactions (likes/visitors/proposals) and 7-day cleanup of inactive guests
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if isDev()
+                    || (me(uid)
+                        && (!('banned' in request.resource.data) || request.resource.data.banned == false)
+                        && (!('banUntil' in request.resource.data) || request.resource.data.banUntil == 0)
+                        && (!('mutedUntil' in request.resource.data) || request.resource.data.mutedUntil == 0)
+                        && validSelfCoinsOnCreate(request.resource.data)
+                        && validSelfExpOnCreate(request.resource.data));
+      allow update: if isDev()
+                    || (me(uid)
+                        && selfDidNotTouchProtectedFields(request.resource.data, resource.data)
+                        && validSelfCoinsOnUpdate(request.resource.data, resource.data)
+                        && validSelfExpOnUpdate(request.resource.data, resource.data))
+                    || (signedIn()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'likedBy', 'visitors', 'pendingProposals', 'bonds']));
+      allow delete: if isDev()
+                    || (signedIn()
+                        && resource.data.get('accountType', '') == 'guest'
+                        && resource.data.get('lastSeen', 0) is number
+                        && (request.time.toMillis() - resource.data.get('lastSeen', 0)) >= 604800000);
+    }
+
+    // Player-to-Player Gift Ledger (strict 5:1 Charm & proportional 1x–100x Lucky Drop)
+    match /gift_events/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.fromUid == request.auth.uid
+                    && request.resource.data.toUid != request.auth.uid
+                    && request.resource.data.giftId is string
+                    && isSafeNumber(request.resource.data.qty, 1, 100)
+                    && isSafeNumber(request.resource.data.totalCost, 1, 20000000)
+                    && isSafeNumber(request.resource.data.charm, 1, 999999999)
+                    && isSafeNumber(request.resource.data.luckyCoins, 1, request.resource.data.totalCost * 2);
+      allow update: if isDev()
+                    || (signedIn()
+                        && resource.data.toUid == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedByRecipient'])
+                        && request.resource.data.claimedByRecipient == true);
+      allow delete: if isDev();
+    }
+
+    // Party Rooms (VR 3D Hangout Lounge, YouTube Watch-Together, Wedding Rooms)
+    match /party_rooms/{roomId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.hostUid == request.auth.uid
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() > 0
+                    && request.resource.data.title.size() <= 60;
+      allow update: if isDev()
+                    || (signedIn()
+                        && request.resource.data.hostUid == resource.data.hostUid);
+      allow delete: if isDev()
+                    || (signedIn() && resource.data.hostUid == request.auth.uid)
+                    || (signedIn()
+                        && resource.data.updatedAt is number
+                        && (request.time.toMillis() - resource.data.updatedAt) >= 86400000);
+    }
+
+    // Clans & Weekly Clan Wars
+    match /clans/{clanId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.leaderUid == request.auth.uid
+                    && request.resource.data.name is string
+                    && request.resource.data.tag is string;
+      allow update: if isDev()
+                    || (signedIn()
+                        && request.resource.data.leaderUid == resource.data.leaderUid);
+      allow delete: if isDev()
+                    || (signedIn() && resource.data.leaderUid == request.auth.uid);
+    }
+
+    // User Reports with Compressed Screenshot Proof (Players submit; Developer reviews & resolves)
+    match /reports/{reportId} {
+      allow create: if signedIn()
+                    && request.resource.data.reporterUid == request.auth.uid
+                    && request.resource.data.targetUid is string
+                    && request.resource.data.reason is string;
+      allow read, update, delete: if isDev();
+    }
+
+    // Developer-only global configuration (Pinned Notice, Custom Game Slots, etc.)
+    match /config/{id} {
+      allow read: if signedIn();
+      allow write: if isDev();
+    }
+
+    // Leaderboard Rank Rewards: strictly Developer write
+    match /rank_rewards/{id} {
+      allow read: if signedIn();
+      allow write: if isDev();
+    }
+
+    // Custom Daily Tasks: strictly Developer write
+    match /dev_tasks/{id} {
+      allow read: if signedIn();
+      allow write: if isDev();
+    }
+
+    // Custom Store Items: strictly Developer write
+    match /store_items/{id} {
+      allow read: if signedIn();
+      allow write: if isDev();
+    }
+
+    // Poems Wall (approved public poems): strictly Developer write
+    match /poems_wall/{id} {
+      allow read: if signedIn();
+      allow write: if isDev();
+    }
+
+    // Poem Requests: users can submit their own; Developer approves/deletes
+    match /poem_requests/{id} {
+      allow read: if isDev() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isDev();
+    }
+
+    // World Chat: text, gifts, Coin Lifafa (Red Envelopes), and 10s Chat Flash Drops
+    match /world_chat/{id} {
+      allow read: if signedIn();
+      allow create: if isDev()
+                    || (signedIn()
+                        && request.resource.data.uid == request.auth.uid
+                        && (
+                          (request.resource.data.get('type', 'text') == 'text'
+                            && request.resource.data.text is string
+                            && request.resource.data.text.size() > 0
+                            && request.resource.data.text.size() <= 500)
+                          || (request.resource.data.get('type', 'text') == 'gift'
+                            && request.resource.data.giftId is string
+                            && isSafeNumber(request.resource.data.qty, 1, 100))
+                          || (request.resource.data.get('type', 'text') == 'red_packet'
+                            && isSafeNumber(request.resource.data.amount, 10, 5000)
+                            && isSafeNumber(request.resource.data.maxClaims, 1, 20))
+                          || (request.resource.data.get('type', 'text') == 'flash_drop'
+                            && isSafeNumber(request.resource.data.rewardCoins, 10, 200))
+                        ));
+      allow update: if isDev()
+                    || (signedIn()
+                        && (resource.data.get('type', 'text') == 'red_packet' || resource.data.get('type', 'text') == 'flash_drop')
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedBy', 'claimedCount']));
+      allow delete: if isDev()
+                    || (signedIn() && resource.data.uid == request.auth.uid)
+                    || (signedIn()
+                        && resource.data.ts is number
+                        && (request.time.toMillis() - resource.data.ts) >= 604800000);
+    }
+
+    // Player-to-Player Direct Messages (duels, gifts, Party Room invites & Coin Lifafa)
+    match /dm_messages/{id} {
+      allow read: if isDev()
+                  || (signedIn()
+                      && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid));
+      allow create: if isDev()
+                    || (signedIn()
+                        && request.resource.data.from == request.auth.uid);
+      allow update: if isDev()
+                    || (signedIn()
+                        && resource.data.get('type', 'text') == 'red_packet'
+                        && resource.data.to == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedBy', 'claimedCount']));
+      allow delete: if isDev()
+                    || (signedIn()
+                        && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid));
+    }
+
+    // Red Packets / Coin Lifafa registry + per-user claim subcollection
+    match /red_packets/{packetId} {
+      allow read: if signedIn();
+      allow create: if isDev()
+                    || (signedIn()
+                        && request.resource.data.fromUid == request.auth.uid
+                        && isSafeNumber(request.resource.data.amount, 10, 5000)
+                        && isSafeNumber(request.resource.data.maxClaims, 1, 20));
+      allow delete: if isDev();
+      allow update: if isDev()
+                    || (signedIn()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedBy', 'claimedCount'])
+                        && request.resource.data.claimedCount <= resource.data.maxClaims);
+
+      match /claims/{claimUid} {
+        allow read: if isDev() || me(claimUid);
+        allow create: if signedIn() && me(claimUid);
+        allow update, delete: if isDev();
+      }
+    }
+
+    // Developer Direct Support Inbox
+    match /dev_inbox/{uid} {
+      allow read, write: if isDev() || me(uid);
+    }
+
+    // Referrals
+    match /referrals/{uid} {
+      allow read: if signedIn();
+      allow create: if notGuest() && me(uid);
+      allow update: if isDev()
+                    || (notGuest()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paid'])
+                        && request.resource.data.paid == true);
+      allow delete: if isDev();
+    }
+
+    // Challenges
+    match /challenges/{id} {
+      allow read: if signedIn();
+      allow create, update: if notGuest();
+      allow delete: if isDev();
+    }
+
+    // Helpline messages
+    match /helpline_messages/{id} {
+      allow create: if signedIn();
+      allow read, update, delete: if isDev();
+    }
+
+    // Live Multiplayer Game Rooms (chat, scores, gifts & auto-clean stale rooms after 2h)
+    match /game_rooms/{roomId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.hostUid == request.auth.uid
+                    && request.resource.data.mode is string
+                    && request.resource.data.code is string
+                    && isSafeNumber(request.resource.data.entryCoins, 0, 500);
+      allow update: if isDev()
+                    || (signedIn()
+                        && isSafeNumber(request.resource.data.entryCoins, 0, 500)
+                        && request.resource.data.hostUid == resource.data.hostUid);
+      allow delete: if isDev()
+                    || (signedIn() && resource.data.hostUid == request.auth.uid)
+                    || (signedIn()
+                        && resource.data.updatedAt is number
+                        && (request.time.toMillis() - resource.data.updatedAt) >= 7200000);
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
