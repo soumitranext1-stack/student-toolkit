@@ -584,6 +584,10 @@ function refreshActiveRoomModal(){
 }
 
 function renderGameSlots(){
+  if(typeof renderArenaPostersGrid==='function'){
+    const ag=$('#arenaGamesGrid');
+    if(ag)renderArenaPostersGrid(ag);
+  }
   const baseCards=HUB_GAMES.map((g,i)=>`<button type="button" class="card tool" data-hubgame="${i}"><div class="art">${GAME_SVG[g[1]]||GAME_SVG.custom}</div><b>${esc(g[0])}</b><small>${esc(g[2])}</small>${g[3]?'':'<span class="dur-pill" style="align-self:flex-start">Coming soon</span>'}</button>`).join('');
 
   const extraCards=(Array.isArray(customGameSlots)?customGameSlots:[]).map((sg,idx)=>`<div class="card tool" data-customgame="${idx}" style="position:relative"><div class="art">${GAME_SVG.custom}</div><b>${esc(sg.name||'Custom Game')}</b><small>${esc(sg.desc||'Play study mini-game')}</small>${devMode?`<button type="button" class="btn red sm" data-delgameslot="${idx}" style="margin-top:auto">Remove</button>`:''}</div>`).join('');

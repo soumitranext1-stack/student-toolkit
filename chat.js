@@ -1,6 +1,6 @@
 "use strict";
 const linkify=h=>h.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;word-break:break-all">$1</a>');
-let chats=ls.get('sg_chats_'+uid,{}),cur=null,dmHydrated=false;
+let chats=ls.get('sg_chats_'+uid,{}),cur=null,dmHydrated=false,vipChatAnnounced=false;
 const saveChats=()=>ls.set('sg_chats_'+uid,chats);
 const sendTimestamps=[];
 
@@ -83,30 +83,36 @@ function ingestRemoteDmDocs(dmDocs){
     const m={
       id:docItem.id,
       from:isMe?'me':'them',
-      type:type==='duel'?'duel':(type==='red_packet'?'red_packet':(type==='gift'?'gift':'text')),
+      type:['duel','red_packet','gift','party_invite'].includes(type)?type:'text',
       text:docItem.text||'',
       msgStyle:docItem.msgStyle||'',
       ts
     };
     if(m.type==='duel'){m.gi=Number(docItem.gi)||0;m.accepted=false}
+    if(m.type==='party_invite'){
+      m.roomId=docItem.roomId||'';
+      m.roomTitle=docItem.roomTitle||'Party Lounge';
+    }
     if(m.type==='gift'){
       m.fromUid=docItem.from||'';
       m.toUid=docItem.to||'';
       m.giftId=docItem.giftId||'g01_rose';
-      m.qty=clampSafeInt(docItem.qty||1,1,99);
+      m.qty=clampSafeInt(docItem.qty||1,1,100);
       m.fromName=docItem.fromName||'Player';
       m.toName=docItem.toName||'Player';
       m.charm=clampSafeInt(docItem.charm||0,0,MAX_COINS);
-      m.luckyCoins=clampSafeInt(docItem.luckyCoins||0,0,250000);
+      m.luckyCoins=clampSafeInt(docItem.luckyCoins||0,0,MAX_COINS);
       m.luckLabel=docItem.luckLabel||'Lucky Drop';
     }
     if(m.type==='red_packet'){
-      m.amount=clampSafeInt(docItem.amount,1,10000);
+      m.amount=clampSafeInt(docItem.amount,1,20000);
       m.maxClaims=clampSafeInt(docItem.maxClaims||1,1,50);
       m.claimedBy=Array.isArray(docItem.claimedBy)?docItem.claimedBy:[];
       m.claimedCount=Number(docItem.claimedCount||m.claimedBy.length);
-      m.note=docItem.note||'Lucky Red Packet!';
+      m.note=docItem.note||'Lucky Coin Lifafa!';
       m.fromUid=docItem.from;
+      m.fromName=docItem.fromName||'Player';
+      m.isDevDrop=Boolean(docItem.isDevDrop);
       m.targetUid=docItem.to;
     }
     th.messages.push(m);
@@ -135,21 +141,24 @@ function resolveWorldSender(m){
   if(live){
     return {
       uid:live.uid,name:live.name||m.name||m.fromName||'Player',
-      avatar:live.avatar||m.avatar||'🦊',frame:live.frame||m.frame||'none',
+      avatar:live.avatar||m.avatar||'av_b1',frame:live.frame||m.frame||'none',
       banner:live.banner||m.banner||'bn-aurora',textStyle:live.textStyle||m.textStyle||'',
       msgStyle:m.msgStyle||live.msgStyle||'',
       tags:Array.isArray(live.tags)&&live.tags.length?live.tags:(m.tags||['Newbie']),
       exp:live.exp??m.exp??0,tempUnlocks:live.tempUnlocks||{},
+      vipTier:live.vipTier||m.vipTier||'',vipUntil:live.vipUntil||m.vipUntil||0,
+      clanTag:live.clanTag||m.clanTag||'',title:live.title||m.title||'',
       isDev:isDevAccount(live)||Boolean(m.isDev)
     };
   }
   return {
     uid:m.uid||m.fromUid||'',name:m.name||m.fromName||'Player',
-    avatar:m.avatar||'🦊',frame:m.frame||'none',
+    avatar:m.avatar||'av_b1',frame:m.frame||'none',
     banner:m.banner||'bn-aurora',textStyle:m.textStyle||'',
     msgStyle:m.msgStyle||'',
     tags:Array.isArray(m.tags)&&m.tags.length?m.tags:(m.isDev?['Developer','LVL 99']:['Newbie']),
-    exp:m.exp||0,tempUnlocks:{},isDev:Boolean(m.isDev)
+    exp:m.exp||0,tempUnlocks:{},vipTier:m.vipTier||'',vipUntil:m.vipUntil||0,
+    clanTag:m.clanTag||'',title:m.title||'',isDev:Boolean(m.isDev)
   };
 }
 
@@ -161,19 +170,20 @@ function renderRedPacketCard(m, scope){
   const exhausted=claimedCount>=maxClaims;
   const wrongTarget=Boolean(m.targetUid && m.targetUid!==uid && scope==='dm');
   const isSender=m.fromUid===uid || m.uid===uid || (m.from==='me' && scope!=='world');
+  const titleLabel=m.isDevDrop?'Developer Coin Lifafa':`${esc(m.fromName||m.name||'Player')}'s Coin Lifafa`;
 
   let btnText=`Claim +${fmtNum(m.amount)} 🪙`, disabled=false;
   if(alreadyMine){btnText='Claimed ✓';disabled=true}
   else if(exhausted){btnText='All Claimed';disabled=true}
   else if(wrongTarget){btnText='Recipient Only';disabled=true}
-  else if(isSender && scope==='dm'){btnText='Sent Gift';disabled=true}
+  else if(isSender && scope==='dm'){btnText='Sent Lifafa';disabled=true}
 
   return `<div class="rp-card ${alreadyMine||exhausted?'rp-done':''}">
     <div class="rp-top">
       <div class="rp-seal">🧧</div>
       <div class="rp-info">
-        <b>Developer Red Packet · +${fmtNum(m.amount)} 🪙</b>
-        <p>${esc(m.note||'Tap to claim your lucky coins!')}</p>
+        <b>${titleLabel} · +${fmtNum(m.amount)} 🪙</b>
+        <p>${esc(m.note||'Tap fast to claim your lucky coins!')}</p>
       </div>
     </div>
     <div class="rp-foot">
@@ -183,11 +193,73 @@ function renderRedPacketCard(m, scope){
   </div>`;
 }
 
+function renderFlashDropCard(m){
+  const now=Date.now();
+  const expiresAt=Number(m.expiresAt||(Number(m.ts||now)+10000));
+  const remSec=Math.max(0,Math.ceil((expiresAt-now)/1000));
+  const claimedBy=Array.isArray(m.claimedBy)?m.claimedBy:[];
+  const alreadyMine=claimedBy.includes(uid)||Boolean(me.done['fd_'+m.id]);
+  const exhausted=claimedBy.length>=Number(m.maxClaims||3);
+  const expired=remSec<=0;
+
+  let btnHtml='';
+  if(alreadyMine)btnHtml=`<button type="button" class="rp-claim-btn" disabled>Claimed ✓</button>`;
+  else if(exhausted)btnHtml=`<button type="button" class="rp-claim-btn" disabled>Snatched!</button>`;
+  else if(expired)btnHtml=`<button type="button" class="rp-claim-btn" disabled>Expired (10s)</button>`;
+  else if(m.flashMode==='tap'){
+    btnHtml=`<button type="button" class="btn gold sm" data-claimflash="${esc(m.id)}">⚡ Grab +${fmtNum(m.rewardCoins||80)} 🪙</button>`;
+  }else{
+    btnHtml=`<button type="button" class="btn gold sm" data-answerflash="${esc(m.id)}">⚡ Answer Now</button>`;
+  }
+
+  return `<div class="flash-drop-card ${expired||exhausted?'fd-ended':''}">
+    <div class="row" style="justify-content:space-between;gap:8px">
+      <b style="color:var(--gold)">⚡ 10-Second Chat Flash Drop</b>
+      <span class="dur-pill" data-fd-timer="${esc(m.id)}">${expired?'0s':remSec+'s'}</span>
+    </div>
+    <p style="font-size:13px;margin:6px 0;font-weight:700">${esc(m.prompt||'Tap fastest to claim bonus coins!')}</p>
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <small style="color:var(--mu)">+${fmtNum(m.rewardCoins||80)} 🪙 · ${claimedBy.length}/${Number(m.maxClaims||3)} winners</small>
+      ${btnHtml}
+    </div>
+  </div>`;
+}
+
+let chatFilterTab='all';
+
+function fmtChatShortTime(ts){
+  if(!ts)return '';
+  const d=new Date(ts);
+  const now=new Date();
+  if(d.toDateString()===now.toDateString())return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  return d.toLocaleDateString([],{month:'short',day:'numeric'});
+}
+
 function renderChats(){
   updateUnreadDots();
-  const realDev=allUsers().find(u=>isDevAccount(u))||{uid:DEV_UID,avatar:'🦊',frame:'none'};
-  const worldHtml=`<div class="world-card" data-th="world"><div class="av-wrap" style="--s:46px"><div class="av">${UI_SVG.globe}</div></div><div class="mid"><b>World Chat</b><small>${worldMsgs.length} msgs · 7-day history · Show off your profile</small></div></div>`;
-  const devHtml=`<div class="dev" data-th="developer"><button type="button" class="th-av-btn" data-chatprof="${esc(realDev.uid)}" title="View Developer Profile" aria-label="View Developer Profile">${av(realDev,46)}</button><div class="mid"><b>Developer</b><div class="tags"><span class="p-tag p-tag-dev-sig">Developer</span><span class="p-tag p-tag-lvl99-sig">LVL 99</span></div></div></div>`;
+  const realDev=allUsers().find(u=>isDevAccount(u))||{uid:DEV_UID,avatar:'av_b1',frame:'none'};
+  const lastWorld=worldMsgs.length?worldMsgs[worldMsgs.length-1]:null;
+  const worldPrev=lastWorld?(lastWorld.type==='gift'?'🎁 Gift Drop':(lastWorld.type==='red_packet'?'🧧 Coin Lifafa':(lastWorld.type==='flash_drop'?'⚡ Flash Drop':(lastWorld.text||'World Chat')))):'Live World Chat';
+  const worldTime=lastWorld?fmtChatShortTime(lastWorld.ts):'';
+
+  const worldHtml=`<div class="wp-chat-row world" data-th="world">
+    <div class="wp-cr-av"><div class="av-wrap" style="--s:46px"><div class="av">${UI_SVG.globe}</div></div><span class="wp-unread-badge blue">${Math.min(99,worldMsgs.length)}</span></div>
+    <div class="wp-cr-mid">
+      <div class="wp-cr-top"><b>World Chat</b><span class="wp-tag-pill cyan">Room</span></div>
+      <small>${esc(worldPrev)}</small>
+    </div>
+    <span class="wp-cr-time">${esc(worldTime)}</span>
+  </div>`;
+
+  const devLast=chats.developer&&chats.developer.messages&&chats.developer.messages.length?chats.developer.messages[chats.developer.messages.length-1]:null;
+  const devHtml=`<div class="wp-chat-row" data-th="developer">
+    <button type="button" class="th-av-btn wp-cr-av" data-chatprof="${esc(realDev.uid)}" title="Developer Profile" aria-label="Developer Profile">${av(realDev,46)}</button>
+    <div class="wp-cr-mid">
+      <div class="wp-cr-top"><b>Developer</b><span class="wp-tag-pill pink">Official</span><span class="wp-tag-pill amber">DEV</span></div>
+      <small>${esc(devLast?.text||'Official Support')}</small>
+    </div>
+    <span class="wp-cr-time">${esc(fmtChatShortTime(devLast?.ts))}</span>
+  </div>`;
 
   const dmThreads=Object.values(chats).filter(t=>t&&!t.dev&&(t.uid||t.id)&&t.id!==uid).sort((a,b)=>{
     const at=(a.messages&&a.messages.length)?a.messages[a.messages.length-1].ts:0;
@@ -197,23 +269,51 @@ function renderChats(){
 
   const dmHtml=dmThreads.map(t=>{
     const peerUid=t.uid||t.id;
-    const peerUser=allUsers().find(u=>u.uid===peerUid)||{uid:peerUid,name:t.name||peerUid,avatar:'🦊',frame:'none'};
-    const dot=(me.unreadFrom&&me.unreadFrom[peerUid])?'<span class="red-dot"></span>':'';
+    const peerUser=allUsers().find(u=>u.uid===peerUid)||{uid:peerUid,name:t.name||peerUid,avatar:'av_b1',frame:'none'};
+    const hasUnread=Boolean(me.unreadFrom&&me.unreadFrom[peerUid]);
     const last=t.messages&&t.messages.length?t.messages[t.messages.length-1]:null;
-    const preview=last?(last.type==='red_packet'?'🧧 Red Packet Coin Gift':(last.type==='gift'?'🎁 Sent a Gift':(last.type==='duel'?'🎯 60s MCQ Duel':last.text))):peerUid;
-    return `<div class="th" data-th="${esc(t.id)}"><button type="button" class="th-av-btn" data-chatprof="${esc(peerUid)}" title="View Player Profile" aria-label="View ${esc(peerUser.name||'Player')} Profile">${av(peerUser,44)}</button><div class="mid"><b>${styledName(peerUser)}</b><small>${esc(preview)}</small></div>${dot}</div>`;
+    const preview=last?(last.type==='red_packet'?'🧧 Lifafa':(last.type==='gift'?'🎁 Gift':(last.type==='party_invite'?'🎭 Room Invite':(last.type==='duel'?'⚔️ Duel':last.text)))):'Say hi';
+    return `<div class="wp-chat-row" data-th="${esc(t.id)}">
+      <button type="button" class="th-av-btn wp-cr-av" data-chatprof="${esc(peerUid)}" title="Player Profile" aria-label="Player Profile">${av(peerUser,46)}${hasUnread?'<span class="wp-unread-badge">1</span>':''}</button>
+      <div class="wp-cr-mid">
+        <div class="wp-cr-top"><b>${styledName(peerUser)}</b>${peerUser.clanTag?`<span class="wp-tag-pill violet">[${esc(peerUser.clanTag)}]</span>`:''}</div>
+        <small>${esc(preview)}</small>
+      </div>
+      <span class="wp-cr-time">${esc(fmtChatShortTime(last?.ts))}</span>
+    </div>`;
   }).join('');
 
-  if(devMode){
-    const inboxHtml=Object.values(devInbox).filter(x=>x&&x.uid&&x.uid!==uid).map(th=>{
-      const dot=(me.unreadFrom&&me.unreadFrom[th.uid])?'<span class="red-dot"></span>':'';
-      return `<div class="th" data-th="inbox:${esc(th.uid)}"><button type="button" class="th-av-btn" data-chatprof="${esc(th.uid)}" title="View Player Profile" aria-label="View ${esc(th.name||th.uid)} Profile">${av(th,42)}</button><div class="mid"><b>[Inbox] ${esc(th.name||th.uid)}</b><small>${esc(th.uid)}</small></div>${dot}</div>`;
-    }).join('');
-    $('#chatList').innerHTML=worldHtml+devHtml+dmHtml+inboxHtml;
-    return;
-  }
+  const inboxHtml=devMode?Object.values(devInbox).filter(x=>x&&x.uid&&x.uid!==uid).map(th=>{
+    const hasUnread=Boolean(me.unreadFrom&&me.unreadFrom[th.uid]);
+    return `<div class="wp-chat-row" data-th="inbox:${esc(th.uid)}">
+      <button type="button" class="th-av-btn wp-cr-av" data-chatprof="${esc(th.uid)}" aria-label="Player Profile">${av(th,44)}${hasUnread?'<span class="wp-unread-badge">!</span>':''}</button>
+      <div class="wp-cr-mid">
+        <div class="wp-cr-top"><b>${esc(th.name||th.uid)}</b><span class="wp-tag-pill amber">Inbox</span></div>
+        <small>ID ${esc(String(th.uid||'').slice(-8))}</small>
+      </div>
+    </div>`;
+  }).join(''):'';
 
-  $('#chatList').innerHTML=worldHtml+devHtml+(dmHtml||'<div class="empty">No player chats yet. Tap "Add friend" or tap any player in World Chat or Leaderboard to message!</div>');
+  const tabsHtml=`<div class="wp-filter-tabs" id="chatFilterTabs">
+    <button type="button" class="wp-ftab ${chatFilterTab==='all'?'on':''}" data-cf="all">All</button>
+    <button type="button" class="wp-ftab ${chatFilterTab==='friends'?'on':''}" data-cf="friends">Friends</button>
+    <button type="button" class="wp-ftab ${chatFilterTab==='official'?'on':''}" data-cf="official">Rooms</button>
+  </div>`;
+
+  let body='';
+  if(chatFilterTab==='friends')body=dmHtml||'<div class="empty" style="padding:18px">No friend chats yet</div>';
+  else if(chatFilterTab==='official')body=worldHtml+devHtml+inboxHtml;
+  else body=worldHtml+devHtml+dmHtml+inboxHtml;
+
+  $('#chatList').innerHTML=tabsHtml+body;
+  const cft=$('#chatFilterTabs');
+  if(cft)cft.onclick=e=>{
+    const b=e.target.closest('[data-cf]');
+    if(!b)return;
+    e.stopPropagation();
+    chatFilterTab=b.dataset.cf;
+    renderChats();
+  };
 }
 
 $('#clearDevInboxBtn').onclick=()=>{
@@ -242,11 +342,13 @@ function openThread(id){
 function renderThread(){
   if(!cur)return;
   const rpBtn=$('#rpBtn');
-  if(rpBtn)rpBtn.hidden=!devMode;
+  if(rpBtn)rpBtn.hidden=false;
+  const fdBtn=$('#flashDropBtn');
+  if(fdBtn)fdBtn.hidden=(cur!=='world');
 
   if(cur==='world'){
     $('#thHead').className='thh';
-    $('#thHead').innerHTML=`<button class="x" id="thBack" aria-label="Back">←</button><div class="mid"><b>World Chat</b><small>${worldMsgs.length} messages · Auto-cleans after 7 days</small></div>`;
+    $('#thHead').innerHTML=`<button class="x" id="thBack" aria-label="Back">←</button><div class="mid"><b>World Chat</b><small>${worldMsgs.length} messages · Coin Lifafa &amp; 10s Flash Drops</small></div>`;
     $('#thBack').onclick=()=>{$('#thread').hidden=true;cur=null;renderChats()};
     $('#chBtn').hidden=true;
 
@@ -254,28 +356,30 @@ function renderThread(){
       const s=resolveWorldSender(m);
       const isOut=m.uid===uid;
       const rb=getActiveRankBadge(s);
+      const dec=typeof renderNameDecorations==='function'?renderNameDecorations(s,{compact:true}):'';
       const tagsHtml=`<div class="wc-tags">${rb?`<span class="lb-badge ${esc(rb.badgeClass)}">${esc(rb.badge)}</span>`:''}${(s.tags||[]).slice(0,3).map(tg=>`<span class="p-tag ${tagClassFor(tg)}">${esc(tg)}</span>`).join('')}</div>`;
       const roomMatch=typeof m.text==='string'?m.text.match(/Room Code:\s*(SG-[A-Z0-9]{4})/i):null;
-      const bodyHtml=m.type==='red_packet'
-        ? renderRedPacketCard(m,'world')
-        : (m.type==='gift'&&typeof renderWorldGiftCard==='function'
-            ? renderWorldGiftCard(m)
-            : `<div class="bub ${esc(s.msgStyle||'')}">${linkify(esc(m.text))}${roomMatch?`<div style="margin-top:8px"><button type="button" class="btn sm ok" data-joinroomcode="${esc(roomMatch[1].toUpperCase())}">Join Live Room (${esc(roomMatch[1].toUpperCase())})</button></div>`:''}</div>`);
+      let bodyHtml='';
+      if(m.type==='red_packet')bodyHtml=renderRedPacketCard(m,'world');
+      else if(m.type==='flash_drop')bodyHtml=renderFlashDropCard(m);
+      else if(m.type==='gift'&&typeof renderWorldGiftCard==='function')bodyHtml=renderWorldGiftCard(m);
+      else bodyHtml=`<div class="bub ${esc(s.msgStyle||'')}">${linkify(esc(m.text))}${roomMatch?`<div style="margin-top:8px"><button type="button" class="btn sm ok" data-joinroomcode="${esc(roomMatch[1].toUpperCase())}">Join Live Room (${esc(roomMatch[1].toUpperCase())})</button></div>`:''}</div>`;
 
       return `<div class="m wc-m ${isOut?'out':'in'}">
         <div class="wc-card">
           <div class="wc-banner-bar ${esc(s.banner||'bn-aurora')}" data-wprof="${esc(s.uid)}">
             ${av(s,40)}
             <div class="wc-head-meta">
-              <div class="wc-name-row"><b>${styledName(s)}</b><span class="wc-lvl">LVL ${fmtNum(calcLevel(s.exp),MAX_LEVEL)}</span></div>
+              <div class="wc-name-row"><b>${styledName(s)}</b> ${dec} <span class="wc-lvl">LVL ${fmtNum(calcLevel(s.exp),MAX_LEVEL)}</span></div>
               ${tagsHtml}
             </div>
+            ${!isOut&&s.uid?`<button type="button" class="wc-rep-btn" data-repuser="${esc(s.uid)}" data-repname="${esc(s.name)}" title="Report message" aria-label="Report player">🚩</button>`:''}
           </div>
           <div class="wc-body">${bodyHtml}</div>
         </div>
         <time>${new Date(m.ts||Date.now()).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</time>
       </div>`;
-    }).join('')||'<div class="empty">Say hello in World Chat! Messages stay for 7 days.</div>';
+    }).join('')||'<div class="empty">Say hello in World Chat! Drop a Coin Lifafa or Flash Drop anytime.</div>';
     $('#msgs').scrollTop=$('#msgs').scrollHeight;
     return;
   }
@@ -283,14 +387,16 @@ function renderThread(){
   const isInbox=cur.startsWith('inbox:');
   const t=isInbox?devInbox[cur.slice(6)]:chats[cur];
   if(!t)return;
-  const realDevUser=allUsers().find(u=>isDevAccount(u))||{uid:DEV_UID,name:'Developer',avatar:'🦊',frame:'none'};
+  const realDevUser=allUsers().find(u=>isDevAccount(u))||{uid:DEV_UID,name:'Developer',avatar:'av_b1',frame:'none'};
   const peerUid=t.dev?realDevUser.uid:(t.uid||(isInbox?cur.slice(6):cur));
-  const peerUser=t.dev?realDevUser:(allUsers().find(u=>u.uid===peerUid)||{uid:peerUid,name:t.name||peerUid,avatar:'🦊',frame:'none'});
+  const peerUser=t.dev?realDevUser:(allUsers().find(u=>u.uid===peerUid)||{uid:peerUid,name:t.name||peerUid,avatar:'av_b1',frame:'none'});
+  const invitePartyBtn=!t.dev&&!isInbox?`<button type="button" class="btn ghost sm" id="dmPartyInviteBtn" title="Invite to Party Room">🎭 Invite</button>`:'';
   $('#thHead').className='thh'+(t.dev?' dv':'');
-  $('#thHead').innerHTML=`<button class="x" id="thBack" aria-label="Back">←</button><button type="button" class="th-prof-trigger" data-headprof="${esc(peerUid)}" title="Tap to view player profile">${av(peerUser,36)}<div class="mid"><b>${t.dev?'<span class="anim-firetxt">Developer</span>':styledName(peerUser)}</b><small>Tap for profile · ${esc(t.uid||'7-day chat history')}</small></div></button>${devMode&&isInbox?`<button class="btn red sm" id="clrSingle">Clear</button>`:''}`;
+  $('#thHead').innerHTML=`<button class="x" id="thBack" aria-label="Back">←</button><button type="button" class="th-prof-trigger" data-headprof="${esc(peerUid)}" title="Tap to view player profile">${av(peerUser,36)}<div class="mid"><b>${t.dev?'<span class="anim-firetxt">Developer</span>':styledName(peerUser)}</b><small>Tap for profile · ${esc(t.uid||'7-day chat history')}</small></div></button>${invitePartyBtn}${devMode&&isInbox?`<button class="btn red sm" id="clrSingle">Clear</button>`:''}`;
   $('#thBack').onclick=()=>{$('#thread').hidden=true;cur=null;renderChats()};
   const headProfBtn=$('#thHead').querySelector('[data-headprof]');
   if(headProfBtn)headProfBtn.onclick=()=>openPublicProfile(headProfBtn.dataset.headprof);
+  if($('#dmPartyInviteBtn'))$('#dmPartyInviteBtn').onclick=()=>sendDmPartyInvite(peerUid,t);
   if($('#clrSingle'))$('#clrSingle').onclick=()=>{
     if(!devMode)return;
     const tid=cur.slice(6);delete devInbox[tid];ls.set('sg_dev_inbox',devInbox);
@@ -303,6 +409,9 @@ function renderThread(){
     const out=isInbox?(m.from==='dev'):(m.from==='me');
     if(m.type==='red_packet'){
       return `<div class="m ${out?'out':'in'}">${renderRedPacketCard(m,isInbox?'inbox':'dm')}<time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
+    }
+    if(m.type==='party_invite'){
+      return `<div class="m ${out?'out':'in'}"><div class="chal"><b>🎭 Party Room Invite</b><p>${esc(m.text||('Join '+esc(m.roomTitle||'Party Room')))}</p><button type="button" class="btn ok sm" data-joinparty="${esc(m.roomId)}">Join Party Room</button></div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
     }
     if(m.type==='gift'&&typeof renderWorldGiftCard==='function'){
       return `<div class="m ${out?'out':'in'}">${renderWorldGiftCard(m)}<time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
@@ -326,22 +435,42 @@ function renderThread(){
   $('#msgs').scrollTop=$('#msgs').scrollHeight;
 }
 
+function sendDmPartyInvite(peerUid, threadObj){
+  if(!peerUid||!threadObj)return;
+  const activeList=typeof partyRooms!=='undefined'&&Array.isArray(partyRooms)?partyRooms:[];
+  const targetRoom=activeList.find(r=>r.hostUid===uid)||activeList[0];
+  if(!targetRoom){
+    toast('Create a Party Room on Home first, then invite!');
+    if(typeof openCreatePartyRoomModal==='function')openCreatePartyRoomModal();
+    return;
+  }
+  const id='pi_'+mid(), nowTs=Date.now();
+  const msgObj={id,from:'me',type:'party_invite',roomId:targetRoom.id,roomTitle:targetRoom.title||'Party Room',text:`Come hang out in "${targetRoom.title||'Party Room'}"!`,ts:nowTs};
+  threadObj.messages=threadObj.messages||[];
+  threadObj.messages.push(msgObj);
+  saveChats();
+  dbOp(()=>F.setDoc(F.doc(db,'dm_messages',id),{id,from:uid,fromName:me.name,to:peerUid,type:'party_invite',roomId:targetRoom.id,roomTitle:targetRoom.title||'Party Room',text:msgObj.text,ts:nowTs}));
+  if(typeof playSfx==='function')playSfx('chatSend');
+  renderThread();
+  toast('Party Room invite sent!');
+}
+
 async function claimRedPacket(packetId, scope){
   if(!packetId)return;
   const lockKey='rp_claim_'+packetId;
   if(inFlightOps.has(lockKey))return;
-  if(me.done['rp_'+packetId])return toast('You already claimed this Red Packet');
+  if(me.done['rp_'+packetId])return toast('You already claimed this Coin Lifafa');
 
   let msg=null;
   if(scope==='world')msg=worldMsgs.find(x=>x.id===packetId);
   else if(scope==='inbox'&&cur&&cur.startsWith('inbox:'))msg=(devInbox[cur.slice(6)]?.messages||[]).find(x=>x.id===packetId);
   else if(chats[cur])msg=(chats[cur].messages||[]).find(x=>x.id===packetId);
-  if(!msg||msg.type!=='red_packet')return toast('Red Packet unavailable');
+  if(!msg||msg.type!=='red_packet')return toast('Coin Lifafa unavailable');
 
   const claimedBy=Array.isArray(msg.claimedBy)?[...msg.claimedBy]:[];
   const maxClaims=Math.max(1,Number(msg.maxClaims||1));
   if(claimedBy.includes(uid))return toast('Already claimed');
-  if(claimedBy.length>=maxClaims)return toast('Red Packet fully claimed');
+  if(claimedBy.length>=maxClaims)return toast('Coin Lifafa fully claimed');
   if(scope==='dm'&&msg.targetUid&&msg.targetUid!==uid)return toast('Reserved for chat recipient');
 
   inFlightOps.add(lockKey);
@@ -351,7 +480,7 @@ async function claimRedPacket(packetId, scope){
       const existingClaim=await F.getDoc(claimRef).catch(()=>null);
       if(existingClaim&&existingClaim.exists()){
         me.done['rp_'+packetId]=1;saveMe();renderThread();
-        return toast('You already claimed this Red Packet');
+        return toast('You already claimed this Coin Lifafa');
       }
       await F.setDoc(claimRef,{uid,claimedAt:Date.now(),amount:msg.amount}).catch(()=>{});
     }
@@ -373,42 +502,60 @@ async function claimRedPacket(packetId, scope){
     }
     dbOp(()=>F.setDoc(F.doc(db,'red_packets',packetId),{claimedBy,claimedCount:claimedBy.length},{merge:true}));
 
-    addReward(clampSafeInt(msg.amount,1,10000),0,null,true,{skipLevelUp:true,silentSfx:true});
+    addReward(clampSafeInt(msg.amount,1,20000),0,null,true,{skipLevelUp:true,silentSfx:true});
     if(typeof playSfx==='function')playSfx('redPacketClaim');
     renderThread();
-    toast(`🧧 Claimed +${fmtNum(msg.amount)} coins from Red Packet!`);
+    toast(`🧧 Claimed +${fmtNum(msg.amount)} coins from Coin Lifafa!`);
   }finally{
     setTimeout(()=>inFlightOps.delete(lockKey),600);
   }
 }
 
-/* Developer-only Red Packet Composer */
-$('#rpBtn').onclick=()=>{
-  if(!devMode)return toast('Developer only');
+/* Player + Developer Coin Lifafa (Red Envelope) Drop */
+function openRedPacketDropModal(){
   if(!cur)return;
+  if(typeof isMutedNow==='function'&&isMutedNow())return toast(`You are muted (${muteRemainingText()})`);
   const isWorld=cur==='world';
-  const m=modal('Send Developer Red Packet 🧧',`
-    <p style="font-size:12px;color:var(--mu)">Drop a coin gift into ${isWorld?'World Chat':'this private chat'}. Each player can claim once.</p>
-    <label>Coins Per Claim (1–10,000)</label><input id="rpAmt" type="number" min="1" max="10000" value="50">
-    ${isWorld?`<label>Max Players Who Can Claim (1–50)</label><input id="rpMax" type="number" min="1" max="50" value="10">`:''}
-    <label>Gift Message</label><input id="rpNote" maxlength="90" value="Lucky coin drop from Developer! Study hard!">
-    <button class="btn crimson full" id="rpSend">Send Red Packet 🧧</button>
+  const m=modal(devMode?'Drop Coin Lifafa (Developer) 🧧':'Drop Coin Lifafa (Red Envelope) 🧧',`
+    <p style="font-size:12px;color:var(--mu)">${devMode?'Developer drops are free or custom-sized.':'Fund a live Coin Lifafa from your wallet for players to race & claim!'}</p>
+    <label>Coins Per Claim (10–${devMode?'20,000':'5,000'})</label>
+    <input id="rpAmt" type="number" min="10" max="${devMode?20000:5000}" value="50">
+    ${isWorld?`<label>Max Winners (1–${devMode?50:20})</label><input id="rpMax" type="number" min="1" max="${devMode?50:20}" value="${devMode?10:5}">`:''}
+    <label>Envelope Message</label>
+    <input id="rpNote" maxlength="90" value="${devMode?'Lucky coin drop from Developer!':'Grab this lucky Coin Lifafa!'}">
+    <div id="rpTotalNote" style="font-size:12px;color:var(--gold);font-weight:700;margin-top:6px"></div>
+    <button class="btn crimson full" id="rpSend">Drop Coin Lifafa 🧧</button>
   `);
-  $('#rpSend',m).onclick=()=>{
-    if(!devMode)return;
-    const amount=clampSafeInt($('#rpAmt',m).value,1,10000);
-    const maxClaims=isWorld?clampSafeInt($('#rpMax',m).value,1,50):1;
-    const note=$('#rpNote',m).value.trim()||'Lucky Red Packet from Developer!';
-    const id='rp_'+mid(), nowTs=Date.now();
+  const syncTotal=()=>{
+    const amt=clampSafeInt($('#rpAmt',m).value,10,devMode?20000:5000);
+    const maxC=isWorld?clampSafeInt($('#rpMax',m)?.value,1,devMode?50:20):1;
+    const total=amt*maxC;
+    $('#rpTotalNote',m).textContent=devMode?`Developer Drop: ${fmtNum(total)} 🪙 total (no wallet deduction)`:`Total Cost: ${fmtNum(total)} 🪙 (Your Wallet: ${fmtNum(me.coins)} 🪙)`;
+  };
+  $('#rpAmt',m).oninput=syncTotal;
+  if($('#rpMax',m))$('#rpMax',m).oninput=syncTotal;
+  syncTotal();
 
-    const rpRecord={id,fromUid:uid,amount,maxClaims,claimedBy:[],claimedCount:0,note,scope:isWorld?'world':'dm',ts:nowTs};
+  $('#rpSend',m).onclick=()=>{
+    const amount=clampSafeInt($('#rpAmt',m).value,10,devMode?20000:5000);
+    const maxClaims=isWorld?clampSafeInt($('#rpMax',m)?.value,1,devMode?50:20):1;
+    const totalCost=amount*maxClaims;
+    if(!devMode && me.coins<totalCost)return toast(`Need ${fmtNum(totalCost)} coins in wallet`);
+    const note=$('#rpNote',m).value.trim()||'Lucky Coin Lifafa!';
+    const id='rp_'+mid(), nowTs=Date.now();
+    if(!devMode){
+      addReward(-totalCost,0,null,true,{silentSfx:true,skipLevelUp:true});
+    }
+
+    const rpRecord={id,fromUid:uid,fromName:me.name,isDevDrop:devMode,amount,maxClaims,claimedBy:[],claimedCount:0,note,scope:isWorld?'world':'dm',ts:nowTs};
     dbOp(()=>F.setDoc(F.doc(db,'red_packets',id),rpRecord));
 
     if(isWorld){
       const item={
-        id,type:'red_packet',uid,name:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
-        textStyle:me.textStyle,msgStyle:me.msgStyle,tags:me.tags,exp:me.exp,isDev:true,
-        text:`🧧 Red Packet: +${amount} coins`,amount,maxClaims,claimedBy:[],claimedCount:0,note,ts:nowTs
+        id,type:'red_packet',uid,fromUid:uid,name:me.name,fromName:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
+        textStyle:me.textStyle,msgStyle:me.msgStyle,tags:me.tags,exp:me.exp,isDev:devMode,isDevDrop:devMode,
+        vipTier:me.vipTier||'',vipUntil:me.vipUntil||0,clanTag:me.clanTag||'',
+        text:`🧧 Coin Lifafa: +${amount} coins`,amount,maxClaims,claimedBy:[],claimedCount:0,note,ts:nowTs
       };
       worldMsgs=[...worldMsgs,item].slice(-150);
       ls.set('sg_world_msgs',worldMsgs);
@@ -417,24 +564,126 @@ $('#rpBtn').onclick=()=>{
       const tid=cur.slice(6), entry=devInbox[tid];
       if(!entry)return m.close();
       entry.messages=entry.messages||[];
-      entry.messages.push({id,from:'dev',fromUid:uid,targetUid:tid,type:'red_packet',amount,maxClaims:1,claimedBy:[],claimedCount:0,note,ts:nowTs});
+      entry.messages.push({id,from:'dev',fromUid:uid,fromName:me.name,isDevDrop:devMode,targetUid:tid,type:'red_packet',amount,maxClaims:1,claimedBy:[],claimedCount:0,note,ts:nowTs});
       syncDevInboxToCloud(tid,entry);
     }else{
       const t=chats[cur];if(!t)return m.close();
       t.messages=t.messages||[];
-      const msgObj={id,from:'me',fromUid:uid,targetUid:t.uid||cur,type:'red_packet',amount,maxClaims:1,claimedBy:[],claimedCount:0,note,ts:nowTs};
+      const msgObj={id,from:'me',fromUid:uid,fromName:me.name,isDevDrop:devMode,targetUid:t.uid||cur,type:'red_packet',amount,maxClaims:1,claimedBy:[],claimedCount:0,note,ts:nowTs};
       t.messages.push(msgObj);saveChats();
       if(t.uid&&!t.dev){
-        dbOp(()=>F.setDoc(F.doc(db,'dm_messages',id),{id,from:uid,fromName:me.name,to:t.uid,type:'red_packet',amount,maxClaims:1,claimedBy:[],claimedCount:0,note,ts:nowTs}));
+        dbOp(()=>F.setDoc(F.doc(db,'dm_messages',id),{id,from:uid,fromName:me.name,isDevDrop:devMode,to:t.uid,type:'red_packet',amount,maxClaims:1,claimedBy:[],claimedCount:0,note,ts:nowTs}));
       }
     }
     m.close();renderThread();
     if(typeof playSfx==='function')playSfx('redPacketDrop');
-    toast('Red Packet sent!');
+    toast('🧧 Coin Lifafa dropped!');
   };
-};
+}
+
+/* ===== 10-Second Chat Flash Drops (Tap / Quick Math / Fast Word) ===== */
+function launchChatFlashDrop(){
+  if(cur!=='world')return toast('Flash Drops work in World Chat');
+  if(!devMode && me.coins<100)return toast('Players need 100 coins to host a Flash Drop');
+  const a=12+Math.floor(Math.random()*38), b=7+Math.floor(Math.random()*28);
+  const modes=[
+    {flashMode:'tap',prompt:'⚡ LIGHTNING TAP! First 3 players to tap win +80 🪙!',answer:'',rewardCoins:80},
+    {flashMode:'math',prompt:`⚡ QUICK MATH (10s): What is ${a} + ${b}?`,answer:String(a+b),rewardCoins:120},
+    {flashMode:'word',prompt:'⚡ FASTEST TYPER (10s): Type the secret word "LUXURY"',answer:'LUXURY',rewardCoins:100}
+  ];
+  const pick=modes[Math.floor(Math.random()*modes.length)];
+  if(!devMode)addReward(-100,0,null,true,{silentSfx:true,skipLevelUp:true});
+
+  const nowTs=Date.now(), id='fd_'+mid();
+  const item={
+    id,type:'flash_drop',uid,name:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
+    textStyle:me.textStyle,msgStyle:me.msgStyle,tags:me.tags,exp:me.exp,isDev:devMode,
+    vipTier:me.vipTier||'',vipUntil:me.vipUntil||0,clanTag:me.clanTag||'',
+    flashMode:pick.flashMode,prompt:pick.prompt,answer:pick.answer,rewardCoins:pick.rewardCoins,
+    maxClaims:3,claimedBy:[],expiresAt:nowTs+10000,ts:nowTs,text:pick.prompt
+  };
+  worldMsgs=[...worldMsgs,item].slice(-150);
+  ls.set('sg_world_msgs',worldMsgs);
+  dbOp(()=>F.setDoc(F.doc(db,'world_chat',id),item));
+  if(typeof playSfx==='function')playSfx('flashDrop');
+  renderThread();
+  toast('⚡ 10-Second Flash Drop LIVE!');
+}
+
+function claimFlashDrop(dropId, suppliedAns){
+  const item=(worldMsgs||[]).find(x=>x.id===dropId&&x.type==='flash_drop');
+  if(!item)return toast('Flash Drop unavailable');
+  if(Date.now()>Number(item.expiresAt||0))return toast('Flash Drop expired (10s over)');
+  const claimedBy=Array.isArray(item.claimedBy)?[...item.claimedBy]:[];
+  if(claimedBy.includes(uid)||me.done['fd_'+dropId])return toast('Already claimed!');
+  if(claimedBy.length>=Number(item.maxClaims||3))return toast('All winners claimed!');
+
+  if(item.flashMode!=='tap'){
+    if(String(suppliedAns||'').trim().toUpperCase()!==String(item.answer||'').trim().toUpperCase()){
+      if(typeof playSfx==='function')playSfx('duelWrong');
+      return toast('Wrong answer — try fast!');
+    }
+  }
+  claimedBy.push(uid);
+  item.claimedBy=claimedBy;
+  me.done['fd_'+dropId]=1;
+  ls.set('sg_world_msgs',worldMsgs);
+  dbOp(()=>F.setDoc(F.doc(db,'world_chat',dropId),{claimedBy},{merge:true}));
+  const reward=clampSafeInt(item.rewardCoins||80,10,500);
+  addReward(reward,12,null,true,{silentSfx:true});
+  if(typeof playSfx==='function')playSfx('coin');
+  renderThread();
+  toast(`⚡ Flash Drop Winner! +${fmtNum(reward)} 🪙`);
+}
+
+setInterval(()=>{
+  if(cur!=='world')return;
+  $$('[data-fd-timer]').forEach(el=>{
+    const id=el.dataset.fdTimer;
+    const item=(worldMsgs||[]).find(x=>x.id===id);
+    if(!item)return;
+    const rem=Math.max(0,Math.ceil((Number(item.expiresAt||0)-Date.now())/1000));
+    el.textContent=rem>0?(rem+'s'):'0s';
+    if(rem===0&&!el.closest('.flash-drop-card')?.classList.contains('fd-ended')){
+      renderThread();
+    }
+  });
+},1000);
+
+if($('#rpBtn'))$('#rpBtn').onclick=openRedPacketDropModal;
+if($('#flashDropBtn'))$('#flashDropBtn').onclick=launchChatFlashDrop;
 
 $('#msgs').onclick=e=>{
+  const repBtn=e.target.closest('[data-repuser]');
+  if(repBtn){
+    e.stopPropagation();
+    if(typeof openReportModal==='function')openReportModal(repBtn.dataset.repuser,repBtn.dataset.repname,'World Chat');
+    return;
+  }
+  const jp=e.target.closest('[data-joinparty]');
+  if(jp&&jp.dataset.joinparty&&typeof openPartyRoom==='function'){
+    $('#thread').hidden=true;cur=null;
+    openPartyRoom(jp.dataset.joinparty);
+    return;
+  }
+  const cf=e.target.closest('[data-claimflash]');
+  if(cf){claimFlashDrop(cf.dataset.claimflash,'');return}
+  const af=e.target.closest('[data-answerflash]');
+  if(af){
+    const fdId=af.dataset.answerflash;
+    const item=(worldMsgs||[]).find(x=>x.id===fdId);
+    if(!item)return;
+    const m=modal('⚡ Answer Flash Drop Fast!',`
+      <p style="font-size:13px;font-weight:700">${esc(item.prompt)}</p>
+      <input id="fdAnsIn" placeholder="Type answer..." autocomplete="off">
+      <button type="button" class="btn gold full" id="fdAnsSub">Submit Answer</button>
+    `);
+    const sub=()=>{const v=$('#fdAnsIn',m).value;m.close();claimFlashDrop(fdId,v)};
+    $('#fdAnsSub',m).onclick=sub;
+    $('#fdAnsIn',m).onkeydown=ev=>{if(ev.key==='Enter')sub()};
+    setTimeout(()=>$('#fdAnsIn',m)?.focus(),40);
+    return;
+  }
   const jRoom=e.target.closest('[data-joinroomcode]');
   if(jRoom&&jRoom.dataset.joinroomcode){
     $('#thread').hidden=true;cur=null;showTab('games');
@@ -482,6 +731,9 @@ $('#msgs').onclick=e=>{
 };
 
 function sendMsgText(){
+  if(typeof isMutedNow==='function'&&isMutedNow()){
+    return toast(`You are muted for ${muteRemainingText()}`);
+  }
   const inp=$('#msgIn'), text=inp.value.trim();if(!text)return;
   if(hasBadWord(text))return toast('Error: Bad language is not allowed');
   const now=Date.now();
@@ -491,10 +743,15 @@ function sendMsgText(){
   inp.value='';
 
   if(cur==='world'){
+    if(!vipChatAnnounced&&typeof showVipEntranceBanner==='function'){
+      vipChatAnnounced=true;
+      showVipEntranceBanner(me,'World Chat');
+    }
     const id=mid();
     const item={
       id,type:'text',uid,name:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
       textStyle:me.textStyle||'',msgStyle:me.msgStyle||'',tags:me.tags||[],exp:me.exp||0,
+      vipTier:me.vipTier||'',vipUntil:me.vipUntil||0,clanTag:me.clanTag||'',title:me.title||'',
       isDev:devMode,text,ts:now
     };
     worldMsgs=[...worldMsgs,item].slice(-150);

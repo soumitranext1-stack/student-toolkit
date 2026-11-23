@@ -1,20 +1,20 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
 [hidden]{display:none !important}
 :root{
-  --bg:#131b2e;--card:#1b2540;--card2:#243152;
-  --s1:#1b2540;--s2:#243152;
-  --bd:rgba(186,204,255,.16);
-  --tx:#f3f6ff;--mu:#a8b7d4;
-  --ac:#7083ff;--ac2:#2dd4bf;--gold:#ffd36b;
+  --bg:#090e1c;--card:#10182b;--card2:#17223d;
+  --s1:#10182b;--s2:#17223d;
+  --bd:rgba(165,190,255,.16);
+  --tx:#f5f7ff;--mu:#9cb0d4;
+  --ac:#6e7eff;--ac2:#22d3ee;--gold:#ffd36b;--violet:#a855f7;
   --ok:#22c55e;--warn:#f59e0b;--bad:#ef4444;--red:#ef4444;
-  --shadow:0 10px 28px rgba(6,11,26,.34);
+  --shadow:0 12px 32px rgba(3,6,18,.48);
 }
 body.light{
   --bg:#eef3f9;--card:#ffffff;--card2:#e7edf7;
   --s1:#ffffff;--s2:#e7edf7;
   --bd:rgba(15,23,42,.12);
   --tx:#0f172a;--mu:#475569;
-  --ac:#4f46e5;--ac2:#0d9488;--gold:#d97706;
+  --ac:#4f46e5;--ac2:#0d9488;--gold:#d97706;--violet:#7c3aed;
   --shadow:0 6px 18px rgba(15,23,42,.08);
 }
 
@@ -25,8 +25,9 @@ html,body{
 }
 body:not(.light){
   background:
-    radial-gradient(circle at 12% -6%,rgba(112,131,255,.18),transparent 42%),
-    radial-gradient(circle at 88% -4%,rgba(45,212,191,.13),transparent 38%),
+    radial-gradient(circle at 14% -8%,rgba(110,126,255,.22),transparent 42%),
+    radial-gradient(circle at 86% -4%,rgba(168,85,247,.16),transparent 38%),
+    radial-gradient(circle at 50% 108%,rgba(34,211,238,.1),transparent 42%),
     var(--bg);
 }
 body,#app{height:100%;width:100%;display:flex;flex-direction:column;min-width:0}
@@ -73,13 +74,14 @@ header>.row{gap:6px !important;flex-wrap:nowrap;flex-shrink:0}
 header .tg{padding:4px 8px;font-size:10px}
 
 @media(max-width:440px){
-  header{padding:8px 8px;gap:5px}
-  .brand{font-size:13.5px;gap:5px}
-  .st{padding:2px 6px;font-size:9.5px}
+  header{padding:7px 7px;gap:4px}
+  .brand{font-size:13px;gap:4px}
+  .brand svg{width:24px;height:24px}
+  .st{padding:2px 5px;font-size:9.5px}
   .st em{display:none}
-  .icon-btn,.coin{padding:4px 7px;min-height:30px;font-size:11px}
-  .lvl-pill{padding:4px 7px;min-height:30px;font-size:10.5px}
-  header>.row{gap:4px !important}
+  .icon-btn,.coin{padding:3px 6px;min-height:28px;font-size:10.5px}
+  .lvl-pill{padding:3px 6px;min-height:28px;font-size:10px}
+  header>.row{gap:3px !important}
 }
 
 /* ===== Chips & Pills ===== */
@@ -226,16 +228,17 @@ textarea{min-height:74px;resize:vertical}
 .card.task .mid b{white-space:normal;overflow-wrap:anywhere}
 .card.task p{font-size:12px;color:var(--mu);line-height:1.4;margin-top:2px;overflow-wrap:anywhere}
 
-/* ===== Avatars & Frames ===== */
+/* ===== Precision Circular Avatars & Centered Frames ===== */
 .av-wrap{position:relative;width:var(--s,44px);height:var(--s,44px);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .av{
-  width:calc(var(--s,44px) * .74);height:calc(var(--s,44px) * .74);
-  border-radius:50%;background:var(--card2);border:1px solid var(--bd);
+  width:calc(var(--s,44px) * .76);height:calc(var(--s,44px) * .76);
+  border-radius:50%;background:var(--card2);border:1.5px solid rgba(255,255,255,.16);
   display:flex;align-items:center;justify-content:center;overflow:hidden;
-  font-size:calc(var(--s,44px) * .42);
+  font-size:calc(var(--s,44px) * .42);position:relative;z-index:1;
 }
-.av .av-svg{width:76%;height:76%;display:block}
-.ring-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.av .av-svg{width:100%;height:100%;display:block}
+.av .av-photo{width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block}
+.ring-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .f-top-tag{
   position:absolute;top:-5px;left:50%;transform:translateX(-50%);
   background:#ffd36b;color:#111;font-size:8px;font-weight:900;
@@ -1259,3 +1262,813 @@ body.light .pwa-install-btn{
   flex-shrink:0;
 }
 
+/* =====================================================================
+   LUXURY SOCIAL ARENA MEGA OVERHAUL (Mobile-390px Zero-Overflow Ready)
+   ===================================================================== */
+
+/* Top-Left Student Tools Slide-Out Drawer */
+.drawer-trigger-btn{padding:5px 7px !important;min-width:34px}
+.tools-drawer-backdrop{
+  position:fixed;inset:0;z-index:90;background:rgba(4,7,18,.68);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  opacity:0;transition:opacity .22s ease;
+}
+.tools-drawer-backdrop.open{opacity:1}
+.tools-drawer{
+  position:fixed;top:0;left:0;bottom:0;z-index:95;
+  width:min(88vw,380px);max-width:100vw;
+  background:var(--bg);border-right:1px solid var(--bd);
+  box-shadow:18px 0 48px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;
+  transform:translateX(-105%);transition:transform .26s cubic-bezier(.16,1,.3,1);
+}
+.tools-drawer.open{transform:translateX(0)}
+.tools-drawer-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:14px 14px;padding-top:calc(14px + env(safe-area-inset-top,0px));
+  background:var(--card);border-bottom:1px solid var(--bd);flex-shrink:0;
+}
+.tools-drawer-body{
+  flex:1;overflow-y:auto;padding:12px 14px 28px;
+  -webkit-overflow-scrolling:touch;
+}
+.drawer-tool-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:9px !important}
+.drawer-tool-grid .card.tool{min-height:112px;padding:10px}
+
+/* Gamer-First Home Arena Hero & Quick Actions */
+.arena-hero{
+  border-radius:18px;padding:14px;
+  background:linear-gradient(145deg,rgba(20,30,58,.96),rgba(15,22,42,.95) 55%,rgba(54,24,84,.88));
+  border:1px solid rgba(110,126,255,.32);
+  box-shadow:0 16px 38px rgba(4,7,20,.45),inset 0 1px 0 rgba(255,255,255,.08);
+  color:#f8fafc;
+}
+body.light .arena-hero{
+  background:linear-gradient(145deg,#172554,#1e1b4b 58%,#312e81);
+  color:#fff;
+}
+.arena-hero-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.arena-hero-id{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.arena-hero-av{background:none;border:none;padding:0;cursor:pointer;flex-shrink:0}
+.arena-hero-eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.12em;color:#38bdf8;margin-bottom:2px}
+.arena-hero-name{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:5px;flex-wrap:wrap;line-height:1.2}
+.arena-hero-sub{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:#cbd5e1;margin-top:3px;font-weight:600}
+
+.arena-quick-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px;
+}
+@media(min-width:600px){.arena-quick-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.aq-card{
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  padding:10px 11px;border-radius:13px;cursor:pointer;text-align:left;
+  background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.14);
+  color:#f8fafc;min-width:0;transition:transform .14s ease,border-color .14s ease;
+}
+.aq-card:hover{transform:translateY(-2px);border-color:rgba(255,211,107,.55)}
+.aq-card .aq-ico{font-size:20px;line-height:1;margin-bottom:2px}
+.aq-card b{font-size:12.5px;font-weight:800;color:#fff}
+.aq-card small{font-size:10.5px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.aq-party{border-color:rgba(56,189,248,.38);background:linear-gradient(145deg,rgba(14,165,233,.2),rgba(15,23,42,.65))}
+.aq-spin{border-color:rgba(255,211,107,.42);background:linear-gradient(145deg,rgba(245,158,11,.22),rgba(15,23,42,.65))}
+.aq-clan{border-color:rgba(168,85,247,.42);background:linear-gradient(145deg,rgba(168,85,247,.22),rgba(15,23,42,.65))}
+.aq-gift{border-color:rgba(244,63,94,.42);background:linear-gradient(145deg,rgba(244,63,94,.2),rgba(15,23,42,.65))}
+
+/* Online Activity Chests Strip */
+.chest-strip{
+  margin-top:12px;padding:10px;border-radius:15px;
+  background:var(--card);border:1px solid var(--bd);
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;
+}
+.chest-pill{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:8px 4px;border-radius:11px;border:1px solid var(--bd);
+  background:var(--card2);color:var(--tx);cursor:pointer;text-align:center;min-width:0;
+  width:100%;
+}
+.chest-pill .chest-ico{font-size:18px;line-height:1}
+.chest-pill b{font-size:11px;font-weight:800}
+.chest-pill small{font-size:10px;color:var(--mu)}
+.chest-pill.ready{border-color:var(--gold);background:rgba(255,211,107,.16);box-shadow:0 0 12px rgba(255,211,107,.24)}
+.chest-pill.done{opacity:.55;border-color:rgba(34,197,94,.4)}
+
+/* Large High-Impact Arena Game Posters */
+.arena-posters-grid{
+  display:grid;grid-template-columns:1fr;gap:12px;
+}
+@media(min-width:620px){.arena-posters-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.arena-poster-card{
+  border-radius:18px;overflow:hidden;background:var(--card);
+  border:1px solid var(--bd);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;min-width:0;
+  transition:transform .16s ease,border-color .16s ease;
+}
+.arena-poster-card:hover{transform:translateY(-2px);border-color:rgba(255,211,107,.5)}
+.arena-poster-art{
+  position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#0b1122;
+}
+.arena-poster-art .gp-svg{width:100%;height:100%;display:block}
+.ap-tag{
+  position:absolute;top:10px;left:10px;padding:3px 9px;border-radius:999px;
+  font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  background:rgba(9,14,28,.78);border:1px solid rgba(255,255,255,.22);color:#fff;
+  backdrop-filter:blur(6px);
+}
+.ap-live{
+  position:absolute;top:10px;right:10px;padding:3px 9px;border-radius:999px;
+  font-size:10.5px;font-weight:800;background:rgba(34,197,94,.22);
+  border:1px solid rgba(34,197,94,.55);color:#bbf7d0;backdrop-filter:blur(6px);
+}
+.arena-poster-body{padding:12px 13px;display:flex;flex-direction:column;gap:5px}
+.arena-poster-body b{font-size:15.5px;font-weight:800;color:var(--tx)}
+.arena-poster-body small{font-size:12px;color:var(--mu);line-height:1.4}
+
+/* Party Rooms Hub & VR 3D Hangout Stage */
+.party-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:8px}
+@media(min-width:580px){.party-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.party-room-card{
+  width:100%;text-align:left;
+  padding:13px;border-radius:16px;border:1px solid rgba(255,255,255,.16);
+  color:#fff;cursor:pointer;display:flex;flex-direction:column;gap:7px;
+  box-shadow:0 12px 26px rgba(0,0,0,.35);min-width:0;
+}
+.prc-top{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;width:100%}
+.prc-cat{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.36);color:#e2e8f0}
+.prc-live{font-size:10.5px;font-weight:800;color:#86efac}
+.prc-wed-tag{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:rgba(255,211,107,.24);border:1px solid rgba(255,211,107,.65);color:#fef08a}
+.prc-title{font-size:15px;font-weight:800;line-height:1.25;overflow-wrap:anywhere}
+.prc-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px;font-size:11.5px;color:#e2e8f0;width:100%}
+.prc-join{padding:4px 11px;border-radius:999px;background:rgba(255,255,255,.18);font-weight:800;font-size:11px;white-space:nowrap}
+
+.vr-stage-shell{
+  border-radius:16px;padding:12px;border:1px solid rgba(255,255,255,.16);
+  color:#fff;display:flex;flex-direction:column;gap:10px;overflow:hidden;
+}
+.vr-stage-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.wed-countdown-bar{
+  padding:7px 10px;border-radius:10px;text-align:center;font-size:12px;font-weight:800;
+  background:linear-gradient(90deg,rgba(245,158,11,.24),rgba(244,114,182,.26),rgba(245,158,11,.24));
+  border:1px solid rgba(255,211,107,.65);color:#fef08a;
+}
+.vr-cinema-wrap{
+  border-radius:13px;overflow:hidden;background:rgba(5,9,20,.72);
+  border:1px solid rgba(255,255,255,.14);
+}
+.yt-cinema-frame{width:100%;aspect-ratio:16/9;background:#000;overflow:hidden}
+.yt-cinema-frame iframe{width:100%;height:100%;border:0;display:block}
+.yt-cinema-empty{
+  padding:16px 12px;text-align:center;font-size:12px;color:#cbd5e1;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.vr-floor-stage{
+  perspective:680px;padding:10px 6px 6px;border-radius:14px;
+  background:radial-gradient(ellipse at center bottom,rgba(56,189,248,.22),rgba(9,14,28,.45) 70%);
+  border:1px solid rgba(255,255,255,.12);
+}
+.vr-seats-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;
+  transform:rotateX(10deg);transform-origin:center bottom;
+}
+.vr-seat{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 4px 7px;border-radius:12px;cursor:pointer;border:1px solid rgba(255,255,255,.14);
+  background:rgba(15,23,42,.56);color:#fff;min-width:0;
+}
+.vr-seat.empty{border-style:dashed;opacity:.82}
+.vr-seat.mine{border-color:#38bdf8;box-shadow:0 0 14px rgba(56,189,248,.34)}
+.vr-seat.vip-seat{border-color:#ffd36b;box-shadow:0 0 14px rgba(255,211,107,.35)}
+.vr-seat-av{position:relative;display:flex;align-items:center;justify-content:center}
+.vr-pedestal-ring{
+  width:38px;height:8px;border-radius:999px;margin-top:-3px;
+  background:radial-gradient(ellipse at center,rgba(56,189,248,.65),transparent 72%);
+}
+.vr-seat-name{font-size:10.5px;font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vr-seat-tag{font-size:9px;padding:1px 5px;border-radius:999px;background:rgba(255,255,255,.16);color:#fef08a;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vr-seat-react-badge{
+  position:absolute;top:-8px;right:2px;font-size:18px;z-index:4;
+  animation:vrFloatPop 1.8s ease-out forwards;pointer-events:none;
+}
+@keyframes vrFloatPop{
+  0%{transform:translateY(6px) scale(.6);opacity:0}
+  20%{transform:translateY(-4px) scale(1.2);opacity:1}
+  100%{transform:translateY(-22px) scale(.95);opacity:0}
+}
+.vr-react-bar{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.vr-react-btn{
+  border:1px solid rgba(255,255,255,.18);background:rgba(15,23,42,.62);
+  color:#fff;border-radius:10px;padding:5px 8px;font-size:15px;cursor:pointer;min-height:32px;
+}
+.vr-status-sel{width:auto !important;min-width:110px;padding:5px 8px !important;font-size:11.5px !important}
+.pr-chat-box{
+  max-height:148px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;
+  padding:8px;border-radius:12px;background:rgba(9,14,28,.65);border:1px solid rgba(255,255,255,.12);
+}
+.pr-msg{font-size:12px;line-height:1.38;word-break:break-word}
+.pr-msg.gift{padding:5px 8px;border-radius:8px;background:rgba(245,158,11,.2);border:1px solid rgba(255,211,107,.45);color:#fef08a}
+
+/* Badges, VIP Pills, Clan Tags, Achievement Titles, Bonds & Visitors */
+.name-deco-row{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;vertical-align:middle}
+.vip-pill{
+  display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;
+  font-size:9.5px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;
+  background:linear-gradient(135deg,#f59e0b,#ffd36b);color:#1f1200;
+}
+.vip-pill.vip-silver{background:linear-gradient(135deg,#94a3b8,#e2e8f0);color:#0f172a}
+.vip-pill.vip-gold{background:linear-gradient(135deg,#f59e0b,#fef08a);color:#1f1200}
+.vip-pill.vip-royal{background:linear-gradient(135deg,#a855f7,#ec4899,#ffd36b);color:#fff}
+.clan-tag-pill{
+  display:inline-flex;align-items:center;padding:1.5px 6px;border-radius:6px;
+  font-size:9.5px;font-weight:800;background:rgba(56,189,248,.2);
+  border:1px solid rgba(56,189,248,.45);color:#7dd3fc;
+}
+.title-pill{
+  display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;
+  font-size:9.5px;font-weight:800;background:rgba(168,85,247,.22);
+  border:1px solid rgba(168,85,247,.5);color:#e9d5ff;
+}
+.mood-pill{
+  display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;
+  background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.22);font-size:10.5px;font-weight:700;
+}
+.pf-like-stat,.like-pill-stat{
+  display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:999px;
+  background:rgba(244,63,94,.2);border:1px solid rgba(244,63,94,.45);
+  color:#fecdd3;font-size:11.5px;font-weight:800;
+}
+
+.bond-strip{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.bond-chip{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;
+  background:rgba(15,23,42,.68);border:1px solid rgba(255,211,107,.5);
+  color:#fff;font-size:11.5px;cursor:pointer;
+}
+.bond-chip.bond-couple{border-color:#f472b6;background:linear-gradient(135deg,rgba(236,72,153,.32),rgba(15,23,42,.75))}
+.bond-chip.bond-bro{border-color:#38bdf8;background:linear-gradient(135deg,rgba(14,165,233,.28),rgba(15,23,42,.75))}
+
+.charm-tier-card{display:flex;flex-direction:column;gap:6px}
+.visitors-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.visitors-row::-webkit-scrollbar{display:none}
+.visitor-chip{
+  display:flex;flex-direction:column;align-items:center;gap:3px;min-width:56px;
+  background:none;border:none;color:var(--tx);cursor:pointer;padding:2px;
+}
+.visitor-chip small{font-size:10px;color:var(--mu);max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.pub-meta-line{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;font-size:11.5px;margin-top:4px}
+.pub-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:12px}
+
+/* Avatar Upload & Clean 5 Boy / 5 Girl Tiles */
+.av-upload-box{
+  display:flex;align-items:center;gap:12px;padding:10px;border-radius:13px;
+  background:var(--card2);border:1px dashed rgba(255,211,107,.45);
+}
+.av-pick-tile{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 6px !important;min-width:74px;height:auto !important;border-radius:12px !important;
+}
+.av-pick-circle{width:48px;height:48px;border-radius:50%;overflow:hidden;display:block}
+.av-pick-circle svg{width:100%;height:100%;display:block}
+.av-pick-tile small{font-size:10.5px;font-weight:700;color:var(--tx)}
+
+/* VIP Entrance Banner */
+.vip-entrance-banner{
+  position:fixed;top:calc(58px + env(safe-area-inset-top,0px));left:50%;
+  transform:translate(-50%,-16px) scale(.96);opacity:0;pointer-events:none;z-index:145;
+  display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:16px;
+  max-width:min(94vw,430px);color:#fff;
+  background:linear-gradient(135deg,rgba(15,23,42,.96),rgba(124,58,237,.92),rgba(245,158,11,.88));
+  border:1.5px solid rgba(255,211,107,.75);box-shadow:0 16px 38px rgba(0,0,0,.52);
+  transition:transform .28s cubic-bezier(.16,1,.3,1),opacity .28s ease;
+}
+.vip-entrance-banner.in{transform:translate(-50%,0) scale(1);opacity:1}
+.veb-copy{min-width:0;display:flex;flex-direction:column;gap:2px;font-size:12px}
+.veb-copy b{font-size:13px}
+.entry-preview-bar{
+  width:100%;padding:8px 10px;border-radius:10px;font-size:11.5px;font-weight:800;color:#fff;text-align:center;
+  background:linear-gradient(135deg,#1e1b4b,#7c3aed,#f59e0b);border:1px solid rgba(255,211,107,.5);
+}
+
+/* Store Luxury Cards & Quick Banner */
+.store-quick-banner{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(168,85,247,.16));
+  border-color:rgba(255,211,107,.42);margin-bottom:10px;
+}
+.store-card-lux{display:flex;flex-direction:column;gap:8px;padding:12px}
+.store-vip-stage{
+  width:100%;padding:12px;border-radius:12px;text-align:center;
+  background:linear-gradient(145deg,#172554,#4c1d95);border:1px solid rgba(255,211,107,.45);
+}
+
+/* Tasks, 7-Day Streak Calendar & Daily Chest */
+.streak-calendar-card{border-color:rgba(255,211,107,.4);margin-bottom:10px}
+.streak-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:9px}
+.streak-day{
+  display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 2px;
+  border-radius:10px;background:var(--card2);border:1px solid var(--bd);text-align:center;min-width:0;
+}
+.streak-day small{font-size:9.5px;color:var(--mu);font-weight:700}
+.streak-day b{font-size:10.5px;color:var(--gold)}
+.streak-day.done{border-color:rgba(34,197,94,.5);background:rgba(34,197,94,.14)}
+.streak-day.cur{border-color:var(--gold);box-shadow:0 0 10px rgba(255,211,107,.28)}
+.streak-day.day7{background:linear-gradient(160deg,rgba(245,158,11,.24),rgba(168,85,247,.2))}
+.daily-chest-card{border-color:rgba(56,189,248,.4);margin-bottom:10px}
+.mission-card{flex-direction:column;align-items:stretch !important;gap:8px !important}
+.mission-prog-row{display:flex;align-items:center;gap:8px}
+.mission-prog-row .gw-prog{flex:1;margin:0}
+
+/* Leaderboard Mode Bar & Clans */
+.rk-mode-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.clan-hero-card{border-color:rgba(56,189,248,.42);margin-bottom:10px}
+.clan-row{padding:10px 12px;align-items:center;gap:10px}
+.clan-row.mine{border-color:var(--gold);background:rgba(255,211,107,.08)}
+.clan-emblem{
+  width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;background:var(--card2);border:1px solid var(--bd);flex-shrink:0;
+}
+.clan-emblem.lg{width:48px;height:48px;font-size:24px}
+
+/* Lucky Spin Wheel */
+.wheel-wrap{position:relative;display:flex;flex-direction:column;align-items:center;padding:14px 0 8px}
+.wheel-pointer{font-size:22px;color:var(--gold);margin-bottom:-8px;z-index:2;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+.wheel-disc{
+  width:210px;height:210px;border-radius:50%;
+  border:5px solid var(--gold);
+  background:conic-gradient(#4f46e5 0 45deg,#ec4899 45deg 90deg,#0ea5e9 90deg 135deg,#f59e0b 135deg 180deg,#10b981 180deg 225deg,#8b5cf6 225deg 270deg,#ef4444 270deg 315deg,#eab308 315deg 360deg);
+  box-shadow:0 12px 30px rgba(0,0,0,.48),inset 0 0 22px rgba(0,0,0,.35);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform 2.6s cubic-bezier(.12,.84,.2,1);
+}
+.wheel-disc::after{
+  content:'★';width:48px;height:48px;border-radius:50%;
+  background:#090e1c;border:3px solid var(--gold);color:var(--gold);
+  display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;
+}
+.wheel-status{font-size:12.5px;color:var(--gold);font-weight:800;text-align:center;margin-top:10px;min-height:20px}
+
+/* Arena Mini-Games Boards (Ludo, Dots & Boxes, Squad Arena) */
+.ludo-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin:8px 0}
+.ludo-tile{
+  padding:6px 2px;border-radius:8px;background:var(--card2);border:1px solid var(--bd);
+  text-align:center;font-size:10.5px;font-weight:700;min-height:42px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+}
+.ludo-tile.lad{border-color:rgba(34,197,94,.55);background:rgba(34,197,94,.14)}
+.ludo-tile.snk{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.14)}
+
+.dots-board{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px}
+.db-row{display:flex;align-items:center;gap:3px}
+.db-dot{width:11px;height:11px;border-radius:50%;background:#e2e8f0;flex-shrink:0}
+.db-h{
+  width:52px;height:10px;border-radius:999px;border:none;cursor:pointer;
+  background:rgba(148,163,184,.25);transition:background .12s ease;
+}
+.db-h.on.p1,.db-v.on.p1{background:#38bdf8}
+.db-h.on.p2,.db-v.on.p2{background:#f43f5e}
+.db-v{
+  width:10px;height:52px;border-radius:999px;border:none;cursor:pointer;
+  background:rgba(148,163,184,.25);transition:background .12s ease;
+}
+.db-box{
+  width:52px;height:52px;border-radius:8px;background:rgba(15,23,42,.35);
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;
+}
+.db-box.p1{background:rgba(56,189,248,.24);color:#7dd3fc}
+.db-box.p2{background:rgba(244,63,94,.24);color:#fda4af}
+.sq-opts{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+
+/* Gift Vault Inspect, Proposal Modal, Flash Drop & Moderation */
+.gw-inspect-box{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:6px 0}
+.gw-inspect-art{padding:12px;border-radius:18px;background:var(--card2);border:1px solid rgba(255,211,107,.45)}
+.prop-modal-box{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:6px 0}
+.prop-wed-pill{
+  padding:5px 11px;border-radius:999px;background:rgba(255,211,107,.16);
+  border:1px solid rgba(255,211,107,.55);color:var(--gold);font-size:11.5px;font-weight:800;
+}
+.lux-grand-emblem{
+  padding:20px;display:flex;align-items:center;justify-content:center;
+  animation:luxPalaceRise .9s cubic-bezier(.16,1,.3,1) forwards;
+}
+
+.flash-drop-card{
+  padding:11px 12px;border-radius:13px;
+  background:linear-gradient(135deg,rgba(245,158,11,.22),rgba(124,58,237,.22));
+  border:1.5px solid rgba(255,211,107,.65);color:var(--tx);
+}
+.flash-drop-card.fd-ended{opacity:.65;border-style:dashed}
+.wc-rep-btn{
+  margin-left:auto;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.22);
+  border-radius:8px;padding:3px 6px;font-size:12px;cursor:pointer;color:#fff;flex-shrink:0;
+}
+
+.mod-badge{
+  display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;
+  padding:0 6px;border-radius:999px;background:#fff;color:#b91c1c;font-size:11px;font-weight:900;margin-left:6px;
+}
+.rep-card{display:flex;flex-direction:column;gap:6px;padding:11px;border-color:rgba(239,68,68,.4)}
+.rep-card.resolved{opacity:.62;border-color:var(--bd)}
+.rep-proof-img{width:100%;max-height:200px;object-fit:contain;border-radius:10px;background:#000;border:1px solid var(--bd)}
+.warn-alert-card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:8px 0}
+.warn-alert-ico{font-size:36px}
+.ban-card{max-width:390px;width:92vw;text-align:center;border-color:rgba(239,68,68,.55) !important}
+.ban-ico{font-size:40px;margin-bottom:4px}
+.ban-timer-box{
+  margin-top:10px;padding:8px 12px;border-radius:11px;
+  background:rgba(239,68,68,.16);border:1px solid rgba(239,68,68,.45);
+  color:#fecaca;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;
+}
+
+/* =====================================================================
+   WEPLAY-STYLE VISUAL POLISH & HIGH-DETAIL 3D GLOSSY UI SYSTEM
+   ===================================================================== */
+
+/* Shared Micro Pills & Chevrons */
+.wp-pill{
+  display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;
+  font-size:11px;font-weight:800;white-space:nowrap;line-height:1.35;
+}
+.wp-pill.lv{background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#1c1100}
+.wp-pill.charm{background:linear-gradient(135deg,#ec4899,#8b5cf6);color:#fff}
+.wp-pill.gold{background:rgba(255,211,107,.2);border:1px solid rgba(255,211,107,.55);color:#fef08a}
+.wp-pill.clan{background:rgba(56,189,248,.22);border:1px solid rgba(56,189,248,.5);color:#bae6fd}
+.wp-pill.vip{background:linear-gradient(135deg,#fbbf24,#f97316);color:#1f1200}
+.wp-gender{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:900;flex-shrink:0;
+}
+.wp-gender.m{background:rgba(56,189,248,.24);color:#7dd3fc;border:1px solid rgba(56,189,248,.5)}
+.wp-gender.f{background:rgba(244,114,182,.26);color:#fbcfe8;border:1px solid rgba(244,114,182,.55)}
+.wp-chev{font-style:normal;font-size:18px;font-weight:700;color:var(--mu);line-height:1;margin-left:4px}
+
+/* Home Top Strip & 3D Quick Action Row */
+.wp-home-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 12px;border-radius:18px;
+  background:var(--card);border:1px solid var(--bd);box-shadow:var(--shadow);
+}
+.wp-hb-user{
+  display:flex;align-items:center;gap:10px;background:none;border:none;padding:0;
+  color:var(--tx);cursor:pointer;text-align:left;min-width:0;flex:1;
+}
+.wp-hb-meta{min-width:0;display:flex;flex-direction:column;gap:4px}
+.wp-hb-meta b{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wp-hb-pills{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.wp-hb-acts{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.wp-hb-btn{
+  padding:7px 11px;min-height:36px;border-radius:12px;border:1px solid var(--bd);
+  background:var(--card2);color:var(--tx);font-size:12.5px;font-weight:800;cursor:pointer;
+}
+.wp-hb-btn.gold{background:linear-gradient(135deg,#f59e0b,#ffd36b);color:#1f1200;border-color:transparent}
+
+.wp-quick-row{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px;
+}
+.wp-qa-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  padding:10px 4px;border-radius:16px;background:var(--card);border:1px solid var(--bd);
+  color:var(--tx);cursor:pointer;box-shadow:var(--shadow);transition:transform .14s ease,border-color .14s ease;
+}
+.wp-qa-btn:hover{transform:translateY(-2px);border-color:rgba(108,126,255,.5)}
+.wp-qa-btn:active{transform:scale(.96)}
+.wp-qa-ico{position:relative;width:42px;height:42px;display:flex;align-items:center;justify-content:center}
+.wp-qa-ico .g3d-ico{width:42px;height:42px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35))}
+.wp-qa-btn b{font-size:12px;font-weight:800;line-height:1.1}
+.wp-qa-dot{
+  position:absolute;top:0;right:0;width:9px;height:9px;border-radius:50%;
+  background:#ef4444;border:2px solid var(--card);
+}
+
+/* 3D Activity Chests */
+.chest-pill .chest-ico{width:34px;height:34px;display:flex;align-items:center;justify-content:center}
+.chest-pill .g3d-chest{width:34px;height:34px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35))}
+.chest-pill b{font-size:12px;font-weight:900;color:var(--gold)}
+.chest-pill small{font-size:10.5px;font-weight:800;color:var(--mu)}
+.chest-pill.ready small{color:#fde047}
+
+/* WePlay Wide Glossy 3D Ornamental Game Banners */
+.wp-game-stack{display:flex;flex-direction:column;gap:10px}
+@media(min-width:740px){.wp-game-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
+.wp-game-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+
+.wp-game-banner{
+  position:relative;display:flex;align-items:center;justify-content:space-between;
+  border-radius:20px;border:1.5px solid rgba(255,255,255,.32);overflow:hidden;
+  padding:14px 12px 14px 16px;min-height:106px;cursor:pointer;color:#fff;
+  box-shadow:0 12px 26px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.35);
+  transition:transform .16s ease,box-shadow .16s ease;min-width:0;
+}
+.wp-game-banner:hover{transform:translateY(-2px);box-shadow:0 16px 32px rgba(0,0,0,.4)}
+.wp-game-banner:active{transform:scale(.98)}
+.wp-gb-shine{
+  position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 20% 0%,rgba(255,255,255,.28),transparent 58%);
+}
+.wp-gb-left{position:relative;z-index:2;display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
+.wp-gb-pills{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.wp-gb-tag{
+  font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;
+  background:rgba(0,0,0,.28);color:#fff;backdrop-filter:blur(4px);
+}
+.wp-gb-live{
+  font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;
+  background:rgba(16,185,129,.28);color:#d1fae5;
+}
+.wp-gb-title{
+  font-size:19px;font-weight:900;letter-spacing:-.3px;line-height:1.12;
+  text-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.wp-gb-foot{display:flex;align-items:center;gap:7px;margin-top:2px}
+.wp-gb-play{
+  padding:4px 12px;border-radius:999px;background:#fff;color:#0f172a;
+  font-size:11px;font-weight:900;letter-spacing:.4px;box-shadow:0 3px 10px rgba(0,0,0,.25);
+}
+.wp-gb-rw{
+  font-size:11.5px;font-weight:800;color:#fef08a;text-shadow:0 1px 4px rgba(0,0,0,.4);
+}
+.wp-gb-right{
+  position:relative;z-index:2;width:128px;height:90px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:flex-end;margin-right:-4px;
+}
+.wp-g-art{width:100%;height:100%;filter:drop-shadow(0 6px 10px rgba(0,0,0,.32))}
+
+.wp-game-banner.compact{
+  flex-direction:column;align-items:flex-start;padding:12px 11px;min-height:118px;gap:4px;
+}
+.wp-game-banner.compact .wp-gb-title{font-size:15.5px}
+.wp-game-banner.compact .wp-gb-right{
+  position:absolute;right:4px;bottom:4px;width:82px;height:66px;opacity:.95;pointer-events:none;
+}
+
+/* Section Headers & Filter Tabs (Rooms + Chats) */
+.wp-sec-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;
+}
+.wp-sec-bar b{font-size:16.5px;font-weight:900;letter-spacing:-.2px}
+.wp-pill-btn{
+  padding:5px 12px;border-radius:999px;border:1px solid var(--bd);
+  background:var(--card2);color:var(--tx);font-size:12px;font-weight:800;cursor:pointer;
+}
+.wp-pill-btn.gold{background:linear-gradient(135deg,#f59e0b,#ffd36b);color:#1f1200;border-color:transparent}
+
+.wp-filter-tabs{
+  display:flex;align-items:center;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;
+  scrollbar-width:none;
+}
+.wp-filter-tabs::-webkit-scrollbar{display:none}
+.wp-ftab{
+  position:relative;padding:6px 12px;border-radius:999px;border:none;
+  background:transparent;color:var(--mu);font-size:13px;font-weight:700;
+  cursor:pointer;white-space:nowrap;flex-shrink:0;transition:color .14s ease,background .14s ease;
+}
+.wp-ftab.on{
+  color:var(--tx);font-weight:900;background:rgba(45,212,191,.16);
+}
+.wp-ftab.on::after{
+  content:'';position:absolute;left:24%;right:24%;bottom:2px;height:3px;
+  border-radius:999px;background:linear-gradient(90deg,#2dd4bf,#38bdf8);
+}
+
+/* WePlay Room List Rows */
+.wp-room-list{display:flex;flex-direction:column;gap:8px}
+.wp-room-row{
+  width:100%;display:flex;align-items:center;gap:11px;padding:10px 11px;
+  border-radius:16px;background:var(--card);border:1px solid var(--bd);
+  color:var(--tx);cursor:pointer;text-align:left;box-shadow:var(--shadow);
+  transition:border-color .14s ease,transform .12s ease;min-width:0;
+}
+.wp-room-row:hover{border-color:rgba(45,212,191,.5)}
+.wp-room-row:active{transform:scale(.99)}
+.wp-rr-cover{position:relative;width:54px;height:54px;border-radius:14px;overflow:hidden;flex-shrink:0;box-shadow:0 4px 10px rgba(0,0,0,.28)}
+.wp-rr-cover svg{width:100%;height:100%;display:block}
+.wp-rr-lock{position:absolute;bottom:2px;right:2px;font-size:11px;background:rgba(0,0,0,.6);border-radius:6px;padding:1px 3px}
+.wp-rr-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.wp-rr-title{font-size:14.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wp-rr-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.wp-rr-cnt{font-size:11.5px;font-weight:700;color:var(--mu)}
+.wp-rr-yt{font-size:10px;font-weight:900;color:#fca5a5;background:rgba(239,68,68,.2);padding:1px 6px;border-radius:999px}
+.wp-rr-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.wp-rr-badges{display:flex;align-items:center;gap:2px}
+.g3d-badge{width:22px;height:22px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
+.wp-rr-live{
+  font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;
+  background:linear-gradient(135deg,#06b6d4,#6366f1);color:#fff;white-space:nowrap;
+}
+
+.wp-tag-pill{
+  font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap;
+}
+.wp-tag-pill.cyan{background:rgba(6,182,212,.2);color:#67e8f9}
+.wp-tag-pill.pink{background:rgba(236,72,153,.22);color:#fbcfe8}
+.wp-tag-pill.violet{background:rgba(139,92,246,.22);color:#ddd6fe}
+.wp-tag-pill.amber{background:rgba(245,158,11,.22);color:#fde68a}
+.wp-tag-pill.emerald{background:rgba(16,185,129,.22);color:#a7f3d0}
+body.light .wp-tag-pill.cyan{background:#cffafe;color:#0e7490}
+body.light .wp-tag-pill.pink{background:#fce7f3;color:#be185d}
+body.light .wp-tag-pill.violet{background:#ede9fe;color:#6d28d9}
+body.light .wp-tag-pill.amber{background:#fef3c7;color:#b45309}
+body.light .wp-tag-pill.emerald{background:#d1fae5;color:#047857}
+
+/* WePlay Chat List Rows */
+.wp-chat-row{
+  display:flex;align-items:center;gap:11px;padding:10px 12px;
+  border-radius:16px;background:var(--card);border:1px solid var(--bd);
+  cursor:pointer;box-shadow:var(--shadow);min-width:0;
+  transition:border-color .14s ease;
+}
+.wp-chat-row:hover{border-color:rgba(108,126,255,.45)}
+.wp-chat-row.world{border-color:rgba(56,189,248,.42);background:linear-gradient(135deg,rgba(14,165,233,.12),var(--card) 60%)}
+.wp-cr-av{position:relative;flex-shrink:0}
+.wp-unread-badge{
+  position:absolute;top:-3px;right:-3px;min-width:19px;height:19px;padding:0 5px;
+  border-radius:999px;background:#ef4444;color:#fff;font-size:10px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;border:2px solid var(--card);
+}
+.wp-unread-badge.blue{background:#0ea5e9}
+.wp-cr-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.wp-cr-top{display:flex;align-items:center;gap:5px;min-width:0}
+.wp-cr-top b{font-size:14.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wp-cr-mid small{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wp-cr-time{font-size:11px;color:var(--mu);font-weight:600;flex-shrink:0;align-self:flex-start;margin-top:2px}
+
+/* WePlay Profile Top Card, Shortcuts, Gift Summary & BFF Bond Cards */
+.wp-prof-cover{padding:14px !important;border-radius:20px !important}
+.wp-prof-cover-acts{display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px}
+.wp-cover-pill{
+  padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.28);
+  background:rgba(11,15,28,.5);color:#fff;font-size:11.5px;font-weight:800;cursor:pointer;
+  backdrop-filter:blur(6px);
+}
+.wp-prof-top{display:flex;align-items:center;gap:12px;min-width:0}
+.wp-prof-id{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.wp-prof-name-row{display:flex;align-items:center;gap:5px;min-width:0}
+.wp-prof-name-row b{font-size:18px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wp-lv-bar{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800}
+.wp-lv-track{flex:1;height:6px;border-radius:999px;background:rgba(255,255,255,.22);overflow:hidden;max-width:130px}
+.wp-lv-track i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#fbbf24,#f97316)}
+.wp-prof-pills{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.wp-prof-sub{display:flex;align-items:center;gap:8px;font-size:11.5px;color:rgba(255,255,255,.88);font-weight:700;flex-wrap:wrap}
+.wp-id-copy{
+  background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.22);color:#fff;
+  padding:2px 7px;border-radius:999px;font-size:10.5px;font-weight:700;cursor:pointer;
+}
+.wp-sig-box{
+  margin-top:8px;padding:10px 13px;border-radius:14px;
+  background:var(--card);border:1px solid var(--bd);font-size:13px;font-weight:600;
+}
+
+.wp-me-shortcuts{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px;
+}
+.wp-sc-btn{
+  display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;
+  border-radius:16px;background:var(--card);border:1px solid var(--bd);
+  color:var(--tx);cursor:pointer;box-shadow:var(--shadow);
+}
+.wp-sc-btn .g3d-ico{width:38px;height:38px;filter:drop-shadow(0 4px 7px rgba(0,0,0,.3))}
+.wp-sc-btn b{font-size:11.5px;font-weight:800}
+
+.wp-section-card{
+  margin-top:10px;padding:12px;border-radius:18px;
+  background:var(--card);border:1px solid var(--bd);box-shadow:var(--shadow);
+}
+.wp-sec-head{
+  display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+}
+.wp-sec-head b{font-size:15px;font-weight:900}
+.wp-heart-cnt{font-size:12px;font-weight:800;color:#f472b6}
+.wp-vis-cnt{
+  font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;
+  background:rgba(245,158,11,.2);color:var(--gold);
+}
+
+/* WePlay 3-Column Pastel Gradient BFF Bond Cards */
+.wp-bond-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px;
+}
+.wp-bond-card{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:10px 6px 9px;border-radius:16px;border:1px solid rgba(255,255,255,.22);
+  cursor:pointer;color:#fff;min-width:0;overflow:hidden;text-align:center;
+  transition:transform .14s ease;
+}
+.wp-bond-card:active{transform:scale(.97)}
+.wp-bond-card.lv3{background:linear-gradient(160deg,#ec4899,#be185d 70%,#831843)}
+.wp-bond-card.lv2{background:linear-gradient(160deg,#06b6d4,#0284c7 70%,#1e3a8a)}
+.wp-bond-card.lv1{background:linear-gradient(160deg,#a855f7,#7c3aed 70%,#4c1d95)}
+.wp-bond-card.empty-slot{
+  background:var(--card2);border:1.5px dashed var(--bd);color:var(--mu);
+  justify-content:center;min-height:112px;
+}
+.wp-bond-plus{font-size:24px;font-weight:800;line-height:1;color:var(--ac)}
+.wp-bond-lv{
+  font-size:9.5px;font-weight:900;padding:1px 6px;border-radius:999px;
+  background:rgba(0,0,0,.3);color:#fff;
+}
+.wp-bond-art .g3d-bond{width:38px;height:38px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.32))}
+.wp-bond-av{margin-top:-10px}
+.wp-bond-name{
+  font-size:11.5px;font-weight:800;max-width:100%;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.wp-bond-sub{font-size:10px;opacity:.85}
+
+/* WePlay Dual-Partner CP Showcase Banner */
+.wp-cp-banner{
+  position:relative;border-radius:20px;padding:16px 12px 14px;
+  background:linear-gradient(135deg,#9d174d,#ec4899 48%,#f59e0b);
+  border:1.5px solid rgba(255,211,107,.7);color:#fff;text-align:center;
+  box-shadow:0 14px 30px rgba(190,24,93,.32);
+}
+.wp-cp-ribbon{
+  display:inline-block;padding:2px 12px;border-radius:999px;
+  background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.35);
+  font-size:11px;font-weight:900;letter-spacing:.6px;margin-bottom:10px;
+}
+.wp-cp-duo{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.wp-cp-person{
+  flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;
+}
+.wp-cp-person b{
+  font-size:12.5px;font-weight:800;max-width:100%;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.wp-cp-empty-av{
+  width:60px;height:60px;border-radius:50%;border:2px dashed rgba(255,255,255,.65);
+  background:rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center;
+  font-size:24px;font-weight:900;
+}
+.wp-cp-mid{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}
+.g3d-rings{width:76px;height:48px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35))}
+.wp-cp-days{
+  font-size:10.5px;font-weight:900;padding:2px 8px;border-radius:999px;
+  background:rgba(255,255,255,.22);white-space:nowrap;
+}
+
+/* Gift Wall Compact Summary Box */
+.wp-gift-summary{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px;border-radius:16px;background:var(--card2);border:1px solid var(--bd);
+  margin-bottom:10px;
+}
+.wp-gs-left{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
+.wp-gs-title{font-size:14px;font-weight:900}
+.wp-gs-nums{display:flex;align-items:center;gap:10px}
+.wp-gs-stat{display:flex;flex-direction:column}
+.wp-gs-stat b{font-size:15px;font-weight:900;color:var(--gold);line-height:1.1}
+.wp-gs-stat small{font-size:10.5px;color:var(--mu);font-weight:700}
+.wp-gs-div{width:1px;height:22px;background:var(--bd)}
+.wp-gs-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+/* WePlay Public Profile Sticky Dual Action Bar */
+.wp-prof-sticky-bar{
+  margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);
+  display:flex;flex-direction:column;gap:8px;
+}
+.wp-prof-mini-acts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.wp-mini-btn{
+  padding:7px 4px;border-radius:12px;border:1px solid var(--bd);background:var(--card2);
+  color:var(--tx);font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap;
+}
+.wp-mini-btn.on{border-color:var(--ok);color:var(--ok)}
+.wp-mini-btn.liked{border-color:#f43f5e;color:#fb7185}
+.wp-mini-btn.bad{color:#f87171}
+.wp-prof-dual-cta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.wp-cta-gift,.wp-cta-chat{
+  padding:11px 12px;border-radius:999px;border:none;font-size:14px;font-weight:900;
+  color:#fff;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.28);
+}
+.wp-cta-gift{background:linear-gradient(135deg,#ec4899,#f43f5e)}
+.wp-cta-chat{background:linear-gradient(135deg,#06b6d4,#3b82f6)}
+
+/* WePlay Grouped List-Style Edit Profile & Settings Rows */
+.wp-edit-group{
+  border-radius:18px;overflow:hidden;background:var(--card);border:1px solid var(--bd);
+  margin-bottom:10px;box-shadow:var(--shadow);
+}
+.wp-edit-row{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:13px 14px;background:transparent;border:none;border-bottom:1px solid var(--bd);
+  color:var(--tx);cursor:pointer;text-align:left;min-height:50px;
+  transition:background .12s ease;
+}
+.wp-edit-row:last-child{border-bottom:none}
+.wp-edit-row:hover:not(.static){background:rgba(108,126,255,.08)}
+.wp-edit-row.static{cursor:default}
+.wp-er-lbl{font-size:14px;font-weight:700;flex-shrink:0}
+.wp-er-val{
+  display:inline-flex;align-items:center;gap:6px;min-width:0;justify-content:flex-end;
+  color:var(--mu);font-size:13.5px;font-weight:600;
+}
+.wp-er-val em{font-style:normal}
+.wp-er-trunc{max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wp-er-badges{display:inline-flex;align-items:center;gap:2px}
+
+/* Refined Bottom Navigation Active State */
+#nav button.on .nav-ico{
+  width:auto;height:auto;min-width:34px;min-height:24px;
+  background:linear-gradient(135deg,rgba(45,212,191,.24),rgba(108,126,255,.28));
+  color:#2dd4bf;border-radius:12px;padding:3px 8px;
+}
+#nav button.on .nav-ico svg{width:18px;height:18px;flex-shrink:0}
+#nav button.on em{color:#2dd4bf;font-weight:900}
+body.light #nav button.on .nav-ico{background:rgba(6,182,212,.14);color:#0891b2}
+body.light #nav button.on em{color:#0891b2}

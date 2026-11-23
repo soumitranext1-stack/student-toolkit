@@ -122,10 +122,30 @@ function claimRankReward(){
   }
 }
 
+let rankingMode='daily';
+
 function renderRanking(){
   const devViewer=isDevSession();
+  const modeBar=`<div class="rk-mode-bar">
+    <button type="button" class="btn sm ${rankingMode==='daily'?'':'ghost'}" data-rkmode="daily">🏆 Daily Players</button>
+    <button type="button" class="btn sm ${rankingMode==='clans'?'gold':'ghost'}" data-rkmode="clans">🛡️ Weekly Clan Wars</button>
+    <button type="button" class="btn sm ghost" id="rkOpenClansBtn" style="margin-left:auto">${me.clanTag?`[${esc(me.clanTag)}]`:'Join Clan'}</button>
+  </div>`;
+
+  if(rankingMode==='clans'){
+    $('#podiumSection').innerHTML=modeBar+`
+      <div class="card" style="margin-top:8px;border-color:rgba(255,211,107,.35)">
+        <b style="color:var(--gold)">Weekly Clan Wars Leaderboard</b>
+        <p style="font-size:12px;color:var(--mu);margin-top:3px">Earn Clan Glory by winning Arena matches and sending gifts. Top Squads unlock bragging rights &amp; squad prestige!</p>
+      </div>`;
+    $('#rankList').innerHTML=typeof renderClanLeaderboardHtml==='function'
+      ? renderClanLeaderboardHtml()
+      : '<div class="empty">No Clans created yet. Tap "Join Clan" to found one!</div>';
+    return;
+  }
+
   const top3=rankableUsers().slice(0,3), podOrder=[top3[1],top3[0],top3[2]], podRanks=[2,1,3];
-  $('#podiumSection').innerHTML=`<div class="podium-wrap"><div class="podium">${podOrder.map((u,i)=>{
+  $('#podiumSection').innerHTML=modeBar+`<div class="podium-wrap"><div class="podium">${podOrder.map((u,i)=>{
     const rk=podRanks[i];
     const def=defaultRankAsset(rk);
     const disp=u||{uid:'',name:'—',avatar:def.avatar,frame:'none',todayPts:0,coins:0};
@@ -140,14 +160,28 @@ function renderRanking(){
   $('#podiumSection').insertAdjacentHTML('beforeend',rewardCardsHtml());
   $('#rankList').innerHTML=rankableUsers().slice(3,50).map((u,i)=>{
     const rb=getActiveRankBadge(u);
+    const dec=typeof renderNameDecorations==='function'?renderNameDecorations(u,{compact:true}):'';
     const giftBtnHtml=u.uid!==uid?`<button type="button" class="btn gold sm rk-gift-btn" data-rkgift="${esc(u.uid)}" aria-label="Send gift to ${esc(u.name||'Player')}">Gift</button>`:'';
+    const rivalBtnHtml=u.uid!==uid?`<button type="button" class="btn ghost sm" data-rkrival="${esc(u.uid)}" title="Challenge Rival" aria-label="Challenge ${esc(u.name||'Player')}">⚔️</button>`:'';
     const devWalletMeta=devViewer?` · <span style="color:var(--gold);font-weight:700" data-dev-row-wallet="1">Wallet ${fmtNum(u.coins)} 🪙</span>`:'';
-    return `<div class="row rk ${u.uid===uid?'me':''}" data-prof="${esc(u.uid)}"><div class="badge">#${i+4}</div>${av(u,44)}<div class="mid"><b>${styledName(u)} ${rb?`<span class="lb-badge ${esc(rb.badgeClass)}" style="font-size:9px;padding:1px 6px">${esc(rb.badge)}</span>`:''}</b><small>LVL ${fmtNum(calcLevel(u.exp),MAX_LEVEL)} · Charm ${fmtNum(u.charm||0)}${devWalletMeta}</small></div>${giftBtnHtml}<div class="cn" title="Today's earnings">${UI_SVG.coin} +${fmtNum(u.todayPts||0)}</div></div>`;
-  }).join('')||'<div class="empty">Earn coins in Study Tasks &amp; Games to climb the Daily Leaderboard!</div>';
+    return `<div class="row rk ${u.uid===uid?'me':''}" data-prof="${esc(u.uid)}"><div class="badge">#${i+4}</div>${av(u,44)}<div class="mid"><b>${styledName(u)} ${dec} ${rb?`<span class="lb-badge ${esc(rb.badgeClass)}" style="font-size:9px;padding:1px 6px">${esc(rb.badge)}</span>`:''}</b><small>LVL ${fmtNum(calcLevel(u.exp),MAX_LEVEL)} · Charm ${fmtNum(u.charm||0)}${devWalletMeta}</small></div><div class="row" style="gap:4px">${rivalBtnHtml}${giftBtnHtml}</div><div class="cn" title="Today's earnings">${UI_SVG.coin} +${fmtNum(u.todayPts||0)}</div></div>`;
+  }).join('')||'<div class="empty">Earn coins in Arena Games &amp; Tasks to climb the Daily Leaderboard!</div>';
 }
 
-$('#podiumSection').onclick=e=>{const p=e.target.closest('[data-prof]');if(p&&p.dataset.prof)openPublicProfile(p.dataset.prof)};
+$('#podiumSection').onclick=e=>{
+  const mb=e.target.closest('[data-rkmode]');
+  if(mb){rankingMode=mb.dataset.rkmode;renderRanking();return}
+  if(e.target.closest('#rkOpenClansBtn')){
+    if(typeof openClansModal==='function')openClansModal();
+    return;
+  }
+  const p=e.target.closest('[data-prof]');if(p&&p.dataset.prof)openPublicProfile(p.dataset.prof);
+};
 $('#rankList').onclick=e=>{
+  const jc=e.target.closest('[data-joinclan]');
+  if(jc&&typeof joinClanById==='function'){joinClanById(jc.dataset.joinclan);renderRanking();return}
+  const rv=e.target.closest('[data-rkrival]');
+  if(rv){e.stopPropagation();if(typeof openRivalChallenge==='function')openRivalChallenge(rv.dataset.rkrival);return}
   const gb=e.target.closest('[data-rkgift]');
   if(gb){e.stopPropagation();if(typeof openGiftSendModal==='function')openGiftSendModal(gb.dataset.rkgift);return}
   const c=e.target.closest('[data-prof]');if(c)openPublicProfile(c.dataset.prof);

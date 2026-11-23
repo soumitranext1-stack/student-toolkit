@@ -180,15 +180,39 @@ function isDevAccount(u){
   return u.accountType==='account' && provOk && String(u.accountId||'').trim().toLowerCase()===DEV_LOGIN_ID;
 }
 
+const REGION_OPTIONS=[
+  {code:'India',flag:'🇮🇳'},{code:'USA',flag:'🇺🇸'},{code:'UK',flag:'🇬🇧'},
+  {code:'UAE',flag:'🇦🇪'},{code:'Canada',flag:'🇨🇦'},{code:'Japan',flag:'🇯🇵'},
+  {code:'Brazil',flag:'🇧🇷'},{code:'Global',flag:'🌐'}
+];
+function getRegionFlag(region){
+  const r=REGION_OPTIONS.find(x=>x.code===region);
+  return r?r.flag:'🇮🇳';
+}
+function copyTextClean(val,label){
+  const s=String(val||'');
+  if(!s)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(s).then(()=>toast((label||'Copied')+': '+s)).catch(()=>toast(s));
+  }else toast(s);
+}
+
 function freshDefaultProfile(targetUid, isGuest){
   return {
     uid:targetUid,
     name:isGuest?('Guest '+targetUid.slice(-4)):'Player '+targetUid.slice(-4),
-    bio:'',hobbies:'',avatar:'🦊',
-    frame:'none',banner:'bn-aurora',textStyle:'',msgStyle:'',
+    bio:'',hobbies:'',gender:'',birthday:'',region:'India',moodTag:'',avatar:'av_b1',
+    frame:'none',banner:'bn-aurora',textStyle:'',msgStyle:'',entryEffect:'',title:'',unlockedTitles:[],
     tags:[isGuest?'Guest Pass':'Newbie'],
     accountType:isGuest?'guest':'account',accountId:'',authProvider:isGuest?'anonymous':'google.com',
     coins:50,exp:0,charm:0,charmSent:0,giftWallet:{},
+    vipTier:'',vipUntil:0,
+    likesCount:0,likedBy:[],visitors:[],
+    bonds:[],pendingProposals:[],
+    clanId:'',clanTag:'',
+    warnings:[],mutedUntil:0,banReason:'',banUntil:0,
+    streakClaimDay:'',streakDayIndex:0,dailyChestClaimedDay:'',
+    spinFreeDay:'',spinTickets:0,activitySec:0,claimedChestsDay:{},
     dailyCoinsByDay:{},claimedByDay:{},friends:[],tempUnlocks:{},rankVerified:{},devGrants:{},done:{},bioStyle:'',
     unreadFrom:{},activeDays:[today()],referredBy:'',referralRewardClaimed:false,
     lastLoginBonusDay:'',poemReqDay:'',usageSec:0,banned:false,resetAt:0,devStatsUpdatedAt:0,giftResetAt:0,lastRewardedLevel:1,lastSeen:Date.now()
@@ -197,6 +221,13 @@ function freshDefaultProfile(targetUid, isGuest){
 
 const FREE_TAGS=['Guest Pass','Newbie'];
 const REF_PARAM=(new URLSearchParams(location.search).get('ref')||'').toUpperCase();
+const FX_L=typeof FX_USER_LISTS!=='undefined'?FX_USER_LISTS:{};
+const USER_FRAMES=[['none','Plain'],['flame','Fire Ring'],['wings','Royal Wings'],['crown','Crown'],['star','Starlight'],['neon','Neon'],['ice','Frost'],['rainbow','Rainbow'],...(FX_L.frame||[])];
+const BANNERS=[['bn-aurora','Aurora'],['bn-crimson','Crimson'],['bn-galaxy','Galaxy'],['bn-solar','Solar'],['bn-emerald','Emerald'],['bn-midnight','Midnight'],['bn-rose','Rose'],['bn-ocean','Ocean'],['bn-sunrise','Sunrise'],['bn-candy','Candy'],...(FX_L.banner||[])];
+const TEXTS=[['','Normal'],['anim-firetxt','Fire'],['anim-royal-txt','Royal'],['anim-neon-txt','Neon'],['anim-gold-txt','Gold'],['anim-ice-txt','Ice'],['anim-berry-txt','Berry'],['anim-mint-txt','Mint'],['anim-sunset-txt','Sunset'],['anim-lava-txt','Lava'],['anim-aqua-txt','Aqua'],...(FX_L.text||[])];
+const MSGS=[['','Normal Msg'],['msg-glow-gold','Gold'],['msg-glow-cyan','Cyan'],['msg-glow-rose','Rose'],['msg-glow-violet','Violet'],['msg-glow-green','Green'],['msg-glow-orange','Orange'],...(FX_L.msg||[])];
+const BIOS=[['','Normal'],['bio-gold','Gold'],['bio-cyan','Cyan'],['bio-pink','Pink'],['bio-rainbow','Rainbow']];
+const USER_AVATARS=['🦊','🐼','🐯','🦉','🐙','🚀','🧠','🎮','⚡','🔥','🌟','🐲'];
 
 function sanitizeDailyMap(rawMap){
   const out={};
@@ -211,9 +242,15 @@ function sanitizeDailyMap(rawMap){
 function normalizeProfile(p,targetUid){
   const isGuest=targetUid===guestUid && (!p || p.accountType!=='account');
   const o={...freshDefaultProfile(targetUid,isGuest),...JSON.parse(JSON.stringify(p||{})),uid:targetUid};
-  ['dailyCoinsByDay','claimedByDay','tempUnlocks','rankVerified','devGrants','unreadFrom','done','giftWallet'].forEach(k=>{if(!o[k]||typeof o[k]!=='object'||Array.isArray(o[k]))o[k]={}});
+  ['dailyCoinsByDay','claimedByDay','tempUnlocks','rankVerified','devGrants','unreadFrom','done','giftWallet','claimedChestsDay'].forEach(k=>{if(!o[k]||typeof o[k]!=='object'||Array.isArray(o[k]))o[k]={}});
   o.friends=Array.isArray(o.friends)?o.friends:[];
   o.activeDays=Array.isArray(o.activeDays)?o.activeDays:[];
+  o.likedBy=Array.isArray(o.likedBy)?o.likedBy.slice(-200):[];
+  o.visitors=Array.isArray(o.visitors)?o.visitors.slice(-20):[];
+  o.bonds=Array.isArray(o.bonds)?o.bonds.slice(-10):[];
+  o.pendingProposals=Array.isArray(o.pendingProposals)?o.pendingProposals.slice(-15):[];
+  o.warnings=Array.isArray(o.warnings)?o.warnings.slice(-20):[];
+  o.unlockedTitles=Array.isArray(o.unlockedTitles)?o.unlockedTitles:[];
   if(!o.activeDays.includes(today()))o.activeDays.push(today());
   o.activeDays=o.activeDays.slice(-60);
   o.dailyCoinsByDay=sanitizeDailyMap(o.dailyCoinsByDay);
@@ -221,6 +258,16 @@ function normalizeProfile(p,targetUid){
   o.exp=clampExp(o.exp);
   o.charm=clampSafeInt(o.charm||0,0,MAX_COINS);
   o.charmSent=clampSafeInt(o.charmSent||0,0,MAX_COINS);
+  o.likesCount=Math.max(o.likedBy.length,clampSafeInt(o.likesCount||0,0,MAX_COINS));
+  o.vipUntil=Number(o.vipUntil||0);
+  if(o.vipUntil<=Date.now())o.vipTier='';
+  o.mutedUntil=Number(o.mutedUntil||0);
+  o.banUntil=Number(o.banUntil||0);
+  if(o.banned && o.banUntil>0 && o.banUntil<=Date.now()){
+    o.banned=false;o.banUntil=0;o.banReason='';
+  }
+  o.spinTickets=clampSafeInt(o.spinTickets||0,0,9999);
+  o.activitySec=clampSafeInt(o.activitySec||0,0,8640000);
   o.streakDays=calcStreak(o.activeDays);
   o.resetAt=Number(o.resetAt||0);
   o.devStatsUpdatedAt=Number(o.devStatsUpdatedAt||0);
@@ -232,7 +279,13 @@ function normalizeProfile(p,targetUid){
     if(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(k))return canWearExclusiveAsset(o,k);
     return Number(o.tempUnlocks[k]||0)>Date.now();
   };
-  const isFreeAvatar=a=>(typeof FX_FREE_AVATARS!=='undefined'?FX_FREE_AVATARS:USER_AVATARS).includes(a);
+  const isFreeAvatar=a=>{
+    if(!a)return false;
+    if(typeof isCustomPhotoAvatar==='function'&&isCustomPhotoAvatar(a))return true;
+    if(String(a).startsWith('data:image/'))return true;
+    const pool=typeof FX_FREE_AVATARS!=='undefined'?FX_FREE_AVATARS:USER_AVATARS;
+    return pool.includes(a)||USER_AVATARS.includes(a);
+  };
 
   /* Clean leaked unverified Top 1-3 tempUnlocks immediately */
   Object.keys(o.tempUnlocks).forEach(k=>{
@@ -243,21 +296,23 @@ function normalizeProfile(p,targetUid){
 
   if(isDevAccount(o)){
     /* Developer Profile Rules: keep Developer profile clean and controllable, only keeping items owned/free. */
-    if(!o.avatar || (!isFreeAvatar(o.avatar) && !live('avatar:'+o.avatar)))o.avatar='🦊';
+    if(!o.avatar || (!isFreeAvatar(o.avatar) && !live('avatar:'+o.avatar)))o.avatar='av_b1';
     if(o.frame && o.frame!=='none' && !live('frame:'+o.frame))o.frame='none';
     if(o.banner && o.banner!=='bn-aurora' && !live('banner:'+o.banner))o.banner='bn-aurora';
     if(o.textStyle && !live('text:'+o.textStyle))o.textStyle='';
     if(o.msgStyle && !live('msg:'+o.msgStyle))o.msgStyle='';
     if(o.bioStyle && !live('bio:'+o.bioStyle))o.bioStyle='';
+    if(o.entryEffect && !live('entry:'+o.entryEffect))o.entryEffect='';
     const validDevTags=(Array.isArray(o.tags)?o.tags:[]).filter(t=>t==='Developer'||t==='LVL 99'||FREE_TAGS.includes(t)||live('tag:'+t));
     o.tags=validDevTags.length?validDevTags.slice(0,3):['Developer','LVL 99'];
   }else{
-    if(!o.avatar || (!isFreeAvatar(o.avatar) && !live('avatar:'+o.avatar)))o.avatar='🦊';
+    if(!o.avatar || (!isFreeAvatar(o.avatar) && !live('avatar:'+o.avatar)))o.avatar='av_b1';
     if(o.frame==='dev'||(o.frame&&o.frame!=='none'&&!live('frame:'+o.frame)))o.frame='none';
     if(o.banner==='bn-dev'||(o.banner!=='bn-aurora'&&!live('banner:'+o.banner)))o.banner='bn-aurora';
     if(o.textStyle&&!live('text:'+o.textStyle))o.textStyle='';
     if(o.msgStyle&&!live('msg:'+o.msgStyle))o.msgStyle='';
     if(o.bioStyle&&!live('bio:'+o.bioStyle))o.bioStyle='';
+    if(o.entryEffect&&!live('entry:'+o.entryEffect)&&!o.vipTier)o.entryEffect='';
     o.tags=(Array.isArray(o.tags)?o.tags:[]).filter(t=>t!=='Developer'&&t!=='LVL 99'&&(FREE_TAGS.includes(t)||live('tag:'+t))).slice(0,3);
     if(!o.tags.length)o.tags=[o.accountType==='account'?'Newbie':'Guest Pass'];
   }
@@ -315,13 +370,16 @@ function sanitizeUserAppearance(u){
 }
 
 function isUnlocked(key){
-  if(['frame:none','banner:bn-aurora','text:','msg:','bio:'].includes(key))return true;
+  if(['frame:none','banner:bn-aurora','text:','msg:','bio:','entry:'].includes(key))return true;
   if(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(key)){
     return canWearExclusiveAsset(me,key);
   }
   if(key.startsWith('avatar:')){
     const em=key.slice(7);
+    if(typeof isCustomPhotoAvatar==='function'&&isCustomPhotoAvatar(em))return true;
+    if(String(em).startsWith('data:image/'))return true;
     if((typeof FX_FREE_AVATARS!=='undefined'?FX_FREE_AVATARS:USER_AVATARS).includes(em))return true;
+    if(USER_AVATARS.includes(em))return true;
   }
   if(key.startsWith('tag:')){
     const tg=key.slice(4);
@@ -366,14 +424,6 @@ let poems=ls.get('sg_poems_cache',[]);
 let poemRequests=ls.get('sg_poem_requests_cache',[]);
 let customGameSlots=ls.get('sg_game_slots',[]);
 
-const FX_L=typeof FX_USER_LISTS!=='undefined'?FX_USER_LISTS:{};
-const USER_FRAMES=[['none','Plain'],['flame','Fire Ring'],['wings','Royal Wings'],['crown','Crown'],['star','Starlight'],['neon','Neon'],['ice','Frost'],['rainbow','Rainbow'],...(FX_L.frame||[])];
-const BANNERS=[['bn-aurora','Aurora'],['bn-crimson','Crimson'],['bn-galaxy','Galaxy'],['bn-solar','Solar'],['bn-emerald','Emerald'],['bn-midnight','Midnight'],['bn-rose','Rose'],['bn-ocean','Ocean'],['bn-sunrise','Sunrise'],['bn-candy','Candy'],...(FX_L.banner||[])];
-const TEXTS=[['','Normal'],['anim-firetxt','Fire'],['anim-royal-txt','Royal'],['anim-neon-txt','Neon'],['anim-gold-txt','Gold'],['anim-ice-txt','Ice'],['anim-berry-txt','Berry'],['anim-mint-txt','Mint'],['anim-sunset-txt','Sunset'],['anim-lava-txt','Lava'],['anim-aqua-txt','Aqua'],...(FX_L.text||[])];
-const MSGS=[['','Normal Msg'],['msg-glow-gold','Gold'],['msg-glow-cyan','Cyan'],['msg-glow-rose','Rose'],['msg-glow-violet','Violet'],['msg-glow-green','Green'],['msg-glow-orange','Orange'],...(FX_L.msg||[])];
-const BIOS=[['','Normal'],['bio-gold','Gold'],['bio-cyan','Cyan'],['bio-pink','Pink'],['bio-rainbow','Rainbow']];
-const USER_AVATARS=['🦊','🐼','🐯','🦉','🐙','🚀','🧠','🎮','⚡','🔥','🌟','🐲'];
-
 function frameSvgBase(fr){
   if(fr==='dev')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#ffd36b" stroke-width="3.8" stroke-dasharray="16 6"/><polygon points="34,11 42,2 50,10 58,2 66,11 61,18 39,18" fill="#ff4d6a" stroke="#ffd36b" stroke-width="1.4"/></svg><span class="f-top-tag">DEV 99</span>`;
   if(fr==='flame')return `<svg class="ring-svg spin-cw" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#ff6a1a" stroke-width="3.4" stroke-dasharray="14 8"/></svg><span class="f-top-tag" style="background:#ff5500;color:#fff">FIRE</span>`;
@@ -417,8 +467,14 @@ function dbOp(fn, onErr){
 }
 
 const base=()=>({
-  uid,name:me.name,bio:me.bio,hobbies:me.hobbies,avatar:me.avatar,frame:me.frame,banner:me.banner,
-  textStyle:me.textStyle,msgStyle:me.msgStyle,bioStyle:me.bioStyle||'',
+  uid,name:me.name,bio:me.bio,hobbies:me.hobbies,gender:me.gender||'',birthday:me.birthday||'',region:me.region||'India',moodTag:me.moodTag||'',
+  avatar:me.avatar,frame:me.frame,banner:me.banner,
+  textStyle:me.textStyle,msgStyle:me.msgStyle,bioStyle:me.bioStyle||'',entryEffect:me.entryEffect||'',
+  title:me.title||'',unlockedTitles:me.unlockedTitles||[],
+  vipTier:getActiveVipTier(me),vipUntil:Number(me.vipUntil||0),
+  likesCount:Number(me.likesCount||0),likedBy:(me.likedBy||[]).slice(-200),visitors:(me.visitors||[]).slice(-20),
+  bonds:(me.bonds||[]).slice(-10),pendingProposals:(me.pendingProposals||[]).slice(-15),
+  clanId:me.clanId||'',clanTag:me.clanTag||'',
   streakDays:calcStreak(me.activeDays),activeDays:me.activeDays,tags:me.tags,
   accountType:me.accountType,accountId:me.accountId,authProvider:me.authProvider||(me.accountType==='account'?'google.com':'anonymous'),
   exp:clampExp(me.exp),charm:clampSafeInt(me.charm||0,0,MAX_COINS),charmSent:clampSafeInt(me.charmSent||0,0,MAX_COINS),
@@ -428,8 +484,158 @@ const base=()=>({
   resetAt:Number(me.resetAt||0),devStatsUpdatedAt:Number(me.devStatsUpdatedAt||0),giftResetAt:Number(me.giftResetAt||0),lastSeen:Date.now()
 });
 
+function getActiveVipTier(u){
+  if(!u)return '';
+  const tier=String(u.vipTier||'').toLowerCase();
+  const until=Number(u.vipUntil||0);
+  if(tier&&until>Date.now())return tier;
+  return '';
+}
+
+function formatCountdownMs(ms){
+  const rem=Math.max(0,Math.floor(Number(ms||0)/1000));
+  const d=Math.floor(rem/86400);
+  const h=Math.floor((rem%86400)/3600);
+  const m=Math.floor((rem%3600)/60);
+  const s=rem%60;
+  if(d>0)return `${d}d ${h}h ${m}m`;
+  if(h>0)return `${h}h ${m}m ${s}s`;
+  if(m>0)return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function isMutedNow(u){
+  const target=u||me;
+  if(!target||isDevAccount(target))return false;
+  return Number(target.mutedUntil||0)>Date.now();
+}
+
+function muteRemainingText(u){
+  const target=u||me;
+  const rem=Math.max(0,Number((target&&target.mutedUntil)||0)-Date.now());
+  return rem>0?formatCountdownMs(rem):'';
+}
+
+function renderNameDecorations(u, opts){
+  if(!u)return '';
+  opts=opts||{};
+  const parts=[];
+  const vip=getActiveVipTier(u);
+  if(vip){
+    const lbl=vip==='royal'?'ROYAL VIP':vip==='gold'?'GOLD VIP':'SILVER VIP';
+    parts.push(`<span class="vip-pill vip-${esc(vip)}">${lbl}</span>`);
+  }
+  if(u.clanTag){
+    parts.push(`<span class="clan-tag-pill">[${esc(u.clanTag)}]</span>`);
+  }
+  if(typeof getCharmTierInfo==='function'){
+    const ct=getCharmTierInfo(Number(u.charm||0));
+    parts.push(`<span class="charm-rank-pill" title="Charm Rank: ${esc(ct.label)}">${ct.icon}</span>`);
+  }
+  const bonds=Array.isArray(u.bonds)?u.bonds:[];
+  const couple=bonds.find(b=>b&&b.type==='couple');
+  if(couple&&!opts.compact){
+    parts.push(`<span class="bond-mini-pill bond-couple" title="Couple with ${esc(couple.partnerName||'Partner')}">💍 ${esc(couple.partnerName||'Partner')}</span>`);
+  }else if(bonds[0]&&!opts.compact){
+    const b0=bonds[0];
+    const ico=b0.type==='bestie'?'💖':b0.type==='bro'?'🛡️':'💍';
+    parts.push(`<span class="bond-mini-pill bond-${esc(b0.type||'bestie')}">${ico} ${esc(b0.partnerName||'Squad')}</span>`);
+  }
+  return parts.join('');
+}
+
+let banTimerIv=null;
 function patchUser(id,obj){let u=users.find(x=>x.uid===id);if(!u){u={uid:id};users.push(u)}Object.assign(u,obj);ls.set('sg_users_cache',users)}
-function checkBan(){$('#banBox').hidden=!me.banned;$('#banUid').textContent=uid}
+function checkBan(){
+  const now=Date.now();
+  if(me.banned && Number(me.banUntil||0)>0 && Number(me.banUntil)<=now){
+    me.banned=false;me.banUntil=0;me.banReason='';saveMe();
+    dbOp(()=>F.setDoc(userRef(uid),{banned:false,banUntil:0,banReason:''},{merge:true}));
+  }
+  const box=$('#banBox');
+  if(!box)return;
+  box.hidden=!me.banned;
+  const uidEl=$('#banUid');if(uidEl)uidEl.textContent=uid;
+  const reasonEl=$('#banReason');
+  if(reasonEl)reasonEl.textContent=me.banReason||'Violation of Study Game community guidelines.';
+  const cdEl=$('#banCountdown');
+  if(banTimerIv){clearInterval(banTimerIv);banTimerIv=null;}
+  if(me.banned && cdEl){
+    const tick=()=>{
+      const until=Number(me.banUntil||0);
+      if(!until){cdEl.textContent='Permanent suspension (contact developer for review)';return;}
+      const left=until-Date.now();
+      if(left<=0){
+        clearInterval(banTimerIv);banTimerIv=null;
+        me.banned=false;me.banUntil=0;me.banReason='';saveMe();
+        box.hidden=true;toast('Your temporary suspension has expired.');
+        return;
+      }
+      cdEl.textContent='Time remaining: '+formatCountdownMs(left);
+    };
+    tick();
+    banTimerIv=setInterval(tick,1000);
+  }
+}
+
+let shownWarningIds=new Set();
+function checkPendingWarnings(){
+  const list=Array.isArray(me.warnings)?me.warnings:[];
+  const unseen=list.filter(w=>w&&w.id&&!w.ack&&!shownWarningIds.has(w.id));
+  if(!unseen.length)return;
+  const w=unseen[unseen.length-1];
+  shownWarningIds.add(w.id);
+  if(typeof playSfx==='function')playSfx('warningAlert');
+  const m=modal('Official Moderation Warning',`
+    <div class="warn-alert-card">
+      <div class="warn-alert-ico">⚠️</div>
+      <b>Strike #${list.length} Issued by Moderator</b>
+      <p style="margin:8px 0 4px;font-size:13px;line-height:1.5">${esc(w.reason||'Please follow community rules in chats, party rooms, and games.')}</p>
+      <small style="color:var(--muted)">Issued ${new Date(w.ts||Date.now()).toLocaleString()}</small>
+    </div>
+    <button class="btn full" id="warnAckBtn" style="margin-top:10px">I Understand</button>
+  `,'warn-sheet');
+  $('#warnAckBtn',m).onclick=()=>{
+    me.warnings=(me.warnings||[]).map(x=>x.id===w.id?{...x,ack:true}:x);
+    saveMe();
+    dbOp(()=>F.setDoc(userRef(uid),{warnings:me.warnings},{merge:true}));
+    m.close();
+  };
+}
+
+function toggleProfileLike(targetUid){
+  if(!targetUid||targetUid===uid)return toast('You cannot like your own profile');
+  const u=allUsers().find(x=>x.uid===targetUid);
+  if(!u)return;
+  const likedBy=Array.isArray(u.likedBy)?[...u.likedBy]:[];
+  const already=likedBy.includes(uid);
+  let nextLiked=likedBy;
+  let nextCount=Math.max(likedBy.length,Number(u.likesCount||0));
+  if(already){
+    nextLiked=likedBy.filter(x=>x!==uid);
+    nextCount=Math.max(0,nextCount-1);
+    toast('Removed profile like');
+  }else{
+    nextLiked.push(uid);
+    nextCount+=1;
+    if(typeof playSfx==='function')playSfx('reactionPop');
+    toast('Liked '+(u.name||'Player')+' ❤️');
+  }
+  patchUser(targetUid,{likedBy:nextLiked.slice(-200),likesCount:nextCount});
+  dbOp(()=>F.setDoc(userRef(targetUid),{likedBy:nextLiked.slice(-200),likesCount:nextCount},{merge:true}));
+}
+
+function recordProfileVisitor(targetUid){
+  if(!targetUid||targetUid===uid)return;
+  const u=allUsers().find(x=>x.uid===targetUid);
+  if(!u)return;
+  const existing=Array.isArray(u.visitors)?u.visitors.filter(v=>v&&v.uid!==uid):[];
+  existing.unshift({uid,name:me.name||'Player',avatar:me.avatar||'av_b1',frame:me.frame||'none',ts:Date.now()});
+  const nextVisitors=existing.slice(0,15);
+  patchUser(targetUid,{visitors:nextVisitors});
+  dbOp(()=>F.setDoc(userRef(targetUid),{visitors:nextVisitors},{merge:true}));
+}
+
 function getClaimedToday(){return me.claimedByDay[today()]||[]}
 function updateHud(){
   $$('.coinval').forEach(e=>e.textContent=fmtNum(me.coins));
@@ -720,6 +926,87 @@ function devRevokeTopRankSet(targetUid){
   toast('Revoked Top 1–3 Exclusive Set');
 }
 
+function devSetUserTodayCoins(targetUid, nextVal){
+  if(!isDevSession())return toast('Developer only');
+  const n=clampSafeInt(nextVal,0,MAX_DAILY_PTS);
+  const ts=Date.now(), d=today();
+  const existing=allUsers().find(x=>x.uid===targetUid)||{dailyCoinsByDay:{}};
+  const nextDaily={...(existing.dailyCoinsByDay||{}),[d]:n};
+  if(targetUid===uid){me.dailyCoinsByDay=nextDaily;me.devStatsUpdatedAt=ts;saveMe();}
+  patchUser(targetUid,{dailyCoinsByDay:nextDaily,devStatsUpdatedAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{dailyCoinsByDay:nextDaily,devStatsUpdatedAt:ts},{merge:true}));
+  renderAll();
+  toast('Today Coins set to '+fmtNum(n));
+}
+
+function devAdjustUserExp(targetUid, delta){
+  if(!isDevSession())return toast('Developer only');
+  const n=clampSafeInt(delta,-MAX_EXP,MAX_EXP);
+  if(!n)return toast('Enter a valid EXP value');
+  const ts=Date.now();
+  const existing=allUsers().find(x=>x.uid===targetUid)||{exp:0};
+  const nextExp=clampExp(Number(existing.exp||0)+n);
+  if(targetUid===uid){me.exp=nextExp;me.devStatsUpdatedAt=ts;saveMe();updateHud();}
+  patchUser(targetUid,{exp:nextExp,devStatsUpdatedAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{exp:nextExp,devStatsUpdatedAt:ts},{merge:true}));
+  renderAll();
+  toast('EXP updated (LVL '+calcLevel(nextExp)+')');
+}
+
+function devGrantVip(targetUid, tier, days=7){
+  if(!isDevSession())return toast('Developer only');
+  const ts=Date.now();
+  const until=tier?ts+Math.max(1,Number(days||7))*86400000:0;
+  const payload={vipTier:tier||'',vipUntil:until,devStatsUpdatedAt:ts};
+  if(targetUid===uid){Object.assign(me,payload);saveMe();}
+  patchUser(targetUid,payload);
+  dbOp(()=>F.setDoc(userRef(targetUid),payload,{merge:true}));
+  renderAll();
+  toast(tier?`Granted ${tier.toUpperCase()} VIP (${days}D)`:'VIP revoked');
+}
+
+function devSendWarning(targetUid, reason){
+  if(!isDevSession())return toast('Developer only');
+  const txt=String(reason||'Community guidelines reminder').trim().slice(0,220);
+  const ts=Date.now();
+  const existing=allUsers().find(x=>x.uid===targetUid)||{warnings:[]};
+  const nextW=[...(Array.isArray(existing.warnings)?existing.warnings:[]),{id:'W'+ts,reason:txt,ts,by:uid,ack:false}].slice(-20);
+  patchUser(targetUid,{warnings:nextW,devStatsUpdatedAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{warnings:nextW,devStatsUpdatedAt:ts},{merge:true}));
+  toast('Official warning sent to user');
+}
+
+function devSetMute(targetUid, minutes){
+  if(!isDevSession())return toast('Developer only');
+  const mins=Math.max(0,Number(minutes||0));
+  const ts=Date.now();
+  const mutedUntil=mins>0?ts+mins*60000:0;
+  patchUser(targetUid,{mutedUntil,devStatsUpdatedAt:ts});
+  dbOp(()=>F.setDoc(userRef(targetUid),{mutedUntil,devStatsUpdatedAt:ts},{merge:true}));
+  toast(mins>0?`Muted user for ${formatCountdownMs(mins*60000)}`:'User unmuted');
+}
+
+function devSetBan(targetUid, durationHours, reason){
+  if(!isDevSession())return toast('Developer only');
+  const ts=Date.now();
+  if(durationHours==='unban'||durationHours===0){
+    const payload={banned:false,banUntil:0,banReason:'',devStatsUpdatedAt:ts};
+    patchUser(targetUid,payload);
+    dbOp(()=>F.setDoc(userRef(targetUid),payload,{merge:true}));
+    if(targetUid===uid){Object.assign(me,payload);saveMe();checkBan();}
+    toast('User unbanned');
+    return;
+  }
+  const hrs=durationHours==='perm'?0:Math.max(0.25,Number(durationHours||24));
+  const banUntil=hrs>0?ts+Math.round(hrs*3600000):0;
+  const cleanReason=String(reason||'Violation of community guidelines').trim().slice(0,220);
+  const payload={banned:true,banUntil,banReason:cleanReason,devStatsUpdatedAt:ts};
+  patchUser(targetUid,payload);
+  dbOp(()=>F.setDoc(userRef(targetUid),payload,{merge:true}));
+  if(targetUid===uid){Object.assign(me,payload);saveMe();checkBan();}
+  toast(hrs>0?`Temporary ban applied (${formatCountdownMs(hrs*3600000)})`:'Permanent ban applied');
+}
+
 function getInviteCode(){return me.accountType==='account'?'REF_'+uid.replace(/[^A-Z0-9]/gi,'').slice(-8).toUpperCase():''}
 function buildReferralSharePayload(customCode){
   const code=String(customCode||getInviteCode()||'').trim().toUpperCase();
@@ -943,30 +1230,79 @@ function openPublicProfile(targetUid){
   }
   const u=resolvePlayerForProfile(targetUid);if(!u)return toast('Player not found');
   const self=u.uid===uid, fr=isFriend(u.uid);
+  if(!self)recordProfileVisitor(u.uid);
   const canSeeWallet=self||devViewer;
   const gwStats=typeof getGiftWallStatsForUser==='function'?getGiftWallStatsForUser(u):{totalCharm:u.charm||0,totalReceivedCount:0};
   const walletMarkup=canSeeWallet
-    ? `<span class="chip" data-wallet-visible="1">${UI_SVG.coin} ${self?'Wallet':'Total Coins'}: ${fmtNum(u.coins)}</span> · `
+    ? `<span class="wp-pill gold" data-wallet-visible="1">🪙 ${fmtNum(u.coins)}</span>`
     : '';
   const gwHtml=typeof renderGiftWallHtml==='function'?renderGiftWallHtml(u,self):'';
+  const likedByMe=Array.isArray(u.likedBy)&&u.likedBy.includes(uid);
+  const likesCnt=Math.max(Array.isArray(u.likedBy)?u.likedBy.length:0,Number(u.likesCount||0));
+  const bondsHtml=typeof renderBondsGridHtml==='function'?renderBondsGridHtml(u,self):'';
+  const genderChip=u.gender==='male'?'<span class="wp-gender m">♂</span>':(u.gender==='female'?'<span class="wp-gender f">♀</span>':'');
+  const flag=getRegionFlag(u.region||'India');
 
-  const m=modal('Player Profile',`
-    <div class="bn-box ${esc(u.banner||'bn-aurora')}">
-      <div class="pf">${av(u,74)}<b style="font-size:18px">${styledName(u)}</b><small>LVL ${fmtNum(calcLevel(u.exp),MAX_LEVEL)} · UID: ${esc(u.uid)}</small></div>
-      <div class="pub-meta-line">
-        ${walletMarkup}<span class="exp-chip">Today: +${fmtNum(getUserTodayPts(u))}</span> · <span class="charm-chip">Charm: ${fmtNum(gwStats.totalCharm)}</span>
+  const m=modal('Profile',`
+    <div class="wp-prof-cover bn-box ${esc(u.banner||'bn-aurora')}">
+      <div class="wp-prof-top">
+        ${av(u,74)}
+        <div class="wp-prof-id">
+          <div class="wp-prof-name-row">
+            <b>${styledName(u)}</b>
+            <span>${flag}</span>
+            ${genderChip}
+          </div>
+          <div class="wp-prof-pills">
+            <span class="wp-pill lv">Lv.${fmtNum(calcLevel(u.exp),MAX_LEVEL)}</span>
+            <span class="wp-pill charm">💎 ${fmtNum(gwStats.totalCharm)}</span>
+            ${u.clanTag?`<span class="wp-pill clan">[${esc(u.clanTag)}]</span>`:''}
+            ${walletMarkup}
+          </div>
+          <div class="wp-prof-sub">
+            <button type="button" class="wp-id-copy" id="pfCopyId">ID ${esc(String(u.uid||'').slice(-8))} ⧉</button>
+            <span>❤️ ${fmtNum(likesCnt)}</span>
+            <span>+${fmtNum(getUserTodayPts(u))} Today</span>
+          </div>
+        </div>
       </div>
       ${renderTags(u.tags,u)}
     </div>
+
+    ${u.bio?`<div class="wp-sig-box"><span class="${esc(u.bioStyle||'')}">${esc(u.bio)}</span></div>`:''}
+
+    ${bondsHtml}
+
     ${devViewer&&!self?`<div class="dev-wallet-summary" data-dev-coin-panel="1">
-      <div><small>Developer Private Inspection</small><b>Total Wallet: ${fmtNum(u.coins)} 🪙</b></div>
-      <div class="dev-wallet-pills"><span>EXP: ${fmtNum(u.exp,MAX_EXP)}</span><span>·</span><span>Charm: ${fmtNum(gwStats.totalCharm)}</span><span>·</span><span>Gifts: ${fmtNum(gwStats.totalReceivedCount||0)}</span></div>
+      <div><small>DEV WALLET</small><b>${fmtNum(u.coins)} 🪙</b></div>
+      <div class="dev-wallet-pills"><span>EXP ${fmtNum(u.exp,MAX_EXP)}</span><span>·</span><span>Charm ${fmtNum(gwStats.totalCharm)}</span><span>·</span><span>Gifts ${fmtNum(gwStats.totalReceivedCount||0)}</span>${u.banned?'<span>·</span><b style="color:var(--red)">BANNED</b>':''}${isMutedNow(u)?'<span>·</span><b style="color:var(--gold)">MUTED</b>':''}</div>
     </div>`:''}
-    <div class="card" style="margin-top:10px;font-size:13px"><div><b>Bio:</b> <span class="${esc(u.bioStyle||'')}">${esc(u.bio||'—')}</span></div>${u.streakDays?`<div style="margin-top:4px">🔥 ${u.streakDays} ${tr('streak')}</div>`:''}<div style="margin-top:4px"><b>Hobbies:</b> ${esc(u.hobbies||'—')}</div></div>
-    ${!self?`<div class="row wrap" style="margin-top:10px"><button class="btn ${fr?'ghost':''}" id="pfAdd" style="flex:1">${fr?'Friends ✓':'Add Friend'}</button><button class="btn" id="pfMsg" style="flex:1">Message</button><button class="btn gold" id="pfGift" style="flex:1">Send Gift</button></div>`:''}
+
     ${gwHtml}
+
+    ${!self?`<div class="wp-prof-sticky-bar">
+      <div class="wp-prof-mini-acts">
+        <button type="button" class="wp-mini-btn ${fr?'on':''}" id="pfAdd">${fr?'✓ Friend':'+ Friend'}</button>
+        <button type="button" class="wp-mini-btn ${likedByMe?'liked':''}" id="pfLike">${likedByMe?'❤️':'🤍'} ${fmtNum(likesCnt)}</button>
+        <button type="button" class="wp-mini-btn" id="pfChallenge">⚔️ Duel</button>
+        <button type="button" class="wp-mini-btn bad" id="pfReport">🚩</button>
+      </div>
+      <div class="wp-prof-dual-cta">
+        <button type="button" class="wp-cta-gift" id="pfGift">🎁 Send Gift</button>
+        <button type="button" class="wp-cta-chat" id="pfMsg">💬 Chat</button>
+      </div>
+    </div>`:''}
   `,'pub-prof-sheet');
 
+  if($('#pfCopyId',m))$('#pfCopyId',m).onclick=()=>copyTextClean(u.uid,'UID');
+  $$('[data-open-bonds]',m).forEach(el=>{
+    el.onclick=()=>{if(typeof openBondsShowcaseModal==='function')openBondsShowcaseModal(u)};
+  });
+  $$('[data-unlock-bond]',m).forEach(el=>{
+    el.onclick=()=>{
+      if(typeof openGiftSendModal==='function')openGiftSendModal(u.uid,{targetName:u.name,preselectGiftId:'r01_promise'});
+    };
+  });
   if(typeof bindGiftWallEvents==='function')bindGiftWallEvents(m,u,self);
 
   if(devViewer&&!self){
@@ -976,7 +1312,7 @@ function openPublicProfile(targetUid){
     $('.sb',m).insertAdjacentHTML('beforeend',`
       <div class="card pf-dev-wallet" data-dev-controls="1">
         <div class="row" style="justify-content:space-between;margin-bottom:6px">
-          <b style="color:var(--gold)">Developer Player Controls</b>
+          <b style="color:var(--gold)">Developer Moderation & Stats</b>
           <span class="p-tag p-tag-dev-sig" style="font-size:10px;padding:2px 8px">DEV ONLY</span>
         </div>
 
@@ -986,15 +1322,31 @@ function openPublicProfile(targetUid){
           <button type="button" class="btn sm gold" id="dvAdj">Apply</button>
         </div>
 
-        <label style="margin-top:10px">Charm (Add, Remove, or Reset)</label>
+        <label style="margin-top:8px">Today Leaderboard Coins & EXP</label>
+        <div class="row">
+          <input id="dvTodayVal" type="number" placeholder="Set Today Pts" style="flex:1">
+          <button type="button" class="btn sm ghost" id="dvTodaySet">Set Today</button>
+          <input id="dvExpDelta" type="number" placeholder="+/- EXP" style="width:92px">
+          <button type="button" class="btn sm ghost" id="dvExpBtn">EXP</button>
+        </div>
+
+        <label style="margin-top:8px">Charm (Add, Remove, or Reset)</label>
         <div class="row">
           <input id="dvCharm" type="number" placeholder="e.g. 1000 or -500" style="flex:1">
           <button type="button" class="btn sm" id="dvCharmAdj">Apply</button>
           <button type="button" class="btn ghost sm" id="dvCharmReset">Reset 0</button>
         </div>
 
+        <label style="margin-top:8px">VIP Pass Grant</label>
+        <div class="row wrap" style="gap:6px">
+          <button type="button" class="btn sm ghost" id="dvVipSilver">Silver 7D</button>
+          <button type="button" class="btn sm gold" id="dvVipGold">Gold 7D</button>
+          <button type="button" class="btn sm" id="dvVipRoyal">Royal 7D</button>
+          <button type="button" class="btn sm red" id="dvVipRevoke">Revoke</button>
+        </div>
+
         ${giftOpts?`
-          <label style="margin-top:10px">Gift Wall (Add or Remove Gifts)</label>
+          <label style="margin-top:8px">Gift Wall (Add or Remove Gifts)</label>
           <select id="dvGiftSel">${giftOpts}</select>
           <div class="row" style="margin-top:6px">
             <input id="dvGiftQty" type="number" value="1" min="1" max="999" style="width:84px" aria-label="Gift quantity">
@@ -1004,57 +1356,76 @@ function openPublicProfile(targetUid){
           <button type="button" class="btn ghost sm full" id="dvGiftClear" style="margin-top:6px">Clear Entire Gift Wall</button>
         `:''}
 
-        <label style="margin-top:10px">Exclusive Top 1–3 Access</label>
+        <label style="margin-top:8px">Official Warning & Mute Cooldown</label>
+        <div class="row">
+          <input id="dvWarnReason" placeholder="Warning reason..." style="flex:1">
+          <button type="button" class="btn sm gold" id="dvWarnBtn">Send Warning</button>
+        </div>
+        <div class="row wrap" style="gap:6px;margin-top:6px">
+          <button type="button" class="btn sm ghost" data-dv-mute="15">Mute 15m</button>
+          <button type="button" class="btn sm ghost" data-dv-mute="60">Mute 1h</button>
+          <button type="button" class="btn sm ghost" data-dv-mute="360">Mute 6h</button>
+          <button type="button" class="btn sm ghost" data-dv-mute="1440">Mute 24h</button>
+          <button type="button" class="btn sm ok" data-dv-mute="0">Unmute</button>
+        </div>
+
+        <label style="margin-top:8px">Timed / Permanent Ban</label>
+        <input id="dvBanReason" placeholder="Ban reason shown to user..." value="${esc(u.banReason||'')}">
+        <div class="row wrap" style="gap:6px;margin-top:6px">
+          <select id="dvBanDur" style="flex:1">
+            <option value="1">1 Hour</option>
+            <option value="6">6 Hours</option>
+            <option value="24" selected>24 Hours</option>
+            <option value="72">3 Days</option>
+            <option value="168">7 Days</option>
+            <option value="720">30 Days</option>
+            <option value="perm">Permanent</option>
+          </select>
+          <button type="button" class="btn sm red" id="dvBanApply">Apply Ban</button>
+          ${u.banned?`<button type="button" class="btn sm ok" id="dvUnbanBtn">Unban</button>`:''}
+        </div>
+
+        <label style="margin-top:8px">Exclusive Top 1–3 Access</label>
         <div class="row wrap" style="gap:6px">
           <button type="button" class="btn sm gold" id="dvGrant1">Grant Top #1</button>
           <button type="button" class="btn sm ghost" id="dvGrant2">Top #2</button>
           <button type="button" class="btn sm ghost" id="dvGrant3">Top #3</button>
-          <button type="button" class="btn sm red" id="dvRevokeTop">Revoke Top Set</button>
+          <button type="button" class="btn sm red" id="dvRevokeTop">Revoke</button>
         </div>
 
         <div class="row" style="margin-top:10px">
-          <button type="button" class="btn ghost sm" id="dvResetZero" style="flex:1">${UI_SVG.reset} Reset Coins/EXP</button>
-          <button type="button" class="btn ${u.banned?'ok':'red'} sm" id="dvBan" style="flex:1">${u.banned?'Unban':'Ban'} User</button>
+          <button type="button" class="btn ghost sm full" id="dvResetZero">${UI_SVG.reset} Reset Coins/EXP to 0</button>
         </div>
       </div>
     `);
-    $('#dvAdj',m).onclick=()=>{
-      const n=Math.trunc(+$('#dvCoin',m).value);if(!n)return toast('Enter coin amount');
-      devAdjustUserCoins(u.uid,n);m.close();openPublicProfile(u.uid);
-    };
-    $('#dvCharmAdj',m).onclick=()=>{
-      const n=Math.trunc(+$('#dvCharm',m).value);if(!n)return toast('Enter Charm amount');
-      devAdjustUserCharm(u.uid,n);m.close();openPublicProfile(u.uid);
-    };
-    $('#dvCharmReset',m).onclick=()=>{
-      devResetUserCharm(u.uid);m.close();openPublicProfile(u.uid);
-    };
+    $('#dvAdj',m).onclick=()=>{const n=Math.trunc(+$('#dvCoin',m).value);if(!n)return toast('Enter coin amount');devAdjustUserCoins(u.uid,n);m.close();openPublicProfile(u.uid)};
+    $('#dvTodaySet',m).onclick=()=>{devSetUserTodayCoins(u.uid,+$('#dvTodayVal',m).value||0);m.close();openPublicProfile(u.uid)};
+    $('#dvExpBtn',m).onclick=()=>{const n=Math.trunc(+$('#dvExpDelta',m).value);if(!n)return toast('Enter EXP');devAdjustUserExp(u.uid,n);m.close();openPublicProfile(u.uid)};
+    $('#dvCharmAdj',m).onclick=()=>{const n=Math.trunc(+$('#dvCharm',m).value);if(!n)return toast('Enter Charm amount');devAdjustUserCharm(u.uid,n);m.close();openPublicProfile(u.uid)};
+    $('#dvCharmReset',m).onclick=()=>{devResetUserCharm(u.uid);m.close();openPublicProfile(u.uid)};
+    $('#dvVipSilver',m).onclick=()=>{devGrantVip(u.uid,'silver',7);m.close();openPublicProfile(u.uid)};
+    $('#dvVipGold',m).onclick=()=>{devGrantVip(u.uid,'gold',7);m.close();openPublicProfile(u.uid)};
+    $('#dvVipRoyal',m).onclick=()=>{devGrantVip(u.uid,'royal',7);m.close();openPublicProfile(u.uid)};
+    $('#dvVipRevoke',m).onclick=()=>{devGrantVip(u.uid,'',0);m.close();openPublicProfile(u.uid)};
     if($('#dvGiftAdd',m)){
-      $('#dvGiftAdd',m).onclick=()=>{
-        const gid=$('#dvGiftSel',m).value, q=Math.max(1,Math.trunc(+$('#dvGiftQty',m).value||1));
-        devAdjustUserGift(u.uid,gid,q);m.close();openPublicProfile(u.uid);
-      };
-      $('#dvGiftRem',m).onclick=()=>{
-        const gid=$('#dvGiftSel',m).value, q=Math.max(1,Math.trunc(+$('#dvGiftQty',m).value||1));
-        devAdjustUserGift(u.uid,gid,-q);m.close();openPublicProfile(u.uid);
-      };
-      $('#dvGiftClear',m).onclick=()=>{
-        devClearUserGiftWall(u.uid);m.close();openPublicProfile(u.uid);
-      };
+      $('#dvGiftAdd',m).onclick=()=>{const gid=$('#dvGiftSel',m).value,q=Math.max(1,Math.trunc(+$('#dvGiftQty',m).value||1));devAdjustUserGift(u.uid,gid,q);m.close();openPublicProfile(u.uid)};
+      $('#dvGiftRem',m).onclick=()=>{const gid=$('#dvGiftSel',m).value,q=Math.max(1,Math.trunc(+$('#dvGiftQty',m).value||1));devAdjustUserGift(u.uid,gid,-q);m.close();openPublicProfile(u.uid)};
+      $('#dvGiftClear',m).onclick=()=>{devClearUserGiftWall(u.uid);m.close();openPublicProfile(u.uid)};
     }
+    $('#dvWarnBtn',m).onclick=()=>{devSendWarning(u.uid,$('#dvWarnReason',m).value.trim()||'Please follow community guidelines.');m.close();openPublicProfile(u.uid)};
+    $$('[data-dv-mute]',m).forEach(btn=>{btn.onclick=()=>{devSetMute(u.uid,Number(btn.dataset.dvMute));m.close();openPublicProfile(u.uid)}});
+    $('#dvBanApply',m).onclick=()=>{
+      const dur=$('#dvBanDur',m).value;
+      const reason=$('#dvBanReason',m).value.trim()||'Violation of community guidelines.';
+      devSetBan(u.uid,dur==='perm'?'perm':Number(dur),reason);
+      m.close();openPublicProfile(u.uid);
+    };
+    if($('#dvUnbanBtn',m))$('#dvUnbanBtn',m).onclick=()=>{devSetBan(u.uid,'unban');m.close();openPublicProfile(u.uid)};
     $('#dvGrant1',m).onclick=()=>{devGrantTopRankSet(u.uid,1,1);m.close();openPublicProfile(u.uid)};
     $('#dvGrant2',m).onclick=()=>{devGrantTopRankSet(u.uid,2,1);m.close();openPublicProfile(u.uid)};
     $('#dvGrant3',m).onclick=()=>{devGrantTopRankSet(u.uid,3,1);m.close();openPublicProfile(u.uid)};
     $('#dvRevokeTop',m).onclick=()=>{devRevokeTopRankSet(u.uid);m.close();openPublicProfile(u.uid)};
-    $('#dvResetZero',m).onclick=()=>{
-      devResetUserProgress(u.uid);m.close();openPublicProfile(u.uid);
-    };
-    $('#dvBan',m).onclick=()=>{
-      const b=!u.banned;
-      patchUser(u.uid,{banned:b});
-      dbOp(()=>F.setDoc(userRef(u.uid),{banned:b},{merge:true}));
-      toast(b?'User banned':'User unbanned');m.close();openPublicProfile(u.uid);
-    };
+    $('#dvResetZero',m).onclick=()=>{devResetUserProgress(u.uid);m.close();openPublicProfile(u.uid)};
   }
   if($('#pfAdd',m))$('#pfAdd',m).onclick=()=>{toggleFriend(u.uid);m.close();openPublicProfile(u.uid)};
   if($('#pfMsg',m))$('#pfMsg',m).onclick=()=>{
@@ -1065,6 +1436,16 @@ function openPublicProfile(targetUid){
     if(typeof openGiftSendModal==='function'){
       openGiftSendModal(u.uid,{targetName:u.name,onSent:()=>{m.close();openPublicProfile(u.uid)}});
     }
+  };
+  if($('#pfLike',m))$('#pfLike',m).onclick=()=>{toggleProfileLike(u.uid);m.close();openPublicProfile(u.uid)};
+  if($('#pfChallenge',m))$('#pfChallenge',m).onclick=()=>{
+    m.close();
+    if(typeof openRivalChallenge==='function')openRivalChallenge(u.uid);
+    else{showTab('games');toast('Select an Arena game to challenge '+(u.name||'Player'));}
+  };
+  if($('#pfReport',m))$('#pfReport',m).onclick=()=>{
+    if(typeof openReportModal==='function')openReportModal({targetUid:u.uid,targetName:u.name||'Player',context:'profile'});
+    else toast('Report module loading...');
   };
 }
 
@@ -1081,6 +1462,8 @@ if($('#sfxBtn'))$('#sfxBtn').onclick=()=>{
   }
 };
 function renderAll(){
+  if(typeof renderHomeHub==='function')renderHomeHub();
+  if(typeof renderPartyHub==='function')renderPartyHub();
   if(typeof renderGameSlots==='function')renderGameSlots();
   if(typeof renderMultiplayerRooms==='function')renderMultiplayerRooms();
   if(typeof renderRanking==='function')renderRanking();

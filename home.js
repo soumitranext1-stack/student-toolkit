@@ -1,5 +1,6 @@
 "use strict";
-/* Clean Tools + Crisp High-Clarity SVG Icons (Photo to Q&A & GitHub slot labels removed) */
+/* Gamer-First Home Hub + Slide-Out Student Tools Drawer + Poems Wall */
+
 const TOOL_SVG={
   calc:`<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="2.5" width="16" height="19" rx="3" stroke="#7b8cff" stroke-width="2"/><path d="M7.5 7h9M7.5 11.5h2M12 11.5h.01M16.5 11.5h-2M7.5 15.5h2M12 15.5h.01M16.5 15.5h-2" stroke="#35e0b5" stroke-width="2" stroke-linecap="round"/></svg>`,
   pdf:`<svg viewBox="0 0 24 24" fill="none"><path d="M6 3h8l4 4v14H6V3z" stroke="#ff8a3d" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v4h4M8.5 13h7M8.5 17h5" stroke="#ffd36b" stroke-width="2" stroke-linecap="round"/></svg>`,
@@ -30,20 +31,136 @@ const TOOLS=[
   ['canvas-studio.html','canvas','Canvas Studio','Design & visual edits','tool_open']
 ];
 
-function renderHome(){
-  $('#posterTrack').innerHTML=POSTERS.map(p=>`<a class="poster-slide ${p[4]}" href="${esc(p[0])}" onclick="event.preventDefault();window.__openTool('${esc(p[0])}')"><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><span class="poster-ico">${TOOL_SVG[p[3]]}</span></a>`).join('');
-  $('#toolGrid').innerHTML=TOOLS.map(t=>`<a class="card tool" href="${esc(t[0])}" data-stat="${esc(t[4])}" data-href="${esc(t[0])}"><div class="art">${TOOL_SVG[t[1]]}</div><b>${esc(t[2])}</b><small>${esc(t[3])}</small></a>`).join('');
+/* ===== Student Tools Side Drawer Controls ===== */
+function openToolsDrawer(){
+  const drawer=$('#toolsDrawer');
+  const backdrop=$('#toolsDrawerBackdrop');
+  if(!drawer)return;
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden','false');
+  if(backdrop){backdrop.hidden=false;backdrop.classList.add('open')}
+  if(typeof playSfx==='function')playSfx('click');
 }
-$('#toolGrid').onclick=e=>{const a=e.target.closest('[data-href]');if(a){e.preventDefault();openToolClean(a.dataset.href,a.dataset.stat)}};
+
+function closeToolsDrawer(){
+  const drawer=$('#toolsDrawer');
+  const backdrop=$('#toolsDrawerBackdrop');
+  if(!drawer)return;
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden','true');
+  if(backdrop){backdrop.classList.remove('open');backdrop.hidden=true}
+}
+
+function scrollToPartyHub(){
+  showTab('tools');
+  const el=$('#homePartyRooms');
+  if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+if($('#toolsDrawerBtn'))$('#toolsDrawerBtn').onclick=openToolsDrawer;
+if($('#toolsDrawerClose'))$('#toolsDrawerClose').onclick=closeToolsDrawer;
+if($('#toolsDrawerBackdrop'))$('#toolsDrawerBackdrop').onclick=closeToolsDrawer;
+
+/* ===== WePlay-Style Clean Games & Social Hub ===== */
+function renderHomeHub(){
+  const host=$('#homeHubRoot');
+  if(!host)return;
+  const vip=typeof getActiveVipTier==='function'?getActiveVipTier(me):'';
+  const gSvg=typeof GLOSSY_SVG!=='undefined'?GLOSSY_SVG:{};
+  const freeSpin=me.spinFreeDay!==today();
+
+  host.innerHTML=`
+    <div class="wp-home-bar">
+      <button type="button" class="wp-hb-user" id="heroProfileBtn" aria-label="Open Profile">
+        ${av(me,44)}
+        <div class="wp-hb-meta">
+          <b>${styledName(me)}</b>
+          <div class="wp-hb-pills">
+            <span class="wp-pill lv">Lv.${fmtNum(calcLevel(me.exp),MAX_LEVEL)}</span>
+            ${vip?`<span class="wp-pill gold">${esc(vip.toUpperCase())}</span>`:''}
+            <span class="wp-pill charm">💎 ${fmtNum(me.charm||0)}</span>
+          </div>
+        </div>
+      </button>
+      <div class="wp-hb-acts">
+        <button type="button" class="wp-hb-btn gold" id="aqGiftBtn" title="Send Gift">🎁</button>
+        <button type="button" class="wp-hb-btn" id="heroToolsShortcut" title="Student Tools">Tools</button>
+      </div>
+    </div>
+
+    <div class="wp-quick-row">
+      <button type="button" class="wp-qa-btn" id="qaRankBtn">
+        <span class="wp-qa-ico">${gSvg.ranking||'🏆'}</span>
+        <b>Ranking</b>
+      </button>
+      <button type="button" class="wp-qa-btn" id="qaTasksBtn">
+        <span class="wp-qa-ico">${gSvg.tasks||'✓'}</span>
+        <b>Tasks</b>
+      </button>
+      <button type="button" class="wp-qa-btn" id="qaFriendsBtn">
+        <span class="wp-qa-ico">${gSvg.friends||'👥'}</span>
+        <b>Friends</b>
+      </button>
+      <button type="button" class="wp-qa-btn" id="qaEventsBtn">
+        <span class="wp-qa-ico">${gSvg.events||'🎡'}${freeSpin?'<i class="wp-qa-dot"></i>':''}</span>
+        <b>Events</b>
+      </button>
+    </div>
+
+    ${typeof renderActivityChestsStrip==='function'?renderActivityChestsStrip():''}
+  `;
+
+  if($('#heroProfileBtn',host))$('#heroProfileBtn',host).onclick=()=>showTab('profile');
+  if($('#heroToolsShortcut',host))$('#heroToolsShortcut',host).onclick=openToolsDrawer;
+  if($('#aqGiftBtn',host))$('#aqGiftBtn',host).onclick=()=>{
+    if(typeof openGiftSendModal==='function')openGiftSendModal(null,{allowPickPlayer:true});
+  };
+  if($('#qaRankBtn',host))$('#qaRankBtn',host).onclick=()=>showTab('ranking');
+  if($('#qaTasksBtn',host))$('#qaTasksBtn',host).onclick=()=>showTab('tasks');
+  if($('#qaFriendsBtn',host))$('#qaFriendsBtn',host).onclick=()=>showTab('chat');
+  if($('#qaEventsBtn',host))$('#qaEventsBtn',host).onclick=()=>{
+    if(typeof openLuckySpinModal==='function')openLuckySpinModal();
+  };
+  if(typeof bindActivityChests==='function')bindActivityChests(host);
+
+  if(typeof renderPartyHub==='function')renderPartyHub();
+  if(typeof renderArenaPostersGrid==='function')renderArenaPostersGrid($('#homeArenaPosters'));
+}
+
+function renderHome(){
+  renderHomeHub();
+  const track=$('#posterTrack');
+  if(track){
+    track.innerHTML=POSTERS.map(p=>`<a class="poster-slide ${p[4]}" href="${esc(p[0])}" onclick="event.preventDefault();closeToolsDrawer();window.__openTool('${esc(p[0])}')"><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><span class="poster-ico">${TOOL_SVG[p[3]]}</span></a>`).join('');
+  }
+  const tg=$('#toolGrid');
+  if(tg){
+    tg.innerHTML=TOOLS.map(t=>`<a class="card tool" href="${esc(t[0])}" data-stat="${esc(t[4])}" data-href="${esc(t[0])}"><div class="art">${TOOL_SVG[t[1]]}</div><b>${esc(t[2])}</b><small>${esc(t[3])}</small></a>`).join('');
+  }
+}
+
+if($('#toolGrid')){
+  $('#toolGrid').onclick=e=>{
+    const a=e.target.closest('[data-href]');
+    if(a){
+      e.preventDefault();
+      closeToolsDrawer();
+      openToolClean(a.dataset.href,a.dataset.stat);
+    }
+  };
+}
 
 setInterval(()=>{
-  const track=$('#posterTrack');if(!track)return;
+  const track=$('#posterTrack');
+  if(!track||!track.offsetParent)return;
   if(track.scrollLeft+track.clientWidth>=track.scrollWidth-10)track.scrollTo({left:0,behavior:'smooth'});
   else track.scrollBy({left:track.clientWidth*0.85,behavior:'smooth'});
 },4200);
 
-/* Poem Request (1/day per user) -> Developer Approval -> Home Wall + Dev Delete */
+/* Poem Request (1/day per user) -> Developer Approval -> Side Drawer Wall + Dev Delete */
 function renderPoems(){
+  const listEl=$('#poemList');
+  if(!listEl)return;
   let devReqHtml='';
   if(devMode && poemRequests.length){
     devReqHtml=`<div class="card" style="border-color:var(--gold)">
@@ -66,87 +183,95 @@ function renderPoems(){
   const wallHtml=(poems||[]).map(p=>`
     <div class="card">
       <div class="row">
-        ${av({uid:p.uid,avatar:p.avatar||'🦊',frame:p.frame||'none'},34)}
+        ${av({uid:p.uid,avatar:p.avatar||'av_b1',frame:p.frame||'none'},34)}
         <div class="mid"><b>${esc(p.author||'Player')}</b><small>UID: ${esc(p.uid||'—')} · ${esc(p.title||'Poem')}</small></div>
         ${devMode?`<button class="btn red sm" data-delpoem="${esc(p.id)}">Delete</button>`:''}
       </div>
       ${p.text?`<div class="poem-box">${esc(p.text)}</div>`:''}
       ${p.photoUrl?`<img class="poem-img" src="${esc(p.photoUrl)}" alt="Poem">`:''}
-    </div>`).join('')||'<div class="empty">No approved poems on Home wall yet. Tap "Request Poem" (1/day).</div>';
+    </div>`).join('')||'<div class="empty">No approved poems on wall yet. Tap "Request Poem" (1/day).</div>';
 
-  $('#poemList').innerHTML=devReqHtml+wallHtml;
+  listEl.innerHTML=devReqHtml+wallHtml;
 }
 
-$('#poemList').onclick=e=>{
-  const appId=e.target.dataset.approvepoem;
-  if(appId){
-    if(!devMode)return toast('Developer only');
-    const rq=poemRequests.find(x=>x.id===appId);if(!rq)return;
-    const approvedItem={id:'p_'+Date.now().toString(36),uid:rq.uid,author:rq.author,avatar:rq.avatar||'🦊',frame:rq.frame||'none',title:rq.title||'Poem',text:rq.text||'',photoUrl:rq.photoUrl||'',ts:Date.now()};
-    poems=[approvedItem,...poems];ls.set('sg_poems_cache',poems);
-    poemRequests=poemRequests.filter(x=>x.id!==appId);ls.set('sg_poem_requests_cache',poemRequests);
-    dbOp(()=>F.setDoc(F.doc(db,'poems_wall',approvedItem.id),approvedItem));
-    dbOp(()=>F.deleteDoc(F.doc(db,'poem_requests',appId)));
-    renderPoems();toast('Approved & uploaded to Home!');return;
-  }
-  const rejId=e.target.dataset.rejectpoem;
-  if(rejId){
-    if(!devMode)return toast('Developer only');
-    poemRequests=poemRequests.filter(x=>x.id!==rejId);ls.set('sg_poem_requests_cache',poemRequests);
-    dbOp(()=>F.deleteDoc(F.doc(db,'poem_requests',rejId)));
-    renderPoems();toast('Request removed');return;
-  }
-  const delId=e.target.dataset.delpoem;
-  if(delId){
-    if(!devMode)return toast('Developer only');
-    poems=poems.filter(x=>x.id!==delId);ls.set('sg_poems_cache',poems);
-    dbOp(()=>F.deleteDoc(F.doc(db,'poems_wall',delId)));
-    renderPoems();toast('Poem deleted from Home');
-  }
-};
+if($('#poemList')){
+  $('#poemList').onclick=e=>{
+    const appId=e.target.dataset.approvepoem;
+    if(appId){
+      if(!devMode)return toast('Developer only');
+      const rq=poemRequests.find(x=>x.id===appId);if(!rq)return;
+      const approvedItem={id:'p_'+Date.now().toString(36),uid:rq.uid,author:rq.author,avatar:rq.avatar||'av_b1',frame:rq.frame||'none',title:rq.title||'Poem',text:rq.text||'',photoUrl:rq.photoUrl||'',ts:Date.now()};
+      poems=[approvedItem,...poems];ls.set('sg_poems_cache',poems);
+      poemRequests=poemRequests.filter(x=>x.id!==appId);ls.set('sg_poem_requests_cache',poemRequests);
+      dbOp(()=>F.setDoc(F.doc(db,'poems_wall',approvedItem.id),approvedItem));
+      dbOp(()=>F.deleteDoc(F.doc(db,'poem_requests',appId)));
+      renderPoems();toast('Approved & uploaded to Poems Wall!');return;
+    }
+    const rejId=e.target.dataset.rejectpoem;
+    if(rejId){
+      if(!devMode)return toast('Developer only');
+      poemRequests=poemRequests.filter(x=>x.id!==rejId);ls.set('sg_poem_requests_cache',poemRequests);
+      dbOp(()=>F.deleteDoc(F.doc(db,'poem_requests',rejId)));
+      renderPoems();toast('Request removed');return;
+    }
+    const delId=e.target.dataset.delpoem;
+    if(delId){
+      if(!devMode)return toast('Developer only');
+      poems=poems.filter(x=>x.id!==delId);ls.set('sg_poems_cache',poems);
+      dbOp(()=>F.deleteDoc(F.doc(db,'poems_wall',delId)));
+      renderPoems();toast('Poem deleted');
+    }
+  };
+}
 
 function shrinkImg(f,max=800){return new Promise((ok,no)=>{const r=new FileReader();r.onerror=no;r.onload=()=>{const im=new Image();im.onerror=no;im.onload=()=>{const k=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.72))};im.src=r.result};r.readAsDataURL(f)})}
-$('#openPoemReqBtn').onclick=()=>{
-  if(!devMode && me.poemReqDay===today()){
-    return toast('You can send only 1 poem request per day.');
-  }
-  const m=modal('Request Poem Upload (1/Day)',`
-    <p style="font-size:12px;color:var(--mu)">Sent to Developer. If approved, it appears on Home with your Name &amp; UID.</p>
-    <label>Title</label><input id="pmT" maxlength="60" placeholder="Poem or note title">
-    <label>Poem / Text</label><textarea id="pmX" maxlength="1000" style="min-height:100px" placeholder="Write poem or text..."></textarea>
-    <label>Photo URL or Image</label><input id="pmImgUrl" placeholder="https://... or choose image below">
-    <input type="file" id="pmImgFile" accept="image/*" style="margin-top:6px">
-    <button class="btn full" id="pmSendReq">Send Request to Developer</button>
-  `);
-  let chosenImg='';
-  $('#pmImgFile',m).onchange=e=>{const f=e.target.files[0];if(!f)return;shrinkImg(f).then(d=>{chosenImg=d;$('#pmImgUrl',m).value='[Image attached]'},()=>toast('Image failed'))};
-  $('#pmSendReq',m).onclick=()=>{
-    const text=$('#pmX',m).value.trim(), rawUrl=$('#pmImgUrl',m).value.trim();
-    const photoUrl=chosenImg||(rawUrl.startsWith('http')?rawUrl:'');
-    if(!text&&!photoUrl)return toast('Write text or add photo');
-    const reqId='pr_'+Date.now().toString(36);
-    const reqItem={id:reqId,uid,author:me.name,avatar:me.avatar,frame:me.frame,title:$('#pmT',m).value.trim()||'Poem',text,photoUrl,ts:Date.now()};
-    poemRequests=[reqItem,...poemRequests];ls.set('sg_poem_requests_cache',poemRequests);
-    if(!devMode){me.poemReqDay=today();saveMe()}
-    dbOp(()=>F.setDoc(F.doc(db,'poem_requests',reqId),reqItem));
-    renderPoems();m.close();toast('Poem request sent to Developer!');
+
+if($('#openPoemReqBtn')){
+  $('#openPoemReqBtn').onclick=()=>{
+    if(!devMode && me.poemReqDay===today()){
+      return toast('You can send only 1 poem request per day.');
+    }
+    const m=modal('Request Poem Upload (1/Day)',`
+      <p style="font-size:12px;color:var(--mu)">Sent to Developer. If approved, it appears on the Poems Wall with your Name &amp; UID.</p>
+      <label>Title</label><input id="pmT" maxlength="60" placeholder="Poem or note title">
+      <label>Poem / Text</label><textarea id="pmX" maxlength="1000" style="min-height:100px" placeholder="Write poem or text..."></textarea>
+      <label>Photo URL or Image</label><input id="pmImgUrl" placeholder="https://... or choose image below">
+      <input type="file" id="pmImgFile" accept="image/*" style="margin-top:6px">
+      <button class="btn full" id="pmSendReq">Send Request to Developer</button>
+    `);
+    let chosenImg='';
+    $('#pmImgFile',m).onchange=e=>{const f=e.target.files[0];if(!f)return;shrinkImg(f).then(d=>{chosenImg=d;$('#pmImgUrl',m).value='[Image attached]'},()=>toast('Image failed'))};
+    $('#pmSendReq',m).onclick=()=>{
+      const text=$('#pmX',m).value.trim(), rawUrl=$('#pmImgUrl',m).value.trim();
+      const photoUrl=chosenImg||(rawUrl.startsWith('http')?rawUrl:'');
+      if(!text&&!photoUrl)return toast('Write text or add photo');
+      const reqId='pr_'+Date.now().toString(36);
+      const reqItem={id:reqId,uid,author:me.name,avatar:me.avatar,frame:me.frame,title:$('#pmT',m).value.trim()||'Poem',text,photoUrl,ts:Date.now()};
+      poemRequests=[reqItem,...poemRequests];ls.set('sg_poem_requests_cache',poemRequests);
+      if(!devMode){me.poemReqDay=today();saveMe()}
+      dbOp(()=>F.setDoc(F.doc(db,'poem_requests',reqId),reqItem));
+      renderPoems();m.close();toast('Poem request sent to Developer!');
+    };
   };
-};
+}
 
 /* Pinned notice (Strictly Developer Only) */
 let notice=ls.get('sg_notice',null);
 function renderNotice(){
-  const b=$('#noticeBox');if(!notice||!notice.text){b.hidden=true;return}
+  const b=$('#noticeBox');if(!b)return;
+  if(!notice||!notice.text){b.hidden=true;return}
   b.hidden=false;b.innerHTML=`<span style="color:var(--ac);display:inline-flex;flex-shrink:0;margin-top:1px">${UI_SVG.pin}</span><span>${esc(notice.text)}</span>`;
 }
-$('#noticeBtn').onclick=()=>{
-  if(!devMode)return toast('Developer only');
-  const m=modal('Pinned Notice',`<label>Short announcement shown to every user</label><textarea id="ntX" maxlength="140">${esc(notice?.text||'')}</textarea><button class="btn full" id="ntS">Publish Notice</button><button class="btn ghost full" id="ntC">Clear Notice</button>`);
-  const put=txt=>{
-    if(!devMode)return;
-    notice=txt?{text:txt,ts:Date.now()}:null;ls.set('sg_notice',notice);renderNotice();
-    dbOp(()=>txt?F.setDoc(F.doc(db,'config','notice'),notice):F.deleteDoc(F.doc(db,'config','notice')),()=>toast('Could not sync notice'));
-    m.close();toast(txt?'Notice published':'Notice cleared');
+if($('#noticeBtn')){
+  $('#noticeBtn').onclick=()=>{
+    if(!devMode)return toast('Developer only');
+    const m=modal('Pinned Notice',`<label>Short announcement shown to every user</label><textarea id="ntX" maxlength="140">${esc(notice?.text||'')}</textarea><button class="btn full" id="ntS">Publish Notice</button><button class="btn ghost full" id="ntC">Clear Notice</button>`);
+    const put=txt=>{
+      if(!devMode)return;
+      notice=txt?{text:txt,ts:Date.now()}:null;ls.set('sg_notice',notice);renderNotice();
+      dbOp(()=>txt?F.setDoc(F.doc(db,'config','notice'),notice):F.deleteDoc(F.doc(db,'config','notice')),()=>toast('Could not sync notice'));
+      m.close();toast(txt?'Notice published':'Notice cleared');
+    };
+    $('#ntS',m).onclick=()=>put($('#ntX',m).value.trim());$('#ntC',m).onclick=()=>put('');
   };
-  $('#ntS',m).onclick=()=>put($('#ntX',m).value.trim());$('#ntC',m).onclick=()=>put('');
-};
+}

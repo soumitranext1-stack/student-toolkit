@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v7';
+const CACHE_NAME = 'study-game-v10';
 const CORE_SHELL = [
   './',
   './index.html',
@@ -17,7 +17,25 @@ const CORE_SHELL = [
   './apple-touch-icon.png',
   './style.css',
   './fx-pack.css',
-  './gamekit.css'
+  './gamekit.css',
+  './sfx.js',
+  './fx-avatars.js',
+  './fx-frames.js',
+  './core.js',
+  './social.js',
+  './party.js',
+  './arena.js',
+  './gifts.js',
+  './firebase.js',
+  './home.js',
+  './games.js',
+  './ranking.js',
+  './tasks.js',
+  './store.js',
+  './chat.js',
+  './profile.js',
+  './pwa.js',
+  './boot.js'
 ];
 
 function shouldBypassRequest(request) {
@@ -46,13 +64,50 @@ function shouldBypassRequest(request) {
   return false;
 }
 
+function isValidAssetResponse(request, response) {
+  if (!response || !response.ok || response.type !== 'basic') return false;
+  let pathname = '';
+  try {
+    pathname = new URL(request.url).pathname.toLowerCase();
+  } catch {
+    return false;
+  }
+  const ct = String(response.headers.get('content-type') || '').toLowerCase();
+  const dest = request.destination || '';
+
+  if (/\.(m?js)$/.test(pathname) || dest === 'script') {
+    if (!ct || ct.includes('text/html')) return false;
+    return ct.includes('javascript') || ct.includes('ecmascript');
+  }
+  if (/\.css$/.test(pathname) || dest === 'style') {
+    if (!ct || ct.includes('text/html')) return false;
+    return ct.includes('text/css');
+  }
+  if (/\.json$/.test(pathname)) {
+    if (!ct || ct.includes('text/html')) return false;
+    return ct.includes('json');
+  }
+  if (/\.(png|svg|ico|webp|jpg|jpeg)$/.test(pathname) || dest === 'image') {
+    return !ct.includes('text/html');
+  }
+  return true;
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       await Promise.allSettled(
-        CORE_SHELL.map((asset) =>
-          cache.add(new Request(asset, { cache: 'reload' })).catch(() => null)
-        )
+        CORE_SHELL.map(async (asset) => {
+          try {
+            const req = new Request(asset, { cache: 'reload' });
+            const res = await fetch(req);
+            if (isValidAssetResponse(req, res)) {
+              await cache.put(req, res.clone());
+            }
+          } catch {
+            // Skip unavailable optional asset without poisoning cache
+          }
+        })
       );
     }).then(() => self.skipWaiting())
   );
@@ -75,6 +130,15 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+async function matchValidCachedAsset(request, url) {
+  const exact = await caches.match(request);
+  if (exact && isValidAssetResponse(request, exact)) return exact;
+  const cleanUrl = url.origin + url.pathname;
+  const clean = await caches.match(cleanUrl);
+  if (clean && isValidAssetResponse(request, clean)) return clean;
+  return null;
+}
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -109,14 +173,15 @@ self.addEventListener('fetch', (event) => {
   // Static icon/image assets: Stale-While-Revalidate for crisp instant rendering.
   if (isImageAsset) {
     event.respondWith(
-      caches.match(request).then((cached) => {
+      matchValidCachedAsset(request, url).then((cached) => {
         const networkPromise = fetch(request)
           .then((response) => {
-            if (response && response.ok && response.type === 'basic') {
+            if (isValidAssetResponse(request, response)) {
               const copy = response.clone();
               caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+              return response;
             }
-            return response;
+            return cached || response;
           })
           .catch(() => cached || Response.error());
         return cached || networkPromise;
@@ -125,22 +190,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin scripts, styles, JSON & subpages: Network-First with cache fallback
-  // to avoid stale-cache bugs while keeping offline resilience.
+  // Same-origin scripts, styles, JSON & subpages: Network-First with MIME-validated cache fallback
+  // so an HTML error/fallback page can never be cached or executed as JS/CSS.
   event.respondWith(
     fetch(request)
-      .then((response) => {
-        if (response && response.ok && response.type === 'basic') {
+      .then(async (response) => {
+        if (isValidAssetResponse(request, response)) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+          return response;
+        }
+        const fallback = await matchValidCachedAsset(request, url);
+        if (fallback) return fallback;
+        // Never feed an HTML page to a <script> or <link rel="stylesheet"> tag
+        if (/\.(m?js|css|json)$/i.test(url.pathname) || request.destination === 'script' || request.destination === 'style') {
+          return Response.error();
         }
         return response;
       })
       .catch(async () => {
-        const exact = await caches.match(request);
-        if (exact) return exact;
-        const cleanUrl = url.origin + url.pathname;
-        return (await caches.match(cleanUrl)) || Response.error();
+        const fallback = await matchValidCachedAsset(request, url);
+        return fallback || Response.error();
       })
   );
 });

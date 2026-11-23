@@ -134,6 +134,11 @@
     try {
       navigator.serviceWorker
         .register('./sw.js', { scope: './' })
+        .then((reg) => {
+          if (reg && typeof reg.update === 'function') {
+            reg.update().catch(() => {});
+          }
+        })
         .catch(() => {
           // Silently ignore SW registration errors in restricted WebViews
         });

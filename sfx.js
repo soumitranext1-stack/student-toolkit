@@ -211,6 +211,45 @@ const SFX = (() => {
         [587.3, 740, 880, 1174.7].forEach((f, i) => tone(c, f, i * 0.07, 0.22, 'triangle', 0.095));
         return true;
       }
+      case 'vipEntrance': {
+        [392, 523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => tone(c, f, i * 0.055, 0.28, i % 2 ? 'sine' : 'triangle', 0.085));
+        return true;
+      }
+      case 'wheelTick': {
+        tone(c, 880 + Math.random() * 140, 0, 0.028, 'triangle', 0.055);
+        return true;
+      }
+      case 'wheelWin': {
+        [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98].forEach((f, i) => tone(c, f, i * 0.065, 0.26, 'triangle', 0.095));
+        return true;
+      }
+      case 'chestOpen': {
+        tone(c, 330, 0, 0.14, 'triangle', 0.08, 495);
+        [659.25, 880, 1174.7, 1567.98].forEach((f, i) => tone(c, f, 0.12 + i * 0.06, 0.22, 'sine', 0.09));
+        return true;
+      }
+      case 'reactionPop': {
+        tone(c, 580, 0, 0.06, 'sine', 0.06, 920);
+        return true;
+      }
+      case 'weddingBell': {
+        [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5].forEach((f, i) => tone(c, f, i * 0.14, 0.55, 'sine', 0.08));
+        return true;
+      }
+      case 'poolHit': {
+        const power = Math.max(0.2, Math.min(1, Number(opts.power || 0.6)));
+        tone(c, 220 + power * 260, 0, 0.045, 'triangle', 0.04 + power * 0.07, 110);
+        return true;
+      }
+      case 'warningAlert': {
+        tone(c, 420, 0, 0.14, 'sawtooth', 0.07, 300);
+        tone(c, 360, 0.17, 0.18, 'sawtooth', 0.07, 240);
+        return true;
+      }
+      case 'flashDrop': {
+        [987.8, 1318.5, 1567.98, 2093].forEach((f, i) => tone(c, f, i * 0.045, 0.15, 'triangle', 0.085));
+        return true;
+      }
       case 'click':
       default: {
         tone(c, 740, 0, 0.04, 'sine', 0.045, 860);

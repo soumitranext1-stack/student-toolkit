@@ -5,6 +5,7 @@ applyDevUI();
 if(typeof SFX!=='undefined')SFX.syncButtons();
 checkBan();
 checkDailyLoginBonus();
+if(typeof evaluateAchievementTitles==='function')evaluateAchievementTitles();
 renderHome();
 renderGameSlots();
 renderNotice();
@@ -15,6 +16,10 @@ pruneExpiredChats();
 cleanupInactiveGuestUsers();
 sweepDuels();
 initFirebase();
+setTimeout(()=>{
+  if(typeof checkPendingWarnings==='function')checkPendingWarnings();
+  if(typeof checkPendingProposals==='function')checkPendingProposals();
+},900);
 try{
   const ret=sessionStorage.getItem('sg_return');
   const openGift=sessionStorage.getItem('sg_open_gift');

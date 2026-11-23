@@ -107,12 +107,83 @@ function mergeAppearanceFromCloud(m){
       me.giftWallet=gw;
     }
   }
+  if(typeof m.gender==='string'&&m.gender)me.gender=m.gender;
+  if(typeof m.moodTag==='string')me.moodTag=m.moodTag;
+  if(typeof m.entryEffect==='string')me.entryEffect=m.entryEffect;
+  if(typeof m.title==='string')me.title=m.title;
+  if(Array.isArray(m.unlockedTitles))me.unlockedTitles=[...new Set([...(me.unlockedTitles||[]),...m.unlockedTitles])];
+  if(typeof m.vipTier==='string')me.vipTier=m.vipTier;
+  if(typeof m.vipUntil==='number')me.vipUntil=devOverride?m.vipUntil:Math.max(Number(me.vipUntil||0),m.vipUntil);
+  if(typeof m.likesCount==='number')me.likesCount=Math.max(Number(me.likesCount||0),clampSafeInt(m.likesCount,0,MAX_COINS));
+  if(Array.isArray(m.likedBy))me.likedBy=m.likedBy.slice(-200);
+  if(Array.isArray(m.visitors))me.visitors=m.visitors.slice(-20);
+  if(Array.isArray(m.bonds))me.bonds=m.bonds.slice(-10);
+  if(Array.isArray(m.pendingProposals))me.pendingProposals=m.pendingProposals.slice(-15);
+  if(typeof m.clanId==='string')me.clanId=m.clanId;
+  if(typeof m.clanTag==='string')me.clanTag=m.clanTag;
+  if(Array.isArray(m.warnings))me.warnings=m.warnings.slice(-20);
+  if(typeof m.mutedUntil==='number')me.mutedUntil=m.mutedUntil;
+  if(typeof m.banReason==='string')me.banReason=m.banReason;
+  if(typeof m.banUntil==='number')me.banUntil=m.banUntil;
   if(typeof m.banned==='boolean')me.banned=m.banned;
 
   me=normalizeProfile(me,uid);
   me.lastRewardedLevel=Math.max(Number(me.lastRewardedLevel||1),calcLevel(me.exp));
   refreshDevMode();
   saveMe();
+  if(typeof checkPendingWarnings==='function')checkPendingWarnings();
+  if(typeof checkPendingProposals==='function')checkPendingProposals();
+}
+
+function isWebViewOrStandalone(){
+  try{
+    const ua=navigator.userAgent||'';
+    const isAndroidWV=/; wv\)/i.test(ua)||(/Android/i.test(ua)&&/Version\/\d+\.\d+/i.test(ua));
+    const isStandalone=window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches;
+    const isIOSStandalone=Boolean(window.navigator&&window.navigator.standalone);
+    return isAndroidWV||isStandalone||isIOSStandalone;
+  }catch{return false;}
+}
+
+async function signInWithGoogleReliable(btnEl){
+  if(!AUTH||!auth)return toast('Connecting to Google Sign-In... please wait');
+  const origText=btnEl?btnEl.textContent:'';
+  if(btnEl){btnEl.disabled=true;btnEl.textContent='Connecting to Google...';}
+  const provider=new AUTH.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+
+  const triggerRedirect=async()=>{
+    try{sessionStorage.setItem('sg_google_redirect','1');}catch{}
+    toast('Opening Google Sign-In...');
+    await AUTH.signInWithRedirect(auth,provider);
+  };
+
+  try{
+    if(isWebViewOrStandalone()){
+      await triggerRedirect();
+      return;
+    }
+    const res=await AUTH.signInWithPopup(auth,provider);
+    if(res&&res.user){
+      await adoptAuthUser(res.user);
+      toast('Signed in with Google ✓');
+      if(typeof buildProfile==='function')buildProfile();
+    }
+  }catch(e){
+    const code=String((e&&e.code)||'');
+    if(code.includes('popup-blocked')||code.includes('operation-not-supported')||code.includes('cancelled-popup-request')||code.includes('popup-closed-by-user')){
+      try{
+        await triggerRedirect();
+        return;
+      }catch(re){
+        toast(authMsg(re));
+      }
+    }else{
+      toast(authMsg(e));
+    }
+  }finally{
+    if(btnEl){btnEl.disabled=false;btnEl.textContent=origText||'Sign in with Google';}
+  }
 }
 
 async function adoptAuthUser(u){
@@ -170,6 +241,10 @@ function attachDevListeners(){
     poemRequests=list;ls.set('sg_poem_requests_cache',poemRequests);
     if(devMode)renderPoems();
   },()=>{});
+  F.onSnapshot(F.collection(db,'reports'),snap=>{
+    const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.ts||0)-(a.ts||0));
+    if(typeof ingestReports==='function')ingestReports(list);
+  },()=>{});
 }
 
 async function initFirebase(){
@@ -180,11 +255,22 @@ async function initFirebase(){
     const app=A.initializeApp(firebaseConfig);
     db=S.getFirestore(app);F=S;AUTH=AU;auth=AU.getAuth(app);
 
-    try{await AU.getRedirectResult(auth)}catch{}
-    let u=await new Promise(res=>{const un=AU.onAuthStateChanged(auth,x=>{un();res(x)})});
+    let redirectUser=null;
+    const wasRedirect=Boolean(sessionStorage.getItem('sg_google_redirect'));
+    if(wasRedirect){toast('Completing Google Sign-In...');}
+    try{
+      const rres=await AU.getRedirectResult(auth);
+      if(rres&&rres.user)redirectUser=rres.user;
+    }catch(re){
+      if(wasRedirect)toast(authMsg(re));
+    }finally{
+      try{sessionStorage.removeItem('sg_google_redirect');}catch{}
+    }
+    let u=redirectUser||await new Promise(res=>{const un=AU.onAuthStateChanged(auth,x=>{un();res(x)})});
     if(!u)u=(await AU.signInAnonymously(auth)).user;
     online=true;
     await adoptAuthUser(u);
+    if(redirectUser)toast('Signed in with Google ✓');
     setStatus(true);
     AU.onAuthStateChanged(auth,x=>{if(x&&x.uid!==uid)adoptAuthUser(x)});
 
@@ -249,11 +335,13 @@ async function initFirebase(){
             if(typeof playSfx==='function')playSfx('redPacketDrop');
           }else if(lastNew.type==='gift'){
             const gObj=(typeof GIFT_BY_ID!=='undefined'&&GIFT_BY_ID[lastNew.giftId])||null;
-            if(gObj&&gObj.tier>=7&&typeof showLuxuryGiftShowcase==='function'){
+            if(gObj&&Number(gObj.price||0)>=5000&&typeof showLuxuryGiftShowcase==='function'){
               showLuxuryGiftShowcase(lastNew,gObj);
             }else if(typeof playSfx==='function'){
               playSfx('giftReceive');
             }
+          }else if(lastNew.type==='flash_drop'){
+            if(typeof playSfx==='function')playSfx('flashDrop');
           }else if(cur==='world'&&typeof playSfx==='function'){
             playSfx('chatRecv');
           }
@@ -280,6 +368,27 @@ async function initFirebase(){
         }
       });
       if(typeof ingestMultiplayerRooms==='function')ingestMultiplayerRooms(active);
+    },()=>{});
+
+    /* Party Rooms & Wedding Rooms real-time listener */
+    S.onSnapshot(S.collection(db,'party_rooms'),snap=>{
+      const now=Date.now();
+      const rooms=[];
+      snap.docs.forEach(d=>{
+        const rm={id:d.id,...d.data()};
+        if(rm.expiresAt&&Number(rm.expiresAt)<=now){
+          dbOp(()=>F.deleteDoc(F.doc(db,'party_rooms',d.id)));
+        }else{
+          rooms.push(rm);
+        }
+      });
+      if(typeof ingestPartyRooms==='function')ingestPartyRooms(rooms);
+    },()=>{});
+
+    /* Clans / Gaming Squads real-time listener */
+    S.onSnapshot(S.collection(db,'clans'),snap=>{
+      const list=snap.docs.map(d=>({id:d.id,...d.data()}));
+      if(typeof ingestClans==='function')ingestClans(list);
     },()=>{});
 
     attachUserListeners();attachDevListeners();
