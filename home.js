@@ -39,6 +39,7 @@ function openToolsDrawer(){
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden','false');
   if(backdrop){backdrop.hidden=false;backdrop.classList.add('open')}
+  if(typeof pushBackGuardState==='function')pushBackGuardState('drawer');
   if(typeof playSfx==='function')playSfx('click');
 }
 

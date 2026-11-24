@@ -253,7 +253,15 @@ async function initFirebase(){
     const S=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
     const AU=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
     const app=A.initializeApp(firebaseConfig);
-    db=S.getFirestore(app);F=S;AUTH=AU;auth=AU.getAuth(app);
+    try{if(typeof S.setLogLevel==='function')S.setLogLevel('silent')}catch{}
+    try{
+      db=typeof S.initializeFirestore==='function'
+        ? S.initializeFirestore(app,{experimentalAutoDetectLongPolling:true})
+        : S.getFirestore(app);
+    }catch{
+      db=S.getFirestore(app);
+    }
+    F=S;AUTH=AU;auth=AU.getAuth(app);
 
     let redirectUser=null;
     const wasRedirect=Boolean(sessionStorage.getItem('sg_google_redirect'));

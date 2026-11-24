@@ -1151,7 +1151,9 @@ function cleanupInactiveGuestUsers(docList){
 function modal(title,html,cls=''){
   const b=document.createElement('div');b.className='mb';
   b.innerHTML=`<div class="sheet ${cls}"><div class="sh"><h3>${title}</h3><button class="x" aria-label="Close">✕</button></div><div class="sb">${html}</div></div>`;
-  $('#modals').appendChild(b);b.close=()=>{b.remove();b.onclose&&b.onclose()};$('.x',b).onclick=b.close;b.addEventListener('click',e=>{if(e.target===b)b.close()});return b;
+  $('#modals').appendChild(b);b.close=()=>{b.remove();b.onclose&&b.onclose()};$('.x',b).onclick=b.close;b.addEventListener('click',e=>{if(e.target===b)b.close()});
+  if(typeof pushBackGuardState==='function')pushBackGuardState('modal');
+  return b;
 }
 
 function openRewardAd(onDone){
@@ -1459,10 +1461,136 @@ function openPublicProfile(targetUid){
   };
 }
 
-function showTab(tab){
-  $$('#nav button').forEach(x=>x.classList.toggle('on',x.dataset.tab===tab));
-  $$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+tab));
+let activeAppTab='tools';
+let sgExitConfirmEl=null;
+
+function pushBackGuardState(tag){
+  try{
+    if(!history.state||!history.state.sgBackGuard){
+      history.replaceState({sgBackGuard:true,base:true},'');
+    }
+    history.pushState({sgBackGuard:true,tag:tag||'nav',ts:Date.now()},'');
+  }catch{}
+}
+
+function closeCuteExitConfirm(){
+  if(sgExitConfirmEl){
+    sgExitConfirmEl.remove();
+    sgExitConfirmEl=null;
+  }
+}
+
+function showCuteExitConfirm(){
+  closeCuteExitConfirm();
+  const wrap=document.createElement('div');
+  wrap.id='sgExitConfirm';
+  wrap.className='sg-exit-backdrop';
+  wrap.setAttribute('role','dialog');
+  wrap.setAttribute('aria-modal','true');
+  wrap.setAttribute('aria-label','Exit Study Game Confirmation');
+  wrap.innerHTML=`
+    <div class="sg-exit-card">
+      <div class="sg-exit-face" aria-hidden="true">🥺</div>
+      <b>Leaving so soon?</b>
+      <p>Your squad &amp; daily streak will miss you! Stay a little longer?</p>
+      <div class="sg-exit-acts">
+        <button type="button" class="btn gold" id="sgStayBtn">Stay &amp; Play</button>
+        <button type="button" class="btn ghost" id="sgExitYesBtn">Exit</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+  sgExitConfirmEl=wrap;
+  $('#sgStayBtn',wrap).onclick=()=>{
+    if(typeof playSfx==='function')playSfx('tap');
+    closeCuteExitConfirm();
+    pushBackGuardState('stay');
+  };
+  $('#sgExitYesBtn',wrap).onclick=()=>{
+    closeCuteExitConfirm();
+    toast('Bye for now! See you soon 🥺');
+    try{history.go(-2)}catch{}
+  };
+  wrap.addEventListener('click',e=>{
+    if(e.target===wrap){closeCuteExitConfirm();pushBackGuardState('stay')}
+  });
+}
+
+function handleAppBack(){
+  /* 1. Close exit confirm if open */
+  if(sgExitConfirmEl){
+    closeCuteExitConfirm();
+    pushBackGuardState('dismiss-exit');
+    return 'close-exit-confirm';
+  }
+  /* 2. Close topmost modal (e.g. Profile -> Edit Profile -> Back returns to Profile) */
+  const openModals=$$('#modals .mb');
+  if(openModals.length){
+    const top=openModals[openModals.length-1];
+    if(typeof top.close==='function')top.close();
+    else top.remove();
+    pushBackGuardState('after-modal');
+    return 'close-modal';
+  }
+  /* 3. Close Dedicated Full-Screen Game View */
+  const gameRoot=$('#gameFsRoot');
+  if(gameRoot&&!gameRoot.hidden){
+    if(typeof closeFullScreenGameView==='function')closeFullScreenGameView();
+    pushBackGuardState('after-game');
+    return 'close-game-view';
+  }
+  /* 4. Close Full-Screen Voice/Video Party Room */
+  const partyRoot=$('#partyFsRoot');
+  if(partyRoot&&!partyRoot.hidden){
+    if(typeof closePartyRoom==='function')closePartyRoom();
+    pushBackGuardState('after-party');
+    return 'close-party-room';
+  }
+  /* 4. Close DM / World Chat thread (returns to Chat list) */
+  const thr=$('#thread');
+  if(thr&&!thr.hidden){
+    thr.hidden=true;
+    if(typeof cur!=='undefined')cur=null;
+    if(typeof renderChats==='function')renderChats();
+    pushBackGuardState('after-thread');
+    return 'close-chat-thread';
+  }
+  /* 5. Close Student Tools Drawer if currently open */
+  const drawer=$('#toolsDrawer');
+  if(drawer&&drawer.classList.contains('open')){
+    if(typeof closeToolsDrawer==='function')closeToolsDrawer();
+    pushBackGuardState('after-drawer');
+    return 'close-tools-drawer';
+  }
+  /* 6. Any non-Home tab (Profile, Chat, Games, etc.) returns straight to Home (never drops back into Student Tool) */
+  if(activeAppTab!=='tools'){
+    showTab('tools',{fromBack:true});
+    pushBackGuardState('home');
+    return 'go-home';
+  }
+  /* 7. Already on Home -> show cute slightly sad exit confirmation popup */
+  showCuteExitConfirm();
+  pushBackGuardState('exit-prompt');
+  return 'show-exit-confirm';
+}
+window.handleAppBack=handleAppBack;
+
+window.addEventListener('popstate',()=>{
+  handleAppBack();
+});
+
+function showTab(tab,opts){
+  const o=opts||{};
+  activeAppTab=tab||'tools';
+  /* Always close transient Student Tools Drawer & open Chat Thread when switching tabs so Back returns to Home */
+  if(typeof closeToolsDrawer==='function')closeToolsDrawer();
+  const thr=$('#thread');
+  if(tab!=='chat'&&thr&&!thr.hidden){thr.hidden=true;if(typeof cur!=='undefined')cur=null}
+  closeCuteExitConfirm();
+  $$('#nav button').forEach(x=>x.classList.toggle('on',x.dataset.tab===activeAppTab));
+  $$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+activeAppTab));
   $('main').scrollTop=0;
+  if(!o.fromBack&&activeAppTab!=='tools')pushBackGuardState('tab:'+activeAppTab);
 }
 $('#nav').onclick=e=>{const b=e.target.closest('[data-tab]');if(b){if(typeof playSfx==='function')playSfx('click');showTab(b.dataset.tab)}};
 if($('#sfxBtn'))$('#sfxBtn').onclick=()=>{
@@ -1471,6 +1599,8 @@ if($('#sfxBtn'))$('#sfxBtn').onclick=()=>{
     toast(isOff?'Sound FX muted':'Sound FX enabled');
   }
 };
+/* Arm initial back-button guard sentinel once DOM loads */
+try{pushBackGuardState('init')}catch{}
 function renderAll(){
   if(typeof renderHomeHub==='function')renderHomeHub();
   if(typeof renderPartyHub==='function')renderPartyHub();

@@ -1,22 +1,74 @@
 "use strict";
-/* Crisp SVG Icons for Games Hub & Live Multiplayer Arena */
+/* High-Craft 3D Glossy SVG Icons for Study Mini-Games & Live Multiplayer Arena */
 const GAME_SVG={
-  chess:`<svg viewBox="0 0 24 24" fill="none" stroke="#ffd36b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M9 17h6l-1-6 2-3-2-3-2 2-2-2-2 3 2 3-1 6z"/></svg>`,
-  math:`<svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 10-12h-7l0-8z"/></svg>`,
-  puzzle:`<svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4a2 2 0 1 1 4 0v2h2v5h-2a2 2 0 1 0 0 4h2v5H4v-5h2a2 2 0 1 0 0-4H4V6h6V4a2 2 0 1 1 4 0z"/></svg>`,
-  word:`<svg viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 15l2.5-6L12 15M8 13h3M15 9v6M15 12h2.5"/></svg>`,
-  trivia:`<svg viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></svg>`,
-  duel:`<svg viewBox="0 0 24 24" fill="none" stroke="#ff4d6a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="#ff4d6a"/></svg>`,
-  plus:`<svg viewBox="0 0 24 24" fill="none" stroke="#ffd36b" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
-  custom:`<svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 12h4M9 10v4M15.5 11h.01M17.5 13h.01"/></svg>`
+  chess:`<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="gChGold" x1="14" y1="8" x2="50" y2="56" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fef08a"/><stop offset="48%" stop-color="#f59e0b"/><stop offset="100%" stop-color="#b45309"/></linearGradient>
+      <linearGradient id="gChBase" x1="12" y1="48" x2="52" y2="58" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#92400e"/></linearGradient>
+    </defs>
+    <ellipse cx="32" cy="54" rx="20" ry="5" fill="#000" fill-opacity=".35"/>
+    <path d="M18 46h28l3 7H15l3-7z" fill="url(#gChBase)" stroke="#fff" stroke-opacity=".35" stroke-width="1.3"/>
+    <path d="M23 46l3-17-6-5 5-8 7 5 7-5 5 8-6 5 3 17H23z" fill="url(#gChGold)" stroke="#fffbeb" stroke-opacity=".55" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="32" cy="12" r="4.2" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+    <path d="M27 30c3-2 7-2 10 0" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`,
+  math:`<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="gMaBolt" x1="16" y1="6" x2="48" y2="58" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e0f2fe"/><stop offset="45%" stop-color="#38bdf8"/><stop offset="100%" stop-color="#2563eb"/></linearGradient>
+    </defs>
+    <circle cx="32" cy="34" r="22" fill="#0ea5e9" fill-opacity=".18"/>
+    <path d="M36 7L15 35h15l-4 22 23-29H34l2-21z" fill="url(#gMaBolt)" stroke="#e0f2fe" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle cx="48" cy="15" r="5" fill="#fde047" stroke="#fff" stroke-width="1.2"/>
+    <path d="M46 15h4M48 13v4" stroke="#78350f" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+  puzzle:`<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="gPzA" x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#f0abfc"/><stop offset="50%" stop-color="#a855f7"/><stop offset="100%" stop-color="#581c87"/></linearGradient>
+    </defs>
+    <ellipse cx="32" cy="54" rx="19" ry="4.5" fill="#000" fill-opacity=".35"/>
+    <path d="M28 11a5 5 0 1 1 8 0v4h10a4 4 0 0 1 4 4v9h-4a5 5 0 1 0 0 10h4v9a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4v-9h4a5 5 0 1 0 0-10h-4v-9a4 4 0 0 1 4-4h10v-4z" fill="url(#gPzA)" stroke="#fae8ff" stroke-opacity=".55" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M20 22h14" stroke="#fff" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>
+  </svg>`,
+  word:`<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="gWdTile" x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#99f6e4"/><stop offset="52%" stop-color="#14b8a6"/><stop offset="100%" stop-color="#0f766e"/></linearGradient>
+    </defs>
+    <rect x="8" y="12" width="48" height="40" rx="11" fill="url(#gWdTile)" stroke="#ccfbf1" stroke-opacity=".6" stroke-width="1.8"/>
+    <rect x="11" y="15" width="42" height="14" rx="7" fill="#fff" fill-opacity=".16"/>
+    <path d="M18 41l6-17 6 17M20.5 35.5h7M38 24v17M38 32h7a4 4 0 0 1 0 9h-7" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`,
+  trivia:`<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="gTrCap" x1="10" y1="14" x2="54" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fed7aa"/><stop offset="50%" stop-color="#f97316"/><stop offset="100%" stop-color="#c2410c"/></linearGradient>
+    </defs>
+    <path d="M32 12L6 25l26 13 26-13L32 12z" fill="url(#gTrCap)" stroke="#ffedd5" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M16 31v12c4.5 4.8 27.5 4.8 32 0V31" fill="#ea580c" fill-opacity=".75" stroke="#fed7aa" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M52 28v15" stroke="#fde047" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="52" cy="45" r="3" fill="#fde047"/>
+  </svg>`,
+  duel:`<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <defs>
+      <radialGradient id="gDlRing" cx="35%" cy="30%" r="70%"><stop offset="0%" stop-color="#fda4af"/><stop offset="55%" stop-color="#f43f5e"/><stop offset="100%" stop-color="#881337"/></radialGradient>
+    </defs>
+    <circle cx="32" cy="32" r="24" fill="url(#gDlRing)" stroke="#ffe4e6" stroke-width="1.8"/>
+    <circle cx="32" cy="32" r="15" fill="#0f172a" fill-opacity=".42" stroke="#fecdd3" stroke-width="2.2"/>
+    <circle cx="32" cy="32" r="6.5" fill="#fde047" stroke="#fff" stroke-width="1.6"/>
+  </svg>`,
+  plus:`<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="#f59e0b" fill-opacity=".22" stroke="#fde047" stroke-width="2" stroke-dasharray="6 4"/><path d="M32 20v24M20 32h24" stroke="#fef08a" stroke-width="3.5" stroke-linecap="round"/></svg>`,
+  custom:`<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <defs><linearGradient id="gCuPad" x1="8" y1="16" x2="56" y2="48" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#6ee7b7"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs>
+    <rect x="8" y="16" width="48" height="32" rx="12" fill="url(#gCuPad)" stroke="#d1fae5" stroke-width="1.8"/>
+    <path d="M21 32h10M26 27v10" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="42" cy="29" r="2.6" fill="#fde047"/><circle cx="47" cy="35" r="2.6" fill="#38bdf8"/>
+  </svg>`
 };
 
 const HUB_GAMES=[
-  ['Chess Blitz','chess','Vs Robot (free) or Friend (coins)','chess-blitz.html'],
-  ['Speed Math','math','Fast mental calculation','speedmath.html'],
-  ['Brain Puzzle','puzzle','Logic & pattern solving','brain-puzzle.html'],
-  ['Word Duel','word','Vocabulary showdown','word-duel.html'],
-  ['Trivia Rush','trivia','Rapid study quiz','trivia-rush.html']
+  ['Chess Blitz','chess','1v1 · Bot','chess-blitz.html','mg-chess','GOLD'],
+  ['Speed Math','math','Sprint','speedmath.html','mg-math','FAST'],
+  ['Brain Puzzle','puzzle','Logic','brain-puzzle.html','mg-puzzle','IQ'],
+  ['Word Duel','word','Vocab','word-duel.html','mg-word','CLASH'],
+  ['Trivia Rush','trivia','Quiz','trivia-rush.html','mg-trivia','LIVE']
 ];
 
 const DUEL_GAMES=[
@@ -588,16 +640,49 @@ function renderGameSlots(){
     const ag=$('#arenaGamesGrid');
     if(ag)renderArenaPostersGrid(ag);
   }
-  const baseCards=HUB_GAMES.map((g,i)=>`<button type="button" class="card tool" data-hubgame="${i}"><div class="art">${GAME_SVG[g[1]]||GAME_SVG.custom}</div><b>${esc(g[0])}</b><small>${esc(g[2])}</small>${g[3]?'':'<span class="dur-pill" style="align-self:flex-start">Coming soon</span>'}</button>`).join('');
+  const baseCards=HUB_GAMES.map((g,i)=>`<button type="button" class="mini-game-3d-card glossy-card ${esc(g[4]||'mg-math')}" data-hubgame="${i}">
+    <span class="mg-3d-badge">${esc(g[5]||'PLAY')}</span>
+    <div class="mg-3d-art">${GAME_SVG[g[1]]||GAME_SVG.custom}</div>
+    <div class="mg-3d-foot">
+      <b>${esc(g[0])}</b>
+      <span>${esc(g[2])}</span>
+    </div>
+  </button>`).join('');
 
-  const extraCards=(Array.isArray(customGameSlots)?customGameSlots:[]).map((sg,idx)=>`<div class="card tool" data-customgame="${idx}" style="position:relative"><div class="art">${GAME_SVG.custom}</div><b>${esc(sg.name||'Custom Game')}</b><small>${esc(sg.desc||'Play study mini-game')}</small>${devMode?`<button type="button" class="btn red sm" data-delgameslot="${idx}" style="margin-top:auto">Remove</button>`:''}</div>`).join('');
+  const extraCards=(Array.isArray(customGameSlots)?customGameSlots:[]).map((sg,idx)=>`<div class="mini-game-3d-card glossy-card mg-custom" data-customgame="${idx}" role="button" tabindex="0">
+    <span class="mg-3d-badge">NEW</span>
+    <div class="mg-3d-art">${GAME_SVG.custom}</div>
+    <div class="mg-3d-foot">
+      <b>${esc(sg.name||'Game')}</b>
+      <span>${esc((sg.desc||'Play').slice(0,18))}</span>
+    </div>
+    ${devMode?`<button type="button" class="btn red sm mg-del-btn" data-delgameslot="${idx}">✕</button>`:''}
+  </div>`).join('');
 
-  const duelCard=`<button type="button" class="card tool" data-hubduel="1" style="border-color:var(--ac)"><div class="art">${GAME_SVG.duel}</div><b>60s MCQ Duel</b><small>Challenge a friend in chat</small></button>`;
+  const duelCard=`<button type="button" class="mini-game-3d-card glossy-card mg-duel" data-hubduel="1">
+    <span class="mg-3d-badge">20 🪙</span>
+    <div class="mg-3d-art">${GAME_SVG.duel}</div>
+    <div class="mg-3d-foot">
+      <b>60s MCQ Duel</b>
+      <span>1v1 Chat</span>
+    </div>
+  </button>`;
 
   /* Strictly Developer Only: normal/guest users never see + New Game Slot */
-  const devSlotCard=devMode?`<button type="button" class="card tool hub-slot" data-addgameslot="1"><div class="art">${GAME_SVG.plus}</div><b>+ New Game Slot</b><small>Developer: add a game link</small></button>`:'';
+  const devSlotCard=devMode?`<button type="button" class="mini-game-3d-card glossy-card mg-dev-slot" data-addgameslot="1">
+    <span class="mg-3d-badge">DEV</span>
+    <div class="mg-3d-art">${GAME_SVG.plus}</div>
+    <div class="mg-3d-foot">
+      <b>+ New Slot</b>
+      <span>Add Game</span>
+    </div>
+  </button>`:'';
 
-  $('#gameSlotsGrid').innerHTML=baseCards+extraCards+duelCard+devSlotCard;
+  const gridEl=$('#gameSlotsGrid');
+  if(gridEl){
+    gridEl.classList.add('mini-games-3d-grid');
+    gridEl.innerHTML=baseCards+extraCards+duelCard+devSlotCard;
+  }
   renderMultiplayerRooms();
 }
 

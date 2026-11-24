@@ -87,11 +87,15 @@ const PARTY_COVERS = {
 const PARTY_TAGS = ['Friends', 'Chill', 'Music', 'Gaming', 'Study', 'Acquaint', 'Auction', 'Spy'];
 
 const PARTY_MUSIC_TRACKS = [
-  { id: '', title: 'No Songs', artist: 'Tap to pick room music', bpm: 0 },
-  { id: 'lofi_midnight', title: 'Midnight Lo-Fi Study', artist: 'Synth Ambient · Chill', bpm: 78 },
-  { id: 'club_pulse', title: 'Neon Club Groove', artist: 'Deep House · Stage', bpm: 118 },
-  { id: 'velvet_piano', title: 'Velvet Rain Piano', artist: 'Focus Acoustic', bpm: 68 },
-  { id: 'arena_hype', title: 'Arena Victory Beat', artist: 'Gaming Synthwave', bpm: 126 }
+  { id: 'hi_kesariya', category: 'hindi', title: 'Kesariya Acoustic Vibe', artist: 'Hindi Chill · Unplugged', notes: [261.63, 329.63, 392.0, 329.63], bpm: 84 },
+  { id: 'hi_raatan', category: 'hindi', title: 'Raatan Lambiyan Chill', artist: 'Hindi Romantic · Soft', notes: [293.66, 369.99, 440.0, 369.99], bpm: 88 },
+  { id: 'hi_tumhiho', category: 'hindi', title: 'Tum Hi Ho Piano', artist: 'Hindi Slow · Acoustic', notes: [220.0, 261.63, 329.63, 293.66], bpm: 74 },
+  { id: 'bn_tomake', category: 'bangla', title: 'Tomake Chai Unplugged', artist: 'Bangla Acoustic · Kolkata', notes: [246.94, 311.13, 369.99, 311.13], bpm: 80 },
+  { id: 'bn_monmajhi', category: 'bangla', title: 'Mon Majhi Re Folk', artist: 'Bangla Melodic · Breeze', notes: [261.63, 293.66, 392.0, 329.63], bpm: 86 },
+  { id: 'bn_boshonto', category: 'bangla', title: 'Boshonto Eshe Geche', artist: 'Bangla Classic · Indie', notes: [293.66, 329.66, 440.0, 392.0], bpm: 92 },
+  { id: 'lofi_midnight', category: 'lofi', title: 'Midnight Lo-Fi Study', artist: 'Lo-Fi · Synth Ambient', notes: [196.0, 246.94, 293.66, 246.94], bpm: 76 },
+  { id: 'lofi_club', category: 'lofi', title: 'Neon Club Groove', artist: 'Lo-Fi · Deep Chill', notes: [220.0, 277.18, 329.63, 277.18], bpm: 108 },
+  { id: 'lofi_velvet', category: 'lofi', title: 'Velvet Rain Piano', artist: 'Lo-Fi · Focus Acoustic', notes: [174.61, 220.0, 261.63, 220.0], bpm: 68 }
 ];
 
 const PARTY_PHOTO_STAMPS = [
@@ -220,11 +224,19 @@ function normalizePartyRoom(rm) {
     blocklist: Array.isArray(rm.blocklist) ? [...new Set(rm.blocklist.filter(Boolean))] : [],
     lockedSeats,
     musicTrack: typeof rm.musicTrack === 'string' ? rm.musicTrack : '',
+    musicCustomUrl: typeof rm.musicCustomUrl === 'string' ? rm.musicCustomUrl : '',
+    musicCustomTitle: typeof rm.musicCustomTitle === 'string' ? rm.musicCustomTitle : '',
+    musicYoutubeId: typeof rm.musicYoutubeId === 'string' ? rm.musicYoutubeId : '',
     youtubeId: String(rm.youtubeId || ''),
     gameCoinMode: rm.gameCoinMode === 'coin' ? 'coin' : 'free',
     seats,
     auction,
     topGifter: rm.topGifter || { name: 'Aria Nova', charm: 21000, avatar: 'av_g1' },
+    supporters: Array.isArray(rm.supporters) && rm.supporters.length ? rm.supporters : [
+      { name: 'Aria Nova', avatar: 'av_g1', coins: 21400 },
+      { name: 'Kai Volt', avatar: 'av_b1', coins: 8400 },
+      { name: 'Zara Star', avatar: 'av_g3', coins: 5100 }
+    ],
     operationLog: Array.isArray(rm.operationLog) ? rm.operationLog.slice(0, 30) : [
       { id: 'op_init', actor: rm.hostName || 'Host', action: 'Opened voice room & applied rules board', ts: Number(rm.createdAt || Date.now()) }
     ],
@@ -466,37 +478,202 @@ function isRoomHostOrManager(room) {
   return room.hostUid === uid || devMode || String(room.id || '').startsWith('pr_seed_');
 }
 
-/* ===== Subtle Ambient WebAudio Loop for Room Music Track ===== */
-function stopRoomAmbientMusic() {
-  if (partyActiveMusicOsc) {
-    try { partyActiveMusicOsc.stop(); } catch {}
-    partyActiveMusicOsc = null;
+/* ===== Persistent HTML5 Audio + WebAudio Room Music Engine (Hindi, Bangla, Lo-Fi & Stream URLs) ===== */
+const RoomMusicEngine = (() => {
+  let audioEl = null;
+  let synthTimer = null;
+  let synthCtx = null;
+  let state = {
+    trackId: '',
+    customUrl: '',
+    customTitle: '',
+    youtubeId: '',
+    playing: false,
+    loop: true,
+    volume: 0.45
+  };
+
+  function ensureAudioEl() {
+    if (!audioEl) {
+      audioEl = document.createElement('audio');
+      audioEl.id = 'sgGlobalRoomAudio';
+      audioEl.preload = 'none';
+      audioEl.crossOrigin = 'anonymous';
+      audioEl.loop = state.loop;
+      audioEl.volume = state.volume;
+      audioEl.addEventListener('ended', () => {
+        if (!state.loop) nextTrack();
+      });
+      audioEl.addEventListener('error', () => {
+        if (state.playing && state.customUrl) {
+          toast('Audio stream unavailable — switched to room Lo-Fi');
+          playPreset('lofi_midnight');
+        }
+      });
+      document.body.appendChild(audioEl);
+    }
+    return audioEl;
   }
+
+  function stopSynth() {
+    if (synthTimer) { clearInterval(synthTimer); synthTimer = null; }
+    if (synthCtx) { try { synthCtx.close(); } catch {} synthCtx = null; }
+  }
+
+  function startPresetSynth(track) {
+    stopSynth();
+    if (!partySpeakerOn) return;
+    if (typeof SFX !== 'undefined' && SFX.isMuted && SFX.isMuted()) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      synthCtx = ctx;
+      const notes = Array.isArray(track.notes) && track.notes.length ? track.notes : [220, 261.63, 329.63, 293.66];
+      let step = 0;
+      const beatMs = Math.max(420, Math.round((60000 / Number(track.bpm || 84)) * 1.1));
+      const playTone = () => {
+        if (!state.playing || !partySpeakerOn || !synthCtx) return;
+        try {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = track.category === 'lofi' ? 'triangle' : 'sine';
+          osc.frequency.value = notes[step % notes.length];
+          const vol = Math.max(0.002, Math.min(0.04, state.volume * 0.04));
+          gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (beatMs / 1000) * 0.92);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + (beatMs / 1000));
+          step++;
+        } catch {}
+      };
+      playTone();
+      synthTimer = setInterval(playTone, beatMs);
+    } catch {}
+  }
+
+  function playPreset(trackId) {
+    const tr = PARTY_MUSIC_TRACKS.find(t => t.id === trackId);
+    if (!tr) return stop();
+    if (audioEl) { try { audioEl.pause(); audioEl.removeAttribute('src'); } catch {} }
+    state.trackId = tr.id;
+    state.customUrl = '';
+    state.customTitle = '';
+    state.youtubeId = '';
+    state.playing = true;
+    startPresetSynth(tr);
+    return tr;
+  }
+
+  function playDirectUrl(url, title) {
+    stopSynth();
+    const el = ensureAudioEl();
+    el.src = url;
+    el.loop = state.loop;
+    el.volume = partySpeakerOn ? state.volume : 0;
+    state.trackId = 'custom_url';
+    state.customUrl = url;
+    state.customTitle = title || 'Live Audio Stream';
+    state.youtubeId = '';
+    state.playing = true;
+    el.play().catch(() => {});
+  }
+
+  function setYoutubeFallback(videoId, title) {
+    stopSynth();
+    if (audioEl) { try { audioEl.pause(); } catch {} }
+    state.trackId = 'yt_music';
+    state.customUrl = '';
+    state.customTitle = title || ('YouTube Track · ' + videoId);
+    state.youtubeId = videoId;
+    state.playing = true;
+  }
+
+  function togglePlay() {
+    if (!state.trackId) {
+      playPreset('hi_kesariya');
+      return state.playing;
+    }
+    state.playing = !state.playing;
+    if (state.customUrl && audioEl) {
+      if (state.playing) audioEl.play().catch(() => {});
+      else audioEl.pause();
+    } else if (state.trackId && !state.youtubeId) {
+      if (state.playing) {
+        const tr = PARTY_MUSIC_TRACKS.find(t => t.id === state.trackId);
+        if (tr) startPresetSynth(tr);
+      } else {
+        stopSynth();
+      }
+    }
+    return state.playing;
+  }
+
+  function nextTrack(categoryFilter) {
+    const pool = categoryFilter && categoryFilter !== 'all'
+      ? PARTY_MUSIC_TRACKS.filter(t => t.category === categoryFilter)
+      : PARTY_MUSIC_TRACKS;
+    if (!pool.length) return null;
+    const idx = pool.findIndex(t => t.id === state.trackId);
+    const next = pool[(idx + 1) % pool.length];
+    playPreset(next.id);
+    return next;
+  }
+
+  function setLoop(on) {
+    state.loop = Boolean(on);
+    if (audioEl) audioEl.loop = state.loop;
+  }
+
+  function setVolume(v) {
+    state.volume = Math.max(0, Math.min(1, Number(v)));
+    if (audioEl) audioEl.volume = partySpeakerOn ? state.volume : 0;
+  }
+
+  function syncSpeaker(speakerOn) {
+    if (audioEl) audioEl.volume = speakerOn ? state.volume : 0;
+    if (!speakerOn) stopSynth();
+    else if (state.playing && state.trackId && !state.customUrl && !state.youtubeId) {
+      const tr = PARTY_MUSIC_TRACKS.find(t => t.id === state.trackId);
+      if (tr) startPresetSynth(tr);
+    }
+  }
+
+  function stop() {
+    state.playing = false;
+    state.trackId = '';
+    state.customUrl = '';
+    state.customTitle = '';
+    state.youtubeId = '';
+    stopSynth();
+    if (audioEl) { try { audioEl.pause(); } catch {} }
+  }
+
+  function getTitle() {
+    if (!state.trackId) return 'No Songs';
+    if (state.customTitle) return state.customTitle;
+    const tr = PARTY_MUSIC_TRACKS.find(t => t.id === state.trackId);
+    return tr ? tr.title : 'No Songs';
+  }
+
+  return { playPreset, playDirectUrl, setYoutubeFallback, togglePlay, nextTrack, setLoop, setVolume, syncSpeaker, stop, getTitle, getState: () => ({ ...state }) };
+})();
+
+function stopRoomAmbientMusic() {
+  RoomMusicEngine.stop();
 }
 
 function syncRoomAmbientMusic(trackId) {
-  stopRoomAmbientMusic();
-  if (!trackId || !partySpeakerOn) return;
-  if (typeof SFX !== 'undefined' && SFX.isMuted && SFX.isMuted()) return;
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = trackId === 'club_pulse' ? 'triangle' : 'sine';
-    osc.frequency.value = trackId === 'velvet_piano' ? 220 : (trackId === 'arena_hype' ? 261.6 : 196);
-    gain.gain.value = 0.015;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    partyActiveMusicOsc = {
-      stop() {
-        try { gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12); } catch {}
-        setTimeout(() => { try { osc.stop(); ctx.close(); } catch {} }, 150);
-      }
-    };
-  } catch {}
+  if (!trackId || !partySpeakerOn) {
+    RoomMusicEngine.syncSpeaker(partySpeakerOn);
+    return;
+  }
+  if (PARTY_MUSIC_TRACKS.some(t => t.id === trackId)) {
+    RoomMusicEngine.playPreset(trackId);
+  }
 }
 
 /* ===== Home Hub Voice & Party Cards ===== */
@@ -1046,7 +1223,7 @@ function renderPartyStageByMode(rm) {
             <iframe src="https://www.youtube.com/embed/${esc(rm.youtubeId)}?autoplay=0&rel=0" allow="autoplay; encrypted-media" allowfullscreen title="Room Watch Together Video"></iframe>
           </div>
           <div class="pfs-vid-bar">
-            <span>🎬 Watching together · ID: ${esc(rm.youtubeId)}</span>
+            <span>🎬 Watching together · ${esc(rm.youtubeId)}</span>
             <div class="row" style="gap:5px">
               <button type="button" class="btn sm ghost" data-pfs-act="open-add-video">Change</button>
               <button type="button" class="btn sm red" data-pfs-act="clear-video">Stop</button>
@@ -1055,18 +1232,18 @@ function renderPartyStageByMode(rm) {
         ` : `
           <div class="pfs-vid-empty">
             <div class="pfs-vid-ico" aria-hidden="true">🎬</div>
-            <b>Watch Together Cinema</b>
-            <small>Load a YouTube video for everyone in the room to watch while on mic.</small>
+            <b>Watch Together Stage</b>
+            <small>Add a YouTube link to watch &amp; chat together</small>
             <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap;justify-content:center">
               <button type="button" class="btn gold sm" data-pfs-act="open-add-video">+ Add video</button>
-              <button type="button" class="btn ghost sm" data-yt-preset="jfKfPfyJRdk">Lo-Fi Beats</button>
+              <button type="button" class="btn ghost sm" data-yt-preset="jfKfPfyJRdk">Lo-Fi</button>
               <button type="button" class="btn ghost sm" data-yt-preset="4xDzrJKXOOY">Synthwave</button>
             </div>
           </div>
         `}
       </div>
-      <div class="pfs-guest-grid-4">
-        ${[0, 1, 2, 3, 4, 5, 6, 7].map(i => renderPartySeatTile(rm, i, { compact: true, roleLabel: i === 0 ? 'Owner' : `Seat ${i}` })).join('')}
+      <div class="pfs-seats-6col" data-testid="video-seats-6col">
+        ${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(i => renderPartySeatTile(rm, i, { compact: true, roleLabel: i === 0 ? 'Owner' : `S${i}`, emptyLabel: `${i}` })).join('')}
       </div>
     `;
   }
@@ -1078,7 +1255,7 @@ function renderPartyStageByMode(rm) {
         <div class="pfs-gb-head">
           <div>
             <b>🎮 In-Room Party Games</b>
-            <small>${isCoin ? '1v1 Coin Stake Mode (10% fee)' : 'Free Friendly Room Play'}</small>
+            <small>${isCoin ? '1v1 Coin Stake (10% fee)' : 'Free Friendly Play'}</small>
           </div>
           <div class="pfs-seg-mini" role="group" aria-label="Game stake mode">
             <button type="button" class="${!isCoin ? 'on' : ''}" data-game-stake="free">Free</button>
@@ -1096,17 +1273,13 @@ function renderPartyStageByMode(rm) {
           <button type="button" class="pfs-gb-chip" data-launch-arena="trivia">⚡ Trivia</button>
         </div>
       </div>
-      <div class="pfs-guest-grid-4">
+      <div class="pfs-seats-4col">
         ${[0, 1, 2, 3, 4, 5, 6, 7].map(i => renderPartySeatTile(rm, i, { compact: true, roleLabel: i === 0 ? 'Owner' : `Seat ${i}` })).join('')}
       </div>
     `;
   }
 
-  /* Default: NORMAL MODE — Featured Owner (optional Partner) + Balanced 2-Column Paired Seats with Audio Waveform Lines */
-  const pairedRows = rm.partnerSeatEnabled
-    ? [[2, 3], [4, 5], [6, 7]]
-    : [[1, 2], [3, 4], [5, 6], [7, 8]];
-
+  /* Default: NORMAL / AUDIO MODE — Spotlight Owner (optional Partner) at Top Center + Clean 4-Column Seat Grid Below */
   const topRowHtml = rm.partnerSeatEnabled
     ? `<div class="pfs-owner-duo">
         ${renderPartySeatTile(rm, 0, { featured: true, roleLabel: 'Owner', roleBadge: 'Owner' })}
@@ -1114,22 +1287,21 @@ function renderPartyStageByMode(rm) {
           ${renderWaveConnectorSvg(Boolean(seats['0'] && seats['1']))}
           <span>PARTNER</span>
         </div>
-        ${renderPartySeatTile(rm, 1, { featured: true, roleLabel: 'Partner Seat', emptyLabel: 'Partner', roleBadge: 'Partner' })}
+        ${renderPartySeatTile(rm, 1, { featured: true, roleLabel: 'Partner', emptyLabel: 'Partner', roleBadge: 'Partner' })}
       </div>`
     : `<div class="pfs-owner-solo">
         ${renderPartySeatTile(rm, 0, { featured: true, roleLabel: 'Owner', roleBadge: 'Owner' })}
       </div>`;
 
-  const pairsHtml = pairedRows.map(([a, b]) => {
-    const activeWave = Boolean((seats[String(a)] && !seats[String(a)].muted) || (seats[String(b)] && !seats[String(b)].muted));
-    return `<div class="pfs-seat-pair">
-      ${renderPartySeatTile(rm, a, { roleLabel: `Seat ${a}` })}
-      <div class="pfs-pair-bridge">${renderWaveConnectorSvg(activeWave)}</div>
-      ${renderPartySeatTile(rm, b, { roleLabel: `Seat ${b}` })}
-    </div>`;
-  }).join('');
+  const gridIndices = rm.partnerSeatEnabled
+    ? [2, 3, 4, 5, 6, 7, 8, 9]
+    : [1, 2, 3, 4, 5, 6, 7, 8];
 
-  return `${topRowHtml}<div class="pfs-pairs-stack">${pairsHtml}</div>`;
+  const gridHtml = `<div class="pfs-seats-4col" data-testid="normal-seats-4col">
+    ${gridIndices.map(i => renderPartySeatTile(rm, i, { compact: true, roleLabel: `Seat ${i}`, emptyLabel: `Seat ${i}` })).join('')}
+  </div>`;
+
+  return `${topRowHtml}${gridHtml}`;
 }
 
 /* ===== Main Full-Screen Room Renderer (Zero-Duplicate-Listener Architecture) ===== */
@@ -1154,8 +1326,12 @@ function renderFullScreenPartyRoom() {
   const remSec = mp.active ? Math.max(0, Math.ceil((Number(mp.turnEndsAt || 0) - Date.now()) / 1000)) : Number(mp.turnDurationSec || 25);
   const pct = mp.active ? Math.max(0, Math.min(100, ((Number(mp.turnEndsAt || 0) - Date.now()) / (Number(mp.turnDurationSec || 25) * 1000)) * 100)) : 100;
   const seatedCount = Object.values(seats).filter(Boolean).length;
-  const activeTrack = PARTY_MUSIC_TRACKS.find(t => t.id === rm.musicTrack) || PARTY_MUSIC_TRACKS[0];
+  const musicSt = RoomMusicEngine.getState();
+  const musicTitle = rm.musicCustomTitle || (rm.musicTrack ? (PARTY_MUSIC_TRACKS.find(t => t.id === rm.musicTrack)?.title || RoomMusicEngine.getTitle()) : RoomMusicEngine.getTitle());
+  const musicPlaying = Boolean(musicSt.playing && (musicSt.trackId || rm.musicTrack));
   const onlineCount = Math.max(seatedCount + 4, seatedCount);
+  const supporters = Array.isArray(rm.supporters) && rm.supporters.length ? rm.supporters.slice(0, 3) : [{ name: rm.topGifter?.name || 'Aria Nova', avatar: rm.topGifter?.avatar || 'av_g1', coins: rm.topGifter?.charm || 21400 }];
+  const roomCoinsTotal = supporters.reduce((sum, sp) => sum + Number(sp.coins || 0), 0);
 
   const prevChatVal = ($('#pfsChatIn', root)?.value) || '';
   const chatDisabled = Boolean(rm.banTextChat && !isHost);
@@ -1163,23 +1339,28 @@ function renderFullScreenPartyRoom() {
   const chatHtml = (rm.chat || []).slice(-22).map(c => {
     if (c.type === 'gift') {
       const g = typeof GIFT_BY_ID !== 'undefined' ? GIFT_BY_ID[c.giftId] : null;
-      return `<div class="pfs-msg gift">${g && typeof giftSvg === 'function' ? giftSvg(g, 22) : '🎁'} <b>${esc(c.name)}</b> → <b>${esc(c.toName)}</b> · <span>${esc(c.giftName)} ×${clampSafeInt(c.qty || 1, 1, 100)}</span></div>`;
+      return `<div class="pfs-msg pfs-chat-pill gift">${g && typeof giftSvg === 'function' ? giftSvg(g, 20) : '🎁'} <b>${esc(c.name)}</b> → <b>${esc(c.toName)}</b> · <span>${esc(c.giftName)} ×${clampSafeInt(c.qty || 1, 1, 100)}</span></div>`;
     }
     if (c.type === 'photo') {
       return `<div class="pfs-msg photo" style="background:${esc(c.bg || 'linear-gradient(135deg,#0284c7,#6366f1)')}">
-        <small>📷 ${esc(c.name)} shared a studio card</small>
+        <small>📷 ${esc(c.name)}</small>
         <b>${esc(c.text)}</b>
       </div>`;
     }
     if (c.type === 'red_packet') {
       const claimed = Array.isArray(c.claimedBy) && c.claimedBy.includes(uid);
-      return `<div class="pfs-msg rp">
-        <span>🧧 <b>${esc(c.name)}</b> dropped a <b>${fmtNum(c.coins || 100)} 🪙</b> Lifafa!</span>
-        <button type="button" class="btn gold sm" data-claim-rp="${esc(c.id)}" ${claimed ? 'disabled' : ''}>${claimed ? 'Claimed' : 'Grab 🪙'}</button>
+      return `<div class="pfs-msg pfs-chat-pill rp">
+        <span>🧧 <b>${esc(c.name)}</b> · <b>${fmtNum(c.coins || 100)} 🪙</b> Lifafa</span>
+        <button type="button" class="btn gold sm" data-claim-rp="${esc(c.id)}" ${claimed ? 'disabled' : ''}>${claimed ? 'Claimed' : 'Grab'}</button>
       </div>`;
     }
-    if (c.type === 'sys') return `<div class="pfs-msg sys">${esc(c.text)}</div>`;
-    return `<div class="pfs-msg"><b class="pfs-sender" data-chat-uid="${esc(c.uid || '')}">${esc(c.name)}:</b> ${esc(c.text)}</div>`;
+    if (c.type === 'sys') return `<div class="pfs-msg pfs-chat-pill sys">${esc(c.text)}</div>`;
+    const isOwnerMsg = c.uid && c.uid === rm.hostUid;
+    const seatMatch = Object.values(seats).find(s => s && s.uid === c.uid);
+    const badgeHtml = isOwnerMsg
+      ? '<span class="pfs-chat-badge owner">👑 HOST</span>'
+      : (seatMatch && seatMatch.charm ? `<span class="pfs-chat-badge charm">💎 ${fmtNum(seatMatch.charm)}</span>` : `<span class="pfs-chat-badge lv">Lv.${c.uid === uid ? calcLevel(me.exp) : 8}</span>`);
+    return `<div class="pfs-msg pfs-chat-pill user">${badgeHtml}<b class="pfs-sender" data-chat-uid="${esc(c.uid || '')}">${esc(c.name)}:</b> <span>${esc(c.text)}</span></div>`;
   }).join('');
 
   const floatersHtml = (!partyDismissedFloaters.envelope || !partyDismissedFloaters.tower) ? `
@@ -1209,7 +1390,7 @@ function renderFullScreenPartyRoom() {
   root.dataset.roomMode = rm.mode;
   root.dataset.roomBg = rm.background;
   root.innerHTML = `
-    <div class="pfs-shell pfs-v14" data-testid="party-fullscreen">
+    <div class="pfs-shell pfs-v14 ${floatersHtml ? 'has-floaters' : ''}" data-testid="party-fullscreen">
       ${renderPartyBackdropDecorSvg(rm.background)}
 
       <!-- 1. Top Header Bar -->
@@ -1229,7 +1410,7 @@ function renderFullScreenPartyRoom() {
             </div>
             <div class="pfs-hdr-id-row">
               <button type="button" class="pfs-id-btn" data-pfs-act="copy-id" title="Copy Room ID">ID: ${esc(rm.shortId)}</button>
-              <span class="pfs-shield-ic" title="${rm.passwordLocked ? 'Passcode Protected' : (rm.highQualityAudio ? 'High Quality Audio · Safe Room' : 'Protected Room')}">${rm.passwordLocked ? '🔒' : '🛡️'}</span>
+              <span class="pfs-shield-ic" title="${rm.passwordLocked ? 'Passcode Protected' : 'Safe Room'}">${rm.passwordLocked ? '🔒' : '🛡️'}</span>
               ${rm.highQualityAudio ? '<span class="pfs-hq-txt">HQ</span>' : ''}
             </div>
           </div>
@@ -1244,19 +1425,23 @@ function renderFullScreenPartyRoom() {
         </div>
       </header>
 
-      <!-- 2. Music Status & Mode/Mic-Pass Utility Row (Zero Overlap with Seats) -->
+      <!-- 2. Top Supporters / Coins + Hindi/Bangla Music Pill & Mode/Mic-Pass Utility Row -->
       <div class="pfs-subbar">
-        <button type="button" class="pfs-music-pill ${activeTrack.id ? 'playing' : ''}" data-pfs-act="open-music" aria-label="Room Music: ${esc(activeTrack.title)}">
+        <button type="button" class="pfs-music-pill ${musicPlaying ? 'playing' : ''}" data-pfs-act="open-music" aria-label="Room Music: ${esc(musicTitle)}">
           <span class="pfs-music-ico" aria-hidden="true">♪</span>
-          <span class="pfs-music-lbl">${esc(activeTrack.title)}</span>
-          ${activeTrack.id ? '<span class="pfs-mini-eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ''}
+          <span class="pfs-music-lbl">${esc(musicTitle)}</span>
+          ${musicPlaying ? '<span class="pfs-mini-eq" aria-hidden="true"><i></i><i></i><i></i></span>' : ''}
         </button>
         <div class="pfs-subbar-right">
+          <button type="button" class="pfs-sup-pill" data-pfs-act="open-gift" title="Top Supporters &amp; Room Coins">
+            <span class="pfs-sup-avs">${supporters.map(sp => `<span class="pfs-sup-av">${av(sp, 18)}</span>`).join('')}</span>
+            <b>🪙 ${fmtNum(roomCoinsTotal)}</b>
+          </button>
           <button type="button" class="pfs-mode-chip" data-pfs-act="open-modes" aria-label="Switch Room Mode">${esc(modeMeta.name)} ▾</button>
           <button type="button" class="pfs-turn-chip ${mp.active ? 'on' : ''}" data-pfs-act="toggle-turn" aria-label="Toggle Turn Mic Pass">
-            ${mp.active ? `🎙️ R${mp.round} <span id="pfsMicSec">${remSec}s</span>` : '🎙️ Turn Mic'}
+            ${mp.active ? `🎙️ R${mp.round} <span id="pfsMicSec">${remSec}s</span>` : '🎙️ Turn'}
           </button>
-          ${canPassMic ? `<button type="button" class="pfs-pass-chip" data-pfs-act="pass-mic">Pass →</button>` : ''}
+          ${canPassMic ? `<button type="button" class="pfs-pass-chip" data-pfs-act="pass-mic">Next →</button>` : ''}
         </div>
         ${mp.active ? `<div class="pfs-mp-prog"><i id="pfsMicBar" style="width:${pct}%"></i></div>` : ''}
       </div>
@@ -1325,11 +1510,15 @@ function partyTakeOrSwitchSeat(rm, targetIdx) {
   }
   rm.seats = normalizePartySeats(rm.seats);
   const targetKey = String(targetIdx);
+  // Protect Owner slot (0) from accidental overwrite or non-owner takeover
+  if (targetIdx === 0 && rm.seats['0'] && rm.seats['0'].uid !== uid) {
+    return toast('Owner slot is reserved for room host');
+  }
   if (rm.seats[targetKey] && rm.seats[targetKey].uid !== uid) {
     return toast('Seat is already occupied');
   }
 
-  // Atomically strip EVERY existing seat for uid before seating at targetKey
+  // Atomically strip EVERY existing seat for uid before seating at targetKey (preserves Owner slot 0!)
   const prevKey = findUserSeatKeyInRoom(rm, uid);
   const nextSeats = {};
   Object.keys(rm.seats).forEach(k => {
@@ -1337,14 +1526,18 @@ function partyTakeOrSwitchSeat(rm, targetIdx) {
       nextSeats[k] = rm.seats[k];
     }
   });
+  const mp = rm.micPass || { active: false, queue: [], currentIdx: 0 };
+  const activeSpeakerUid = mp.active && mp.queue.length ? mp.queue[mp.currentIdx % mp.queue.length] : null;
+  const forcedMuted = mp.active && activeSpeakerUid !== uid;
+  const mutedState = forcedMuted ? true : (prevKey && rm.seats[prevKey] ? Boolean(rm.seats[prevKey].muted) : false);
   nextSeats[targetKey] = {
     uid,
     name: me.name || 'Player',
     avatar: me.avatar || 'av_b1',
     frame: me.frame || 'none',
-    muted: prevKey && rm.seats[prevKey] ? Boolean(rm.seats[prevKey].muted) : false,
+    muted: mutedState,
     vipTier: getActiveVipTier(me) || '',
-    speaking: !(prevKey && rm.seats[prevKey] && rm.seats[prevKey].muted),
+    speaking: !mutedState,
     charm: Number(me.charm || 0),
     joinedAt: Date.now()
   };
@@ -1595,27 +1788,194 @@ function openPartySettingsModal(rm) {
 
 function openPartyMusicModal(rm) {
   if (!rm) return;
-  const m = modal('Room Music & Audio', `
-    <p style="font-size:12px;color:var(--mu);margin:0 0 10px">Choose an ambient room track or silence room music.</p>
-    <div class="list" style="gap:7px">
-      ${PARTY_MUSIC_TRACKS.map(tr => `
-        <button type="button" class="pfs-music-row ${rm.musicTrack === tr.id ? 'on' : ''}" data-pick-track="${esc(tr.id)}">
-          <span>${tr.id ? '🎵' : '🔇'}</span>
-          <div class="mid"><b>${esc(tr.title)}</b><small>${esc(tr.artist)}</small></div>
-          <em>${rm.musicTrack === tr.id ? 'Playing' : 'Select'}</em>
-        </button>
-      `).join('')}
+  let activeCat = 'all';
+  let searchQ = '';
+  const st = RoomMusicEngine.getState();
+
+  const m = modal('Hindi & Bangla Room Music', `
+    <div class="pfs-music-player-box">
+      <div class="pfs-mp-now">
+        <div class="pfs-mp-disc ${st.playing ? 'spin' : ''}" aria-hidden="true">🎵</div>
+        <div class="mid">
+          <b id="pmNowTitle">${esc(RoomMusicEngine.getTitle())}</b>
+          <small id="pmNowSub">${st.playing ? 'Playing in Room · Continues in Background' : 'Select Hindi, Bangla, Lo-Fi or paste URL'}</small>
+        </div>
+      </div>
+      <div class="pfs-mp-transport">
+        <button type="button" class="btn gold sm" id="pmTogglePlay">${st.playing ? '⏸ Pause' : '▶ Play'}</button>
+        <button type="button" class="btn ghost sm" id="pmNext">⏭ Next</button>
+        <button type="button" class="btn sm ${st.loop ? 'ok' : 'ghost'}" id="pmLoop">🔁 Loop</button>
+        <button type="button" class="btn red sm" id="pmStop">⏹</button>
+      </div>
+      <label class="pfs-mp-vol">
+        <span>🔊 Volume</span>
+        <input type="range" id="pmVolRange" min="0" max="1" step="0.05" value="${st.volume}">
+      </label>
+      <div id="pmYtEmbedHost">
+        ${st.youtubeId ? `<div class="pfs-yt-frame" style="margin-top:8px"><iframe src="https://www.youtube.com/embed/${esc(st.youtubeId)}?autoplay=0&rel=0" allow="autoplay; encrypted-media" allowfullscreen title="Room Music YouTube Player"></iframe></div>` : ''}
+      </div>
     </div>
-  `);
-  $$('[data-pick-track]', m).forEach(btn => {
-    btn.onclick = () => {
-      rm.musicTrack = btn.dataset.pickTrack || '';
-      syncRoomAmbientMusic(rm.musicTrack);
-      logPartyOperation(rm, rm.musicTrack ? `Played music: ${rm.musicTrack}` : 'Stopped room music');
+
+    <div class="pfs-music-cats" id="pmCatPills" role="tablist" aria-label="Music categories">
+      <button type="button" class="pfs-mcat on" data-mcat="all">All</button>
+      <button type="button" class="pfs-mcat" data-mcat="hindi">Hindi</button>
+      <button type="button" class="pfs-mcat" data-mcat="bangla">Bangla</button>
+      <button type="button" class="pfs-mcat" data-mcat="lofi">Lo-Fi</button>
+    </div>
+
+    <input id="pmSearchIn" placeholder="Search Hindi, Bangla or Lo-Fi songs..." autocomplete="off" style="margin-top:8px">
+
+    <div class="list pfs-music-list" id="pmTrackList" style="gap:6px;margin-top:8px"></div>
+
+    <div class="pfs-mp-url-box">
+      <label for="pmUrlIn">Paste .mp3 / Audio Stream URL or YouTube Link</label>
+      <div class="row" style="gap:6px;margin-top:4px">
+        <input id="pmUrlIn" placeholder="https://...mp3 or youtu.be/..." value="${esc(rm.musicCustomUrl || '')}" style="flex:1">
+        <button type="button" class="btn ok sm" id="pmUrlGo">Play</button>
+      </div>
+    </div>
+  `, 'pfs-music-sheet');
+
+  const syncHeader = () => {
+    const cur = RoomMusicEngine.getState();
+    if ($('#pmNowTitle', m)) $('#pmNowTitle', m).textContent = RoomMusicEngine.getTitle();
+    if ($('#pmNowSub', m)) $('#pmNowSub', m).textContent = cur.playing ? 'Playing in Room · Continues in Background' : 'Paused';
+    if ($('#pmTogglePlay', m)) $('#pmTogglePlay', m).textContent = cur.playing ? '⏸ Pause' : '▶ Play';
+    const disc = $('.pfs-mp-disc', m);
+    if (disc) disc.classList.toggle('spin', cur.playing);
+    const loopBtn = $('#pmLoop', m);
+    if (loopBtn) {
+      loopBtn.classList.toggle('ok', cur.loop);
+      loopBtn.classList.toggle('ghost', !cur.loop);
+    }
+    const ytHost = $('#pmYtEmbedHost', m);
+    if (ytHost) {
+      ytHost.innerHTML = cur.youtubeId
+        ? `<div class="pfs-yt-frame" style="margin-top:8px"><iframe src="https://www.youtube.com/embed/${esc(cur.youtubeId)}?autoplay=0&rel=0" allow="autoplay; encrypted-media" allowfullscreen title="Room Music YouTube"></iframe></div>`
+        : '';
+    }
+  };
+
+  const renderTracks = () => {
+    const q = searchQ.trim().toLowerCase();
+    const curId = RoomMusicEngine.getState().trackId;
+    const list = PARTY_MUSIC_TRACKS.filter(t => {
+      if (activeCat !== 'all' && t.category !== activeCat) return false;
+      if (!q) return true;
+      return t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q) || t.category.includes(q);
+    });
+    const host = $('#pmTrackList', m);
+    if (!host) return;
+    host.innerHTML = list.length ? list.map(tr => `
+      <button type="button" class="pfs-music-row ${curId === tr.id ? 'on' : ''}" data-pick-track="${esc(tr.id)}">
+        <span class="pfs-mtag ${tr.category}">${esc(tr.category.toUpperCase())}</span>
+        <div class="mid"><b>${esc(tr.title)}</b><small>${esc(tr.artist)}</small></div>
+        <em>${curId === tr.id ? 'Playing' : 'Play'}</em>
+      </button>
+    `).join('') : '<small style="color:var(--mu);text-align:center;padding:8px">No matching tracks found.</small>';
+  };
+  renderTracks();
+
+  $('#pmCatPills', m).onclick = e => {
+    const btn = e.target.closest('[data-mcat]');
+    if (!btn) return;
+    activeCat = btn.dataset.mcat;
+    $$('[data-mcat]', m).forEach(b => b.classList.toggle('on', b.dataset.mcat === activeCat));
+    renderTracks();
+  };
+
+  $('#pmSearchIn', m).oninput = e => {
+    searchQ = e.target.value || '';
+    renderTracks();
+  };
+
+  $('#pmTrackList', m).onclick = e => {
+    const btn = e.target.closest('[data-pick-track]');
+    if (!btn) return;
+    const tr = RoomMusicEngine.playPreset(btn.dataset.pickTrack);
+    if (!tr) return;
+    rm.musicTrack = tr.id;
+    rm.musicCustomUrl = '';
+    rm.musicCustomTitle = tr.title;
+    rm.musicYoutubeId = '';
+    logPartyOperation(rm, `Played music: ${tr.title}`);
+    persistPartyRoom(rm);
+    syncHeader();
+    renderTracks();
+  };
+
+  $('#pmTogglePlay', m).onclick = () => {
+    RoomMusicEngine.togglePlay();
+    const cur = RoomMusicEngine.getState();
+    rm.musicTrack = cur.trackId;
+    rm.musicCustomTitle = RoomMusicEngine.getTitle();
+    persistPartyRoom(rm);
+    syncHeader();
+    renderTracks();
+  };
+
+  $('#pmNext', m).onclick = () => {
+    const tr = RoomMusicEngine.nextTrack(activeCat);
+    if (tr) {
+      rm.musicTrack = tr.id;
+      rm.musicCustomTitle = tr.title;
+      rm.musicCustomUrl = '';
+      rm.musicYoutubeId = '';
       persistPartyRoom(rm);
-      m.close();
-    };
-  });
+      syncHeader();
+      renderTracks();
+    }
+  };
+
+  $('#pmLoop', m).onclick = () => {
+    RoomMusicEngine.setLoop(!RoomMusicEngine.getState().loop);
+    syncHeader();
+  };
+
+  $('#pmStop', m).onclick = () => {
+    RoomMusicEngine.stop();
+    rm.musicTrack = '';
+    rm.musicCustomTitle = '';
+    rm.musicCustomUrl = '';
+    rm.musicYoutubeId = '';
+    persistPartyRoom(rm);
+    syncHeader();
+    renderTracks();
+  };
+
+  $('#pmVolRange', m).oninput = e => {
+    RoomMusicEngine.setVolume(e.target.value);
+  };
+
+  $('#pmUrlGo', m).onclick = () => {
+    const raw = ($('#pmUrlIn', m).value || '').trim();
+    if (!raw) return toast('Paste an .mp3 audio URL or YouTube link');
+    const ytId = parseYouTubeVideoId(raw);
+    if (ytId) {
+      RoomMusicEngine.setYoutubeFallback(ytId, 'YouTube Track · ' + ytId);
+      rm.musicTrack = 'yt_music';
+      rm.musicCustomTitle = 'YouTube · ' + ytId;
+      rm.musicYoutubeId = ytId;
+      rm.musicCustomUrl = '';
+      persistPartyRoom(rm);
+      syncHeader();
+      toast('YouTube player ready in room!');
+      return;
+    }
+    if (/^https?:\/\/.+/i.test(raw)) {
+      const label = raw.split('/').pop()?.split('?')[0]?.slice(0, 26) || 'Audio Stream';
+      RoomMusicEngine.playDirectUrl(raw, label);
+      rm.musicTrack = 'custom_url';
+      rm.musicCustomUrl = raw;
+      rm.musicCustomTitle = label;
+      rm.musicYoutubeId = '';
+      persistPartyRoom(rm);
+      syncHeader();
+      toast('Playing HTML5 audio stream!');
+      return;
+    }
+    toast('Enter a valid https:// .mp3 URL or YouTube link');
+  };
 }
 
 function openPartyAddVideoModal(rm) {
@@ -2052,18 +2412,25 @@ function bindPartyRootDelegation(root) {
       partyLeaveMySeat(rm);
     } else if (act === 'toggle-speaker') {
       partySpeakerOn = !partySpeakerOn;
-      syncRoomAmbientMusic(partySpeakerOn ? rm.musicTrack : '');
+      RoomMusicEngine.syncSpeaker(partySpeakerOn);
       if (typeof playSfx === 'function') playSfx('tap');
       renderFullScreenPartyRoom();
     } else if (act === 'toggle-mic') {
       const myKey = findUserSeatKeyInRoom(rm, uid);
       if (myKey == null) {
-        const maxSlots = rm.mode === 'normal' ? 9 : 8;
+        const maxSlots = rm.mode === 'video' ? 12 : (rm.mode === 'normal' ? 9 : 8);
         const locked = Array.isArray(rm.lockedSeats) ? rm.lockedSeats : [];
-        const freeIdx = Array.from({ length: maxSlots }, (_, i) => i).find(i => !rm.seats[String(i)] && !locked.includes(i));
-        if (freeIdx === undefined) return toast('All open seats are full');
+        const freeIdx = Array.from({ length: maxSlots }, (_, i) => i).find(i => i > 0 && !rm.seats[String(i)] && !locked.includes(i));
+        if (freeIdx === undefined) return toast('All open guest seats are full');
         partyTakeOrSwitchSeat(rm, freeIdx);
       } else {
+        const mp = rm.micPass || { active: false, queue: [], currentIdx: 0 };
+        const activeUid = mp.active && mp.queue.length ? mp.queue[mp.currentIdx % mp.queue.length] : null;
+        const tryingToUnmute = Boolean(rm.seats[myKey].muted);
+        if (mp.active && tryingToUnmute && activeUid !== uid && !isRoomHostOrManager(rm)) {
+          const spSeat = Object.values(rm.seats || {}).find(s => s && s.uid === activeUid);
+          return toast(`🎙️ Wait for your turn — ${spSeat ? spSeat.name : 'another speaker'} holds the mic!`);
+        }
         rm.seats[myKey].muted = !rm.seats[myKey].muted;
         rm.seats[myKey].speaking = !rm.seats[myKey].muted;
         if (typeof playSfx === 'function') playSfx('tap');

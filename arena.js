@@ -340,71 +340,241 @@ function openRivalChallenge(targetUid) {
   });
 }
 
-/* Pre-Match Mode + 1v1 Stake & Anti-Farming Launch Sheet */
+/* =====================================================================
+   DEDICATED FULL-SCREEN GAME VIEW ENGINE (v16)
+   Replaces floating modal popups with a clean 100dvh game viewport:
+   Top Header (Back, Title/Sub-Meta, Live Turn/Status Pill, Sound Toggle, Exit)
+   ===================================================================== */
+let activeFullScreenGame = null;
+
+function closeFullScreenGameView(opts) {
+  const o = opts || {};
+  const prev = activeFullScreenGame;
+  activeFullScreenGame = null;
+  if (prev && typeof prev.onclose === 'function' && !o.skipCallback) {
+    try { prev.onclose(); } catch {}
+  }
+  const root = document.getElementById('gameFsRoot');
+  if (root) {
+    root.classList.remove('open');
+    root.hidden = true;
+    root.innerHTML = '';
+    root.removeAttribute('data-game-id');
+  }
+  document.body.classList.remove('game-fs-lock');
+  if (typeof QuickVoice !== 'undefined' && typeof QuickVoice.closePanel === 'function') {
+    QuickVoice.closePanel();
+  }
+}
+window.closeFullScreenGameView = closeFullScreenGameView;
+
+function openFullScreenGameView(opts) {
+  const o = opts || {};
+  if (activeFullScreenGame) {
+    closeFullScreenGameView();
+  }
+  const root = document.getElementById('gameFsRoot');
+  if (!root) {
+    return modal(o.title || 'Game', o.html || '', o.className || '');
+  }
+
+  const sfxMuted = typeof SFX !== 'undefined' && typeof SFX.isMuted === 'function' ? SFX.isMuted() : false;
+  const sfxIcon = typeof SFX !== 'undefined' && typeof SFX.iconSvg === 'function'
+    ? SFX.iconSvg(sfxMuted)
+    : (sfxMuted ? '🔇' : '🔊');
+
+  root.dataset.gameId = o.gameId || 'game';
+  root.innerHTML = `
+    <div class="gfs-shell ${esc(o.themeClass || '')} ${esc(o.className || '')}" data-testid="game-fullscreen" data-game-id="${esc(o.gameId || 'game')}">
+      <header class="gfs-header">
+        <div class="gfs-h-left">
+          <button type="button" class="gfs-icon-btn" id="gfsBackBtn" aria-label="Exit game">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="gfs-h-titles">
+            <b class="gfs-title">${esc(o.title || 'Game')}</b>
+            <small class="gfs-sub" id="gfsSubMeta">${esc(o.subMeta || '')}</small>
+          </div>
+        </div>
+        <div class="gfs-h-right">
+          <span class="gfs-status-pill ${esc(o.statusTone || 'turn')}" id="gfsStatusPill">${esc(o.statusText || 'Ready')}</span>
+          <button type="button" class="gfs-icon-btn ${sfxMuted ? 'is-muted' : ''}" id="gfsSfxBtn" data-sfx-toggle="1" aria-pressed="${sfxMuted ? 'true' : 'false'}" aria-label="${sfxMuted ? 'Unmute Sound FX' : 'Mute Sound FX'}" title="Toggle Sound FX">
+            <span class="sfx-ico">${sfxIcon}</span>
+          </button>
+          <button type="button" class="gfs-icon-btn gfs-exit-x" id="gfsExitBtn" aria-label="Close game">✕</button>
+        </div>
+      </header>
+      <div class="gfs-stage-scroll">
+        <div class="gfs-stage-inner" id="gfsStageInner">${o.html || ''}</div>
+      </div>
+    </div>
+  `;
+
+  root.hidden = false;
+  document.body.classList.add('game-fs-lock');
+  requestAnimationFrame(() => root.classList.add('open'));
+  if (typeof pushBackGuardState === 'function') pushBackGuardState('game:' + (o.gameId || 'play'));
+
+  const shell = root.firstElementChild;
+  const ctrl = shell;
+  ctrl.root = root;
+  ctrl.body = root.querySelector('#gfsStageInner');
+  ctrl.onclose = null;
+  ctrl.close = () => {
+    if (activeFullScreenGame === ctrl) closeFullScreenGameView();
+  };
+  ctrl.setStatus = (text, tone) => {
+    const pill = root.querySelector('#gfsStatusPill');
+    if (!pill) return;
+    pill.textContent = text;
+    pill.className = `gfs-status-pill ${tone || 'turn'}`;
+  };
+  ctrl.setSubMeta = (text) => {
+    const sub = root.querySelector('#gfsSubMeta');
+    if (sub) sub.textContent = text || '';
+  };
+
+  const exitAction = () => {
+    if (typeof playSfx === 'function') playSfx('tap');
+    ctrl.close();
+  };
+  root.querySelector('#gfsBackBtn').onclick = exitAction;
+  root.querySelector('#gfsExitBtn').onclick = exitAction;
+  root.querySelector('#gfsSfxBtn').onclick = () => {
+    if (typeof SFX !== 'undefined' && typeof SFX.toggle === 'function') {
+      const off = SFX.toggle();
+      const btn = root.querySelector('#gfsSfxBtn');
+      if (btn) {
+        btn.classList.toggle('is-muted', off);
+        btn.setAttribute('aria-pressed', off ? 'true' : 'false');
+        const ico = btn.querySelector('.sfx-ico');
+        if (ico && typeof SFX.iconSvg === 'function') ico.innerHTML = SFX.iconSvg(off);
+      }
+      toast(off ? 'Sound muted' : 'Sound on');
+    }
+  };
+
+  activeFullScreenGame = ctrl;
+  return ctrl;
+}
+window.openFullScreenGameView = openFullScreenGameView;
+
+/* Pre-Match Full-Screen Launch View: Free Bot (Default) + Smart Bot Paid Stake */
 function openArenaGame(gameId, rivalUid) {
   const g = ARENA_GAMES.find(x => x.id === gameId) || ARENA_GAMES[0];
   const rival = rivalUid ? allUsers().find(u => u.uid === rivalUid) : null;
   const cap = previewBotCapStatus();
+  let playType = 'free'; // 'free' | 'paid'
   let selectedStake = 0;
+  let lastPaidStake = 50;
   let selectedMode = g.modes ? g.modes[0].id : '1v1';
 
   const modeHtml = g.modes
-    ? `<div class="arena-mode-box">
-        <b style="font-size:12.5px;display:block;margin-bottom:6px">Match Format</b>
+    ? `<div class="gfs-setup-block">
+        <div class="gfs-setup-lbl">Format</div>
         <div class="arena-mode-pills">
           ${g.modes.map((md, i) => `<button type="button" class="mode-pill ${i === 0 ? 'on' : ''}" data-armode="${esc(md.id)}">${esc(md.label)}</button>`).join('')}
         </div>
       </div>`
     : '';
 
-  const m = modal(g.name, `
-    <div class="arena-launch-shell">
-      <div class="arena-cap-strip">
-        <span class="arena-cap-pill">🛡️ Bot Cap: <b>${cap.winsToday}/${BOT_DAILY_WIN_CAP}</b> wins · <b>${cap.coinsToday}/${BOT_DAILY_COIN_CAP}</b> 🪙</span>
-        ${cap.cdMs > 0 ? `<span class="arena-cap-pill warn">⏱ ${Math.ceil(cap.cdMs / 1000)}s</span>` : `<span class="arena-cap-pill ok">Ready</span>`}
-      </div>
-
-      ${modeHtml}
-
-      <div class="arena-stake-box">
-        <div class="row" style="justify-content:space-between;margin-bottom:6px">
-          <b style="font-size:13px">1v1 Stake Match</b>
-          <small style="color:var(--gold);font-weight:800">Wallet: ${fmtNum(me.coins)} 🪙</small>
+  const view = openFullScreenGameView({
+    gameId: g.id + '_lobby',
+    title: g.name,
+    subMeta: rival ? `vs ${rival.name}` : g.badge,
+    statusText: 'Setup',
+    statusTone: 'neutral',
+    themeClass: 'gfs-theme-lobby',
+    html: `
+      <div class="gfs-lobby-card">
+        <div class="gfs-lobby-banner">
+          ${renderArenaBannerArt(g)}
+          <div class="gfs-lobby-title">
+            <h2>${esc(g.name)}</h2>
+            <span>${esc(g.desc)}</span>
+          </div>
         </div>
-        <div class="arena-stake-pills" id="arStakePills">
-          ${ARENA_STAKES.map(s => `<button type="button" class="stake-pill ${s === 0 ? 'on' : ''}" data-stake="${s}">${s === 0 ? 'Free' : s + ' 🪙'}</button>`).join('')}
-        </div>
-        <div class="arena-fee-meta" id="arFeeMeta">Free match · Anti-farm cap applies to bot coins</div>
-      </div>
 
-      <button type="button" class="btn gold full" id="arStartMatchBtn" style="margin-top:10px">Start ${esc(g.name)}</button>
-    </div>
-  `, 'arena-launch-sheet');
+        ${modeHtml}
+
+        <div class="gfs-setup-block">
+          <div class="gfs-setup-head">
+            <span class="gfs-setup-lbl">Match Type</span>
+            <span class="gfs-wallet-txt">Wallet: <b>${fmtNum(me.coins)} 🪙</b></span>
+          </div>
+          <div class="gfs-tier-switch" role="tablist" aria-label="Match Type">
+            <button type="button" class="gfs-tier-btn on" data-tier="free">
+              <b>Free Bot</b>
+              <small>Standard AI · Cap ${cap.winsToday}/${BOT_DAILY_WIN_CAP}</small>
+            </button>
+            <button type="button" class="gfs-tier-btn" data-tier="paid">
+              <b>Smart Bot Stake</b>
+              <small>Pro AI · Win 90% Pot</small>
+            </button>
+          </div>
+        </div>
+
+        <div class="gfs-setup-block" id="arStakeWrap" hidden>
+          <div class="gfs-setup-head">
+            <span class="gfs-setup-lbl">Select Coin Stake</span>
+            <span class="gfs-fee-tag">10% Cut</span>
+          </div>
+          <div class="arena-stake-pills gfs-paid-pills" id="arStakePills">
+            ${ARENA_STAKES.filter(s => s > 0).map(s => `<button type="button" class="stake-pill ${s === lastPaidStake ? 'on' : ''}" data-stake="${s}">${s} 🪙</button>`).join('')}
+          </div>
+        </div>
+
+        <div class="gfs-payout-strip" id="arFeeMeta"></div>
+
+        <button type="button" class="btn gold full gfs-start-cta" id="arStartMatchBtn">Play Free Match</button>
+      </div>
+    `
+  });
 
   const syncStakeUi = () => {
-    const pay = calcArenaStakePayout(selectedStake);
-    $$('[data-stake]', m).forEach(b => b.classList.toggle('on', Number(b.dataset.stake) === selectedStake));
-    $$('[data-armode]', m).forEach(b => b.classList.toggle('on', b.dataset.armode === selectedMode));
-    const meta = $('#arFeeMeta', m);
-    if (selectedStake <= 0) {
-      meta.innerHTML = `Free Match · Smart Bot AI · Daily Cap <b>${cap.remWins}</b> wins left`;
+    const activeStake = playType === 'paid' ? lastPaidStake : 0;
+    selectedStake = activeStake;
+    const pay = calcArenaStakePayout(activeStake);
+    $$('[data-tier]', view).forEach(b => b.classList.toggle('on', b.dataset.tier === playType));
+    $$('[data-stake]', view).forEach(b => b.classList.toggle('on', Number(b.dataset.stake) === lastPaidStake));
+    $$('[data-armode]', view).forEach(b => b.classList.toggle('on', b.dataset.armode === selectedMode));
+    const stakeWrap = $('#arStakeWrap', view);
+    if (stakeWrap) stakeWrap.hidden = playType !== 'paid';
+
+    const meta = $('#arFeeMeta', view);
+    const btn = $('#arStartMatchBtn', view);
+    if (playType === 'free') {
+      const cdTxt = cap.cdMs > 0 ? ` · Cooldown ${Math.ceil(cap.cdMs / 1000)}s` : '';
+      meta.innerHTML = `<span>Free Bot Play</span> · <b>${cap.remWins}</b> daily wins left (${cap.coinsToday}/${BOT_DAILY_COIN_CAP} 🪙)${cdTxt}`;
+      btn.textContent = `Play Free · ${g.name}`;
+      view.setStatus('Free Bot', 'ok');
     } else {
-      meta.innerHTML = `Pot <b>${fmtNum(pay.grossPot)} 🪙</b> · Fee <b>${pay.feePercent}% (−${fmtNum(pay.platformFee)})</b> · Win <b style="color:var(--ok)">+${fmtNum(pay.winnerPayout)} 🪙</b>`;
+      const enough = me.coins >= activeStake;
+      meta.innerHTML = `Pot <b>${fmtNum(pay.grossPot)} 🪙</b> · Fee <b>−${fmtNum(pay.platformFee)}</b> · Win <b style="color:var(--ok)">+${fmtNum(pay.winnerPayout)} 🪙</b>${enough ? '' : ' · <b style="color:var(--red)">Low coins</b>'}`;
+      btn.textContent = `Stake ${activeStake} 🪙 vs Smart Bot`;
+      view.setStatus(`${activeStake} 🪙 Stake`, 'gold');
     }
-    const btn = $('#arStartMatchBtn', m);
-    btn.textContent = selectedStake > 0 ? `Stake ${selectedStake} 🪙 & Play` : `Start ${g.name}`;
   };
   syncStakeUi();
 
-  $$('[data-stake]', m).forEach(b => {
+  $$('[data-tier]', view).forEach(b => {
     b.onclick = () => {
-      selectedStake = Number(b.dataset.stake) || 0;
+      playType = b.dataset.tier === 'paid' ? 'paid' : 'free';
       if (typeof playSfx === 'function') playSfx('tap');
       syncStakeUi();
     };
   });
 
-  $$('[data-armode]', m).forEach(b => {
+  $$('[data-stake]', view).forEach(b => {
+    b.onclick = () => {
+      lastPaidStake = Number(b.dataset.stake) || 50;
+      playType = 'paid';
+      if (typeof playSfx === 'function') playSfx('tap');
+      syncStakeUi();
+    };
+  });
+
+  $$('[data-armode]', view).forEach(b => {
     b.onclick = () => {
       selectedMode = b.dataset.armode;
       if (typeof playSfx === 'function') playSfx('tap');
@@ -412,7 +582,8 @@ function openArenaGame(gameId, rivalUid) {
     };
   });
 
-  $('#arStartMatchBtn', m).onclick = () => {
+  $('#arStartMatchBtn', view).onclick = () => {
+    const botTier = selectedStake > 0 ? 'pro' : 'standard';
     if (selectedStake > 0) {
       if (me.coins < selectedStake) return toast(`Need ${selectedStake} coins for this stake`);
       addReward(-selectedStake, 0, null, true, { silentSfx: true, skipLevelUp: true });
@@ -420,19 +591,18 @@ function openArenaGame(gameId, rivalUid) {
     } else if (typeof playSfx === 'function') {
       playSfx('turnStart');
     }
-    m.close();
-    if (gameId === 'jackaroo' && typeof launchJackaroo === 'function') launchJackaroo(selectedStake, rival, selectedMode);
-    else if (gameId === 'uno' && typeof launchUnoGame === 'function') launchUnoGame(selectedStake, rival, selectedMode);
-    else if (gameId === 'blitz_dots') launchBlitzDots(selectedStake, rival);
-    else if (gameId === 'pool_8ball') launchPool8Ball(selectedStake, rival);
-    else if (gameId === 'undercover') launchUndercoverSpy(selectedStake);
-    else if (gameId === 'squad_arena') launchSquadTrivia(selectedStake, rival);
-    else launchLudoExpress(selectedStake, rival);
+    if (gameId === 'jackaroo' && typeof launchJackaroo === 'function') launchJackaroo(selectedStake, rival, selectedMode, botTier);
+    else if (gameId === 'uno' && typeof launchUnoGame === 'function') launchUnoGame(selectedStake, rival, selectedMode, botTier);
+    else if (gameId === 'blitz_dots') launchBlitzDots(selectedStake, rival, botTier);
+    else if (gameId === 'pool_8ball') launchPool8Ball(selectedStake, rival, botTier);
+    else if (gameId === 'undercover') launchUndercoverSpy(selectedStake, botTier);
+    else if (gameId === 'squad_arena') launchSquadTrivia(selectedStake, rival, botTier);
+    else launchLudoExpress(selectedStake, rival, botTier);
   };
 }
 
 /* =====================================================================
-   1. BLITZ DOTS & BOXES — HIGH-GRAPHIC MAHOGANY & BRASS 3D BOARD + SMART AI
+   1. BLITZ DOTS & BOXES — FULL-SCREEN MAHOGANY & BRASS 3D BOARD + SMART AI
    ===================================================================== */
 function chooseSmartDotsAiMove(n, h, v) {
   const countSides = (r, c) =>
@@ -472,7 +642,8 @@ function chooseSmartDotsAiMove(n, h, v) {
   return minRisk ? minRisk.mv : moves[0];
 }
 
-function launchBlitzDots(stake, rival) {
+function launchBlitzDots(stake, rival, botTierRaw) {
+  const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const n = 3;
   const h = Array.from({ length: n + 1 }, () => Array(n).fill(false));
   const v = Array.from({ length: n }, () => Array(n + 1).fill(false));
@@ -480,22 +651,29 @@ function launchBlitzDots(stake, rival) {
   const vOwner = Array.from({ length: n }, () => Array(n + 1).fill(''));
   const boxes = Array.from({ length: n }, () => Array(n).fill(''));
   let myScore = 0, botScore = 0, turn = 'me', over = false;
-  const oppName = rival?.name || 'Smart Bot';
+  const oppName = rival?.name || (botTier === 'pro' ? 'Smart Pro Bot' : 'Bot');
   const pay = calcArenaStakePayout(stake);
 
-  const m = modal(`Blitz Dots 1v1${stake > 0 ? ` · ${stake} 🪙` : ''}`, `
-    <div class="arena-hud-bar" id="bdHud">
-      <span class="hud-pill me ${turn === 'me' ? 'active-turn' : ''}" id="bdMe">You: 0</span>
-      <span class="hud-pill turn" id="bdTurn">Your Turn</span>
-      <span class="hud-pill bot" id="bdBot">${esc(oppName)}: 0</span>
-    </div>
-    ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙 (${pay.feePercent}% fee)</div>` : ''}
-    <div class="dots-wood-frame" id="bdFrame">
-      <div class="dots-board" id="bdBoard"></div>
-    </div>
-    ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('bd') : ''}
-    <div id="bdFoot" style="margin-top:8px"></div>
-  `);
+  const m = openFullScreenGameView({
+    gameId: 'blitz_dots',
+    title: 'Blitz Dots 1v1',
+    subMeta: stake > 0 ? `${stake} 🪙 · Smart Bot` : 'Free Bot',
+    statusText: 'Your Turn',
+    statusTone: 'turn',
+    themeClass: 'gfs-theme-wood',
+    html: `
+      <div class="arena-hud-bar" id="bdHud">
+        <span class="hud-pill me active-turn" id="bdMe">You: 0</span>
+        ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">9 Boxes</span>`}
+        <span class="hud-pill bot" id="bdBot">${esc(oppName)}: 0</span>
+      </div>
+      <div class="dots-wood-frame" id="bdFrame">
+        <div class="dots-board" id="bdBoard"></div>
+      </div>
+      ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('bd') : ''}
+      <div id="bdFoot" style="margin-top:8px"></div>
+    `
+  });
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'bd', 'blitz_dots', '#bdFrame');
 
@@ -520,7 +698,7 @@ function launchBlitzDots(stake, rival) {
     $('#bdBot', m).textContent = `${oppName}: ${botScore}`;
     $('#bdMe', m).classList.toggle('active-turn', !over && turn === 'me');
     $('#bdBot', m).classList.toggle('active-turn', !over && turn === 'bot');
-    $('#bdTurn', m).textContent = over ? 'Finished' : (turn === 'me' ? '★ Your Turn' : `${oppName} thinking…`);
+    m.setStatus(over ? 'Finished' : (turn === 'me' ? 'Your Turn' : `${oppName}…`), over ? 'neutral' : (turn === 'me' ? 'turn' : 'bot'));
 
     let html = '<div class="dots-grid">';
     for (let r = 0; r <= n; r++) {
@@ -546,9 +724,9 @@ function launchBlitzDots(stake, rival) {
     if (myScore + botScore >= n * n && !over) {
       over = true;
       const res = settleArenaMatchOutcome(myScore > botScore ? 'win' : (myScore === botScore ? 'tie' : 'lose'), stake, 45, 30, 12);
-      $('#bdTurn', m).textContent = 'Finished';
+      m.setStatus('Finished', myScore > botScore ? 'ok' : 'bot');
       $('#bdFoot', m).innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="bdAgain" style="margin-top:8px">Play Again</button></div>`;
-      $('#bdAgain', m).onclick = () => { m.close(); openArenaGame('blitz_dots', rival?.uid); };
+      $('#bdAgain', m).onclick = () => openArenaGame('blitz_dots', rival?.uid);
     }
   };
 
@@ -565,7 +743,7 @@ function launchBlitzDots(stake, rival) {
       if (myScore + botScore >= n * n) { renderBoard(); return; }
       if (got > 0) { renderBoard(); botTurn(); }
       else { turn = 'me'; renderBoard(); }
-    }, 420);
+    }, botTier === 'pro' ? 360 : 450);
   };
 
   $('#bdBoard', m).onclick = e => {
@@ -594,28 +772,36 @@ function launchBlitzDots(stake, rival) {
 }
 
 /* =====================================================================
-   2. 8-BALL POOL 1v1 — HD MAHOGANY & BAIZE FELT TABLE · CUE STICK · PARTICLES
+   2. 8-BALL POOL 1v1 — FULL-SCREEN MAHOGANY & BAIZE FELT TABLE · CUE STICK
    ===================================================================== */
-function launchPool8Ball(stake, rival) {
-  const oppName = rival?.name || 'Pool Pro Bot';
+function launchPool8Ball(stake, rival, botTierRaw) {
+  const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
+  const oppName = rival?.name || (botTier === 'pro' ? 'Pool Pro Bot' : 'Pool Bot');
   const pay = calcArenaStakePayout(stake);
-  const m = modal(`8-Ball Pool 1v1${stake > 0 ? ` · ${stake} 🪙` : ''}`, `
-    <div class="arena-hud-bar">
-      <span class="hud-pill me" id="pMy">You: 0/4</span>
-      <span class="hud-pill turn" id="pTurn">Your Shot</span>
-      <span class="hud-pill bot" id="pBot">${esc(oppName)}: 0/4</span>
-    </div>
-    ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙 (${pay.feePercent}% fee)</div>` : ''}
-    <div class="pool-stage pool-hd-stage" id="poolStage">
-      <canvas id="poolCanvas" width="360" height="210" data-testid="pool-canvas" style="width:100%;border-radius:14px;display:block;touch-action:none"></canvas>
-      <div class="row" style="margin-top:8px;justify-content:space-between;gap:8px">
-        <small style="color:var(--mu);font-weight:700">Aim on felt & tap · First to 4 balls</small>
-        <button type="button" class="btn ok sm" id="poolAutoShoot">🎯 Quick Shot</button>
+  const m = openFullScreenGameView({
+    gameId: 'pool_8ball',
+    title: '8-Ball Pool 1v1',
+    subMeta: stake > 0 ? `${stake} 🪙 · Pro Bot` : 'Free Bot',
+    statusText: 'Your Shot',
+    statusTone: 'turn',
+    themeClass: 'gfs-theme-felt',
+    html: `
+      <div class="arena-hud-bar">
+        <span class="hud-pill me active-turn" id="pMy">You: 0/4</span>
+        ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">First to 4</span>`}
+        <span class="hud-pill bot" id="pBot">${esc(oppName)}: 0/4</span>
       </div>
-    </div>
-    ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('pool') : ''}
-    <div id="pFoot" style="margin-top:8px"></div>
-  `);
+      <div class="pool-stage pool-hd-stage" id="poolStage">
+        <canvas id="poolCanvas" width="360" height="210" data-testid="pool-canvas" style="width:100%;border-radius:14px;display:block;touch-action:none"></canvas>
+        <div class="row" style="margin-top:8px;justify-content:space-between;gap:8px">
+          <small style="color:var(--mu);font-weight:700">Tap felt to aim &amp; shoot</small>
+          <button type="button" class="btn ok sm" id="poolAutoShoot">🎯 Quick Shot</button>
+        </div>
+      </div>
+      ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('pool') : ''}
+      <div id="pFoot" style="margin-top:8px"></div>
+    `
+  });
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'pool', 'pool_8ball', '#poolStage');
 
@@ -660,7 +846,7 @@ function launchPool8Ball(stake, rival) {
       $('#pBot', m).textContent = `${oppName}: ${botScore}/4`;
       $('#pBot', m).classList.toggle('active-turn', !over && turn === 'bot');
     }
-    if ($('#pTurn', m)) $('#pTurn', m).textContent = over ? 'Finished' : (turn === 'me' ? '🎱 Your Shot' : `${oppName} aiming…`);
+    m.setStatus(over ? 'Finished' : (turn === 'me' ? 'Your Shot' : `${oppName}…`), over ? (myScore > botScore ? 'ok' : 'bot') : (turn === 'me' ? 'turn' : 'bot'));
   };
 
   const finishMatch = () => {
@@ -671,7 +857,7 @@ function launchPool8Ball(stake, rival) {
     syncHud();
     if ($('#pFoot', m)) {
       $('#pFoot', m).innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="pAgain" style="margin-top:8px">Rematch</button></div>`;
-      $('#pAgain', m).onclick = () => { m.close(); openArenaGame('pool_8ball', rival?.uid); };
+      $('#pAgain', m).onclick = () => openArenaGame('pool_8ball', rival?.uid);
     }
   };
 
@@ -692,16 +878,26 @@ function launchPool8Ball(stake, rival) {
       if (over || turn !== 'bot' || moving) return;
       const aliveBalls = balls.filter(b => b.alive);
       if (!aliveBalls.length) { finishMatch(); return; }
-      let bestBall = aliveBalls[0], bestDist = Infinity;
+      let bestBall = aliveBalls[0], bestDist = Infinity, bestPocket = pockets[0];
       aliveBalls.forEach(b => {
         pockets.forEach(([px, py]) => {
           const d = Math.hypot(b.x - px, b.y - py);
-          if (d < bestDist) { bestDist = d; bestBall = b; }
+          if (d < bestDist) { bestDist = d; bestBall = b; bestPocket = [px, py]; }
         });
       });
-      const jitter = (Math.random() - 0.5) * 12;
-      shootToward(bestBall.x + jitter, bestBall.y + jitter, 8.2);
-    }, 650);
+      if (botTier === 'pro') {
+        // Pro Bot aims at ghost-ball impact point behind target ball toward nearest pocket
+        const pdx = bestPocket[0] - bestBall.x, pdy = bestPocket[1] - bestBall.y;
+        const pd = Math.hypot(pdx, pdy) || 1;
+        const gx = bestBall.x - (pdx / pd) * (bestBall.r * 1.45);
+        const gy = bestBall.y - (pdy / pd) * (bestBall.r * 1.45);
+        const jitter = (Math.random() - 0.5) * 4;
+        shootToward(gx + jitter, gy + jitter, 9.0);
+      } else {
+        const jitter = (Math.random() - 0.5) * 14;
+        shootToward(bestBall.x + jitter, bestBall.y + jitter, 8.2);
+      }
+    }, botTier === 'pro' ? 520 : 680);
   };
 
   const drawTable = () => {
@@ -929,7 +1125,8 @@ function launchPool8Ball(stake, rival) {
 /* =====================================================================
    3. UNDERCOVER SPY — VELVET DETECTIVE TABLE · MIC PASS · QUICK VOICE
    ===================================================================== */
-function launchUndercoverSpy(stake) {
+function launchUndercoverSpy(stake, botTierRaw) {
+  const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const pairs = [
     { civ: 'Coffee', spy: 'Tea', civClues: ['Morning roast', 'Cafe cup', 'Espresso boost'], spyClues: ['Steeped leaf', 'Herbal mug', 'Warm brew'] },
     { civ: 'Guitar', spy: 'Violin', civClues: ['Six strings', 'Rock stage', 'Strum chords'], spyClues: ['Bow string', 'Orchestra wood', 'Classic solo'] },
@@ -953,12 +1150,20 @@ function launchUndercoverSpy(stake) {
   let over = false;
   const pay = calcArenaStakePayout(stake);
 
-  const m = modal(`Undercover Spy · Mic Pass${stake > 0 ? ` · ${stake} 🪙` : ''}`, `
-    <div id="ucStage" class="uc-velvet-stage">
-      <div id="ucBody"></div>
-    </div>
-    ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('uc') : ''}
-  `);
+  const m = openFullScreenGameView({
+    gameId: 'undercover',
+    title: 'Undercover Spy',
+    subMeta: stake > 0 ? `${stake} 🪙 · Pro Spy` : 'Free Bot',
+    statusText: 'Mic Pass',
+    statusTone: 'turn',
+    themeClass: 'gfs-theme-spy',
+    html: `
+      <div id="ucStage" class="uc-velvet-stage">
+        <div id="ucBody"></div>
+      </div>
+      ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('uc') : ''}
+    `
+  });
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'uc', 'undercover', '#ucStage');
 
@@ -986,10 +1191,13 @@ function launchUndercoverSpy(stake) {
     if (!curP || curP.isMe || phase !== 'mic' || over) return;
     setTimeout(() => {
       if (phase !== 'mic' || over) return;
-      const pool = curP.isSpy ? pair.spyClues : pair.civClues;
+      // Pro Spy gives subtler blended clues
+      const pool = curP.isSpy
+        ? (botTier === 'pro' ? [pair.spyClues[0], 'Daily favorite', pair.spyClues[2]] : pair.spyClues)
+        : pair.civClues;
       curP.clue = pool[(roundNo + turnIdx) % pool.length];
       advanceMic();
-    }, 1050);
+    }, 900);
   };
 
   const render = () => {
@@ -998,15 +1206,19 @@ function launchUndercoverSpy(stake) {
     const body = $('#ucBody', m);
     if (!body) return;
 
+    m.setStatus(
+      phase === 'mic' ? `R${roundNo} Mic Pass` : (phase === 'vote' ? 'Vote Spy' : 'Case Closed'),
+      phase === 'vote' ? 'gold' : (phase === 'done' ? 'neutral' : 'turn')
+    );
+
     const pct = Math.max(0, Math.min(100, Math.round((turnLeft / 20) * 100)));
     body.innerHTML = `
       <div class="arena-hud-bar">
         <span class="hud-pill me">🔑 Word: <b>${esc(pair.civ)}</b></span>
-        <span class="hud-pill turn">${phase === 'mic' ? `🎙️ R${roundNo} Mic Pass` : (phase === 'vote' ? '🗳️ Vote Spy' : 'Case Closed')}</span>
-        ${phase === 'mic' ? `<span class="hud-pill bot" id="ucTimer">${turnLeft}s</span>` : ''}
+        ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">4 Agents</span>`}
+        ${phase === 'mic' ? `<span class="hud-pill bot" id="ucTimer">${turnLeft}s</span>` : `<span class="hud-pill ok">Vote</span>`}
       </div>
       ${phase === 'mic' ? `<div class="uc-timer-bar"><i id="ucTimerBar" style="width:${pct}%"></i></div>` : ''}
-      ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙</div>` : ''}
       <div class="uc-seats-grid">
         ${players.map(p => {
           const speaking = activeP && activeP.id === p.id;
@@ -1025,22 +1237,22 @@ function launchUndercoverSpy(stake) {
       if (activeP.isMe) {
         act.innerHTML = `
           <div class="row" style="gap:6px">
-            <input id="ucClueIn" maxlength="40" placeholder="Give 1-line clue for ${esc(pair.civ)}..." style="flex:1">
+            <input id="ucClueIn" maxlength="40" placeholder="Clue for ${esc(pair.civ)}..." style="flex:1">
             <button type="button" class="btn gold sm" id="ucPassBtn">Pass Mic →</button>
           </div>
         `;
         const submitClue = () => {
-          activeP.clue = ($('#ucClueIn', m).value || '').trim() || 'Classic daily pick';
+          activeP.clue = ($('#ucClueIn', m).value || '').trim() || 'Classic pick';
           advanceMic();
         };
         $('#ucPassBtn', m).onclick = submitClue;
         $('#ucClueIn', m).onkeydown = e => { if (e.key === 'Enter') submitClue(); };
       } else {
-        act.innerHTML = `<div class="mp-sys-line">🎙️ ${esc(activeP.name)} holds the spotlight mic…</div>`;
+        act.innerHTML = `<div class="mp-sys-line">🎙️ ${esc(activeP.name)} speaking…</div>`;
       }
     } else if (phase === 'vote') {
       act.innerHTML = `
-        <div style="font-size:12px;font-weight:800;margin-bottom:6px;color:var(--gold)">Tap the player you suspect is the Undercover Spy:</div>
+        <div style="font-size:12px;font-weight:800;margin-bottom:6px;color:var(--gold)">Vote the Undercover Spy:</div>
         <div class="row wrap" style="gap:6px">
           ${alive.filter(p => !p.isMe).map(p => `<button type="button" class="btn sm ghost" data-ucvote="${esc(p.id)}" style="flex:1">${esc(p.name)}</button>`).join('')}
         </div>
@@ -1056,8 +1268,8 @@ function launchUndercoverSpy(stake) {
           const res = settleArenaMatchOutcome(won ? 'win' : 'lose', stake, 48, 32, 12);
           if (won) spawnArenaSparks($('#ucStage', m), '#ffd36b', 14);
           render();
-          $('#ucAct', m).innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${won ? `${esc(picked.name)} was the Spy (${esc(pair.spy)})!` : `Wrong vote! ${esc(players[spyIdx].name)} was the Spy (${esc(pair.spy)}).`}</small><button type="button" class="btn gold sm" id="ucAgain" style="margin-top:8px">Play Again</button></div>`;
-          $('#ucAgain', m).onclick = () => { m.close(); openArenaGame('undercover'); };
+          $('#ucAct', m).innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${won ? `${esc(picked.name)} was Spy (${esc(pair.spy)})` : `Spy was ${esc(players[spyIdx].name)} (${esc(pair.spy)})`}</small><button type="button" class="btn gold sm" id="ucAgain" style="margin-top:8px">Play Again</button></div>`;
+          $('#ucAgain', m).onclick = () => openArenaGame('undercover');
         };
       });
     }
@@ -1081,9 +1293,10 @@ function launchUndercoverSpy(stake) {
 }
 
 /* =====================================================================
-   4. SQUAD TRIVIA 1v1 — 3D FROSTED GLASS ARENA · STREAK SPARKS · QUICK VOICE
+   4. SQUAD TRIVIA 1v1 — FULL-SCREEN GLASS ARENA · STREAK SPARKS
    ===================================================================== */
-function launchSquadTrivia(stake, rival) {
+function launchSquadTrivia(stake, rival, botTierRaw) {
+  const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const qs = [
     { q: 'Which planet has the most moons?', o: ['Mars', 'Saturn', 'Venus', 'Mercury'], a: 1 },
     { q: '18 × 7 = ?', o: ['116', '126', '132', '124'], a: 1 },
@@ -1092,15 +1305,23 @@ function launchSquadTrivia(stake, rival) {
     { q: 'Chemical symbol for Potassium?', o: ['Po', 'K', 'Pt', 'P'], a: 1 }
   ];
   let idx = 0, myScore = 0, botScore = 0, streak = 0, locked = false, over = false;
-  const oppName = rival?.name || 'Apex Rival Bot';
+  const oppName = rival?.name || (botTier === 'pro' ? 'Apex Pro Bot' : 'Rival Bot');
   const pay = calcArenaStakePayout(stake);
 
-  const m = modal(`Squad Trivia 1v1${stake > 0 ? ` · ${stake} 🪙` : ''}`, `
-    <div id="sqStage" class="sq-glass-stage">
-      <div id="sqBody"></div>
-    </div>
-    ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('sq') : ''}
-  `);
+  const m = openFullScreenGameView({
+    gameId: 'squad_arena',
+    title: 'Squad Trivia 1v1',
+    subMeta: stake > 0 ? `${stake} 🪙 · Pro Bot` : 'Free Bot',
+    statusText: 'Q 1/5',
+    statusTone: 'turn',
+    themeClass: 'gfs-theme-trivia',
+    html: `
+      <div id="sqStage" class="sq-glass-stage">
+        <div id="sqBody"></div>
+      </div>
+      ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('sq') : ''}
+    `
+  });
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'sq', 'squad_arena', '#sqStage');
 
@@ -1111,20 +1332,21 @@ function launchSquadTrivia(stake, rival) {
       over = true;
       const outcome = myScore > botScore ? 'win' : (myScore === botScore ? 'tie' : 'lose');
       const res = settleArenaMatchOutcome(outcome, stake, 42, 28, 10);
+      m.setStatus('Finished', outcome === 'win' ? 'ok' : 'bot');
       body.innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>Score ${myScore} – ${botScore} · ${esc(res.detail)}</small><button type="button" class="btn gold sm" id="sqAgain" style="margin-top:8px">Rematch</button></div>`;
-      $('#sqAgain', m).onclick = () => { m.close(); openArenaGame('squad_arena', rival?.uid); };
+      $('#sqAgain', m).onclick = () => openArenaGame('squad_arena', rival?.uid);
       return;
     }
     const q = qs[idx];
     const progress = Math.round(((idx + 1) / qs.length) * 100);
+    m.setStatus(`Q ${idx + 1}/${qs.length}`, 'turn');
     body.innerHTML = `
       <div class="arena-hud-bar">
         <span class="hud-pill me active-turn">You: ${myScore}${streak >= 2 ? ` 🔥${streak}` : ''}</span>
-        <span class="hud-pill turn">Q ${idx + 1}/${qs.length}</span>
+        ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">5 Rounds</span>`}
         <span class="hud-pill bot">${esc(oppName)}: ${botScore}</span>
       </div>
       <div class="sq-prog-bar"><i style="width:${progress}%"></i></div>
-      ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙</div>` : ''}
       <div class="sq-question-glass"><b>${esc(q.q)}</b></div>
       <div class="sq-opts-grid">${q.o.map((opt, i) => `<button type="button" class="sq-opt-btn" data-sqa="${i}"><span class="sq-opt-ltr">${String.fromCharCode(65 + i)}</span><span>${esc(opt)}</span></button>`).join('')}</div>
     `;
@@ -1144,7 +1366,7 @@ function launchSquadTrivia(stake, rival) {
         } else {
           streak = 0;
         }
-        const botAcc = botScore < myScore ? 0.78 : 0.66;
+        const botAcc = botTier === 'pro' ? (botScore <= myScore ? 0.86 : 0.78) : (botScore < myScore ? 0.72 : 0.60);
         if (Math.random() < botAcc) botScore += 20;
         if (typeof playSfx === 'function') playSfx(ok ? 'duelCorrect' : 'duelWrong');
         setTimeout(() => {
@@ -1160,24 +1382,33 @@ function launchSquadTrivia(stake, rival) {
 }
 
 /* =====================================================================
-   5. LUDO EXPRESS — 3D WOOD & JEWEL 24-TILE BOARD · GLOSSY PAWNS · 3D DICE
+   5. LUDO EXPRESS — FULL-SCREEN 24-TILE JEWEL WOOD BOARD · 3D DICE
    ===================================================================== */
-function launchLudoExpress(stake, rival) {
+function launchLudoExpress(stake, rival, botTierRaw) {
+  const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const goal = 24;
   const BOOST_TILES = { 5: 9, 14: 18 };
   const SAFE_STARS = new Set([6, 12, 19]);
   let myPos = 0, botPos = 0, turn = 'me', over = false, rolling = false;
   let lastDie = 6;
-  let logTxt = 'Tap 3D Dice to sprint across the 24-tile jewel board!';
-  const oppName = rival?.name || 'Turbo Bot';
+  let logTxt = 'Tap Dice to race across the 24-tile board';
+  const oppName = rival?.name || (botTier === 'pro' ? 'Turbo Pro Bot' : 'Turbo Bot');
   const pay = calcArenaStakePayout(stake);
 
-  const m = modal(`Ludo Express 1v1${stake > 0 ? ` · ${stake} 🪙` : ''}`, `
-    <div id="ldStage" class="ludo-wood-stage">
-      <div id="ldBody"></div>
-    </div>
-    ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('ld') : ''}
-  `);
+  const m = openFullScreenGameView({
+    gameId: 'ludo_snakes',
+    title: 'Ludo Express',
+    subMeta: stake > 0 ? `${stake} 🪙 · Pro Bot` : 'Free Bot',
+    statusText: 'Your Roll',
+    statusTone: 'turn',
+    themeClass: 'gfs-theme-wood',
+    html: `
+      <div id="ldStage" class="ludo-wood-stage">
+        <div id="ldBody"></div>
+      </div>
+      ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('ld') : ''}
+    `
+  });
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'ld', 'ludo_snakes', '#ldStage');
 
@@ -1224,19 +1455,19 @@ function launchLudoExpress(stake, rival) {
   const render = () => {
     const body = $('#ldBody', m);
     if (!body) return;
+    m.setStatus(over ? 'Finished' : (turn === 'me' ? 'Your Roll' : `${oppName}…`), over ? (myPos >= goal ? 'ok' : 'bot') : (turn === 'me' ? 'turn' : 'bot'));
     body.innerHTML = `
       <div class="arena-hud-bar">
         <span class="hud-pill me ${!over && turn === 'me' ? 'active-turn' : ''}">🔵 You: ${myPos}/${goal}</span>
-        <span class="hud-pill turn">${over ? 'Finished' : (turn === 'me' ? 'Your Roll' : `${oppName} rolling…`)}</span>
+        ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">Race to 24</span>`}
         <span class="hud-pill bot ${!over && turn === 'bot' ? 'active-turn' : ''}">🔴 ${esc(oppName)}: ${botPos}/${goal}</span>
       </div>
-      ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙</div>` : ''}
       ${renderBoardGrid()}
       <div class="mp-sys-line" style="margin:8px 0">${esc(logTxt)}</div>
       <div id="ldAct" class="ludo-dice-dock">
         ${!over ? `
           <div class="ludo-die-box">${diePipsSvg(lastDie)}</div>
-          <button type="button" class="btn gold" id="ldRoll" style="flex:1" ${turn !== 'me' || rolling ? 'disabled' : ''}>🎲 Roll 3D Dice</button>
+          <button type="button" class="btn gold" id="ldRoll" style="flex:1" ${turn !== 'me' || rolling ? 'disabled' : ''}>🎲 Roll Dice</button>
         ` : ''}
       </div>
     `;
@@ -1255,17 +1486,17 @@ function launchLudoExpress(stake, rival) {
           let extra = '';
           if (BOOST_TILES[myPos]) {
             myPos = BOOST_TILES[myPos];
-            extra = ' · ⚡ Boost Jump!';
+            extra = ' · ⚡ Boost!';
             spawnArenaSparks($('#ldStage', m), '#fde047', 10);
           }
-          logTxt = `You rolled 🎲 ${roll}${roll === 6 ? ' (Bonus roll!)' : ''}${extra}`;
+          logTxt = `You rolled 🎲 ${roll}${roll === 6 ? ' (Bonus!)' : ''}${extra}`;
           if (myPos >= goal) {
             over = true;
             const res = settleArenaMatchOutcome('win', stake, 40, 26, 10);
             spawnArenaSparks($('#ldStage', m), '#38bdf8', 14);
             render();
             $('#ldAct', m).innerHTML = `<div class="arena-result-card" style="width:100%"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="ldAgain" style="margin-top:8px">Rematch</button></div>`;
-            $('#ldAgain', m).onclick = () => { m.close(); openArenaGame('ludo_snakes', rival?.uid); };
+            $('#ldAgain', m).onclick = () => openArenaGame('ludo_snakes', rival?.uid);
             return;
           }
           if (roll !== 6) turn = 'bot';
@@ -1273,7 +1504,9 @@ function launchLudoExpress(stake, rival) {
           if (turn === 'bot') {
             setTimeout(() => {
               if (over) return;
-              const br = botPos < myPos - 3 ? (2 + Math.floor(Math.random() * 5)) : (1 + Math.floor(Math.random() * 6));
+              const br = botTier === 'pro'
+                ? (botPos < myPos ? (2 + Math.floor(Math.random() * 5)) : (1 + Math.floor(Math.random() * 6)))
+                : (1 + Math.floor(Math.random() * 6));
               lastDie = br;
               botPos = Math.min(goal, botPos + br);
               let bExtra = '';
@@ -1284,14 +1517,14 @@ function launchLudoExpress(stake, rival) {
                 const res = settleArenaMatchOutcome('lose', stake, 40, 26, 10);
                 render();
                 $('#ldAct', m).innerHTML = `<div class="arena-result-card" style="width:100%"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="ldAgain" style="margin-top:8px">Rematch</button></div>`;
-                $('#ldAgain', m).onclick = () => { m.close(); openArenaGame('ludo_snakes', rival?.uid); };
+                $('#ldAgain', m).onclick = () => openArenaGame('ludo_snakes', rival?.uid);
                 return;
               }
               turn = 'me';
               render();
-            }, 540);
+            }, 520);
           }
-        }, 260);
+        }, 240);
       };
     }
   };
