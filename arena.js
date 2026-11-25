@@ -16,21 +16,22 @@ const ARENA_GAMES = [
     badge: 'Marbles & Cards',
     desc: '3D Marbles · A/K/Q/J/7/4/10',
     modes: [
-      { id: '2v2', label: '2v2 Team' },
-      { id: '1v1', label: '1v1 Duel' }
+      { id: '1v1', label: '2 Players (1v1)' },
+      { id: '2v2', label: '4 Players (2v2)' }
     ]
   },
   {
     id: 'uno',
-    name: 'UNO Clash',
-    tag: '4P / 1v1',
+    name: 'UNO Garden',
+    tag: 'Classic / Fun',
     live: 108,
-    accent: '#ef4444',
-    accent2: '#7c3aed',
-    badge: '+4 Wild & UNO!',
-    desc: '3D Cards · Classic Rules',
+    accent: '#78b824',
+    accent2: '#1575e8',
+    badge: 'Stack & ONE!',
+    desc: 'Classic · Fun +Stack · Voice',
     modes: [
-      { id: '4p', label: '4-Player' },
+      { id: 'classic', label: 'Classic (4P)' },
+      { id: 'fun', label: 'Fun Play (+Stack)' },
       { id: '1v1', label: '1v1 Duel' }
     ]
   },
@@ -255,7 +256,7 @@ function renderArenaBannerArt(g) {
       <circle cx="32" cy="74" r="8.5" fill="#2563eb"/><circle cx="74" cy="74" r="8.5" fill="#16a34a"/>
     </g>`
   };
-  return `<svg class="gp-svg" viewBox="0 0 320 142" fill="none" aria-hidden="true">
+  return `<svg class="gp-svg" viewBox="0 0 320 142" preserveAspectRatio="xMidYMid slice" fill="none" aria-hidden="true">
     <defs>
       <linearGradient id="gpBg_${id}" x1="0" y1="0" x2="320" y2="142" gradientUnits="userSpaceOnUse">
         <stop offset="0%" stop-color="${g.accent}"/>
@@ -375,7 +376,7 @@ function openFullScreenGameView(opts) {
         <div class="gfs-h-right">
           <span class="gfs-status-pill ${esc(o.statusTone || 'turn')}" id="gfsStatusPill">${esc(o.statusText || 'Ready')}</span>
           <button type="button" class="gfs-icon-btn ${sfxMuted ? 'is-muted' : ''}" id="gfsSfxBtn" data-sfx-toggle="1" aria-pressed="${sfxMuted ? 'true' : 'false'}" aria-label="${sfxMuted ? 'Unmute Sound FX' : 'Mute Sound FX'}" title="Toggle Sound FX">
-            <span class="sfx-ico">${sfxIcon}</span>
+            <span class="sfx-ico" data-sfx-ico="1">${sfxIcon}</span>
           </button>
           <button type="button" class="gfs-icon-btn gfs-exit-x" id="gfsExitBtn" aria-label="Close game">✕</button>
         </div>
@@ -476,7 +477,7 @@ function openArenaGame(gameId, rivalUid) {
         <div class="gfs-setup-block">
           <div class="gfs-setup-head">
             <span class="gfs-setup-lbl">Match Type</span>
-            <span class="gfs-wallet-txt">Wallet: <b>${fmtNum(me.coins)} 🪙</b></span>
+            <span class="gfs-wallet-txt">Wallet: <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#ffd36b" stroke="#b45309" stroke-width="1.8"/><circle cx="12" cy="12" r="6" stroke="#92400e" stroke-width="1.3"/></svg><b>${fmtNum(me.coins)}</b></span>
           </div>
           <div class="gfs-tier-switch" role="tablist" aria-label="Match Type">
             <button type="button" class="gfs-tier-btn on" data-tier="free">
@@ -503,6 +504,12 @@ function openArenaGame(gameId, rivalUid) {
         <div class="gfs-payout-strip" id="arFeeMeta"></div>
 
         <button type="button" class="btn gold full gfs-start-cta" id="arStartMatchBtn">Play Free Match</button>
+        ${(g.id === 'jackaroo' || g.id === 'uno') ? `
+          <div class="gfs-jk-lobby-extras">
+            <button type="button" class="btn ghost sm" id="arExtraInviteBtn">👥 Invite Friend</button>
+            <button type="button" class="btn ghost sm" id="arExtraRulesBtn">📖 Rules &amp; Cards</button>
+          </div>
+        ` : ''}
       </div>
     `
   });
@@ -578,6 +585,44 @@ function openArenaGame(gameId, rivalUid) {
     else if (gameId === 'squad_arena') launchSquadTrivia(selectedStake, rival, botTier);
     else launchLudoExpress(selectedStake, rival, botTier);
   };
+
+  const extraRulesBtn = $('#arExtraRulesBtn', view);
+  if (extraRulesBtn) {
+    extraRulesBtn.onclick = () => {
+      if (typeof playSfx === 'function') playSfx('tap');
+      if (gameId === 'jackaroo' && typeof openJackarooRulesModal === 'function') openJackarooRulesModal(0);
+      else if (gameId === 'uno' && typeof openUnoRulesModal === 'function') openUnoRulesModal(0);
+    };
+  }
+  const extraInvBtn = $('#arExtraInviteBtn', view);
+  if (extraInvBtn) {
+    extraInvBtn.onclick = () => {
+      if (typeof playSfx === 'function') playSfx('tap');
+      if (gameId === 'jackaroo' && typeof openJackarooInviteModal === 'function') {
+        openJackarooInviteModal({
+          mode: selectedMode,
+          stake: selectedStake,
+          onSwitchMode: (nm) => { selectedMode = nm; syncStakeUi(); },
+          onInviteFriend: (friend) => {
+            if (typeof launchJackaroo === 'function') {
+              launchJackaroo(selectedStake, friend, selectedMode, selectedStake > 0 ? 'pro' : 'standard');
+            }
+          }
+        });
+      } else if (gameId === 'uno' && typeof openUnoInviteModal === 'function') {
+        openUnoInviteModal({
+          mode: selectedMode,
+          stake: selectedStake,
+          onSwitchMode: (nm) => { selectedMode = nm; syncStakeUi(); },
+          onInviteFriend: (friend) => {
+            if (typeof launchUnoGame === 'function') {
+              launchUnoGame(selectedStake, friend, selectedMode, selectedStake > 0 ? 'pro' : 'standard');
+            }
+          }
+        });
+      }
+    };
+  }
 }
 
 /* 1. BLITZ DOTS & BOXES */

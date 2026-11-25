@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v16';
+const CACHE_NAME = 'study-game-v23';
 const CORE_SHELL = [
   './',
   './index.html',
@@ -25,7 +25,9 @@ const CORE_SHELL = [
   './core.js',
   './social.js',
   './party.js',
+  './jackaroo-rules.js',
   './jackaroo.js',
+  './uno-rules.js',
   './uno.js',
   './arena.js',
   './gifts.js',
