@@ -440,6 +440,14 @@ window.openFullScreenGameView = openFullScreenGameView;
 function openArenaGame(gameId, rivalUid) {
   const g = ARENA_GAMES.find(x => x.id === gameId) || ARENA_GAMES[0];
   const rival = rivalUid ? allUsers().find(u => u.uid === rivalUid) : null;
+  if (g.id === 'jackaroo' && typeof openJackarooLobby === 'function') {
+    if (rival && typeof openJackarooTableLobby === 'function') {
+      openJackarooTableLobby({ mode: '1v1', tier: '1v1 | Junior', stake: 0, rival });
+    } else {
+      openJackarooLobby({ rival });
+    }
+    return;
+  }
   const cap = previewBotCapStatus();
   let playType = 'free';
   let selectedStake = 0;

@@ -228,11 +228,45 @@ const PartyAudioPlayer = (() => {
 const PartyWebRtcMesh = (() => {
   let localStream = null;
   let roomKey = '';
+  let signalUnsub = null;
+  const seenSignalIds = new Set();
   const peers = new Map(); // remoteUid -> RTCPeerConnection
   const remoteAudios = new Map(); // remoteUid -> HTMLAudioElement
   const iceConfig = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
   };
+
+  function unsubscribeSignals() {
+    if (typeof signalUnsub === 'function') {
+      try { signalUnsub(); } catch {}
+    }
+    signalUnsub = null;
+    seenSignalIds.clear();
+  }
+
+  function subscribeSignals(currentRoomId) {
+    if (!currentRoomId || String(currentRoomId).startsWith('pr_seed_')) return;
+    if (roomKey === currentRoomId && signalUnsub) return;
+    unsubscribeSignals();
+    roomKey = currentRoomId;
+    if (!online || !db || !F || typeof F.onSnapshot !== 'function') return;
+    try {
+      const q = F.query(
+        F.collection(db, 'party_rooms', currentRoomId, 'webrtc_signals'),
+        F.where('to', '==', uid)
+      );
+      signalUnsub = F.onSnapshot(q, snap => {
+        snap.docs.forEach(d => {
+          if (seenSignalIds.has(d.id)) return;
+          seenSignalIds.add(d.id);
+          const sig = d.data();
+          handleSignalDoc(currentRoomId, sig);
+          // Clean up consumed signaling doc so subcollection stays tiny
+          dbOp(() => F.deleteDoc(F.doc(db, 'party_rooms', currentRoomId, 'webrtc_signals', d.id)));
+        });
+      }, () => {});
+    } catch {}
+  }
 
   function getRemoteAudioEl(remoteUid) {
     let a = remoteAudios.get(remoteUid);
@@ -300,7 +334,7 @@ const PartyWebRtcMesh = (() => {
 
   async function syncMicPeers(rm) {
     if (!rm || !rm.id) return;
-    roomKey = rm.id;
+    subscribeSignals(rm.id);
     const micUids = Object.entries(rm.seats || {})
       .filter(([k, s]) => s && s.uid && isMicSeatIndex(k) && !s.muted)
       .map(([, s]) => s.uid)
@@ -319,14 +353,16 @@ const PartyWebRtcMesh = (() => {
       }
     });
 
-    if (!iAmActiveMic || !online || !db || !F) return;
+    if (!online || !db || !F || String(rm.id).startsWith('pr_seed_')) return;
 
+    // Speakers initiate mesh with other speakers (lexicographic tie-break); Listeners initiate recv-only offer to active speakers
     for (const targetUid of micUids) {
       if (targetUid === uid || peers.has(targetUid)) continue;
-      if (String(uid) < String(targetUid)) {
+      const shouldOffer = iAmActiveMic ? (String(uid) < String(targetUid)) : true;
+      if (shouldOffer) {
         const pc = createPeer(targetUid, rm.id);
         try {
-          const offer = await pc.createOffer();
+          const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
           await pc.setLocalDescription(offer);
           const sigId = `${rm.id}_${uid}_${targetUid}_offer_${Date.now().toString(36)}`;
           await dbOp(() => F.setDoc(F.doc(db, 'party_rooms', rm.id, 'webrtc_signals', sigId), {
@@ -367,6 +403,7 @@ const PartyWebRtcMesh = (() => {
   }
 
   function cleanup() {
+    unsubscribeSignals();
     peers.forEach(pc => { try { pc.close(); } catch {} });
     peers.clear();
     remoteAudios.forEach(a => { try { a.srcObject = null; a.remove(); } catch {} });
@@ -378,7 +415,7 @@ const PartyWebRtcMesh = (() => {
     roomKey = '';
   }
 
-  return { enableMic, setMicMuted, syncSpeaker, syncMicPeers, handleSignalDoc, cleanup };
+  return { enableMic, setMicMuted, syncSpeaker, syncMicPeers, subscribeSignals, unsubscribeSignals, handleSignalDoc, cleanup };
 })();
 
 /* ===== Persistence & Hub Rendering ===== */
@@ -966,5 +1003,19 @@ function bindPartyRootDelegation(root) {
         openGiftSendModal(other ? other.uid : null, { allowPickPlayer: true, inPartyRoom: rm.id });
       }
     }
+  });
+
+  root.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const inp = e.target.closest('#pfsChatIn');
+    if (!inp) return;
+    e.preventDefault();
+    const rm = partyRooms.find(r => r.id === activePartyRoomId);
+    if (!rm) return;
+    const txt = (inp.value || '').trim();
+    if (!txt) return;
+    inp.value = '';
+    rm.chat = [...(rm.chat || []), { id: 'c_' + Date.now().toString(36), type: 'text', uid, name: me.name || 'Player', text: txt, ts: Date.now() }].slice(-45);
+    persistPartyRoom(rm);
   });
 }

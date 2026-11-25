@@ -193,6 +193,7 @@ function ingestMultiplayerRooms(list){
   saveMpRoomsLocal();
   renderMultiplayerRooms();
   refreshActiveRoomModal();
+  if(typeof syncActiveJackarooLobbyFromRooms==='function')syncActiveJackarooLobbyFromRooms(mpRooms);
 }
 
 function appendMultiplayerRoomGift(roomId, evObj){
@@ -381,6 +382,17 @@ function joinMultiplayerRoom(roomId){
     persistMpRoom(room);
   }
   if(typeof playSfx==='function')playSfx('click');
+  if(room.mode==='jackaroo'&&typeof openJackarooTableLobby==='function'){
+    openJackarooTableLobby({
+      mode:room.subMode==='1v1'?'1v1':'2v2',
+      tier:room.tierLabel||(room.subMode==='1v1'?'1v1 | Junior':'Basic | Junior'),
+      stake:Number(room.entryCoins||0),
+      roomCode:room.code,
+      roomId:room.id,
+      joinExistingRoom:room
+    });
+    return;
+  }
   openMultiplayerRoom(room.id);
 }
 

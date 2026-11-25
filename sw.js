@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v23';
+const CACHE_NAME = 'study-game-v24';
 const CORE_SHELL = [
   './',
   './index.html',

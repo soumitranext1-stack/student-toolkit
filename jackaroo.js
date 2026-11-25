@@ -143,32 +143,84 @@ function openJackarooRulesModal(initialPage) {
 }
 window.openJackarooRulesModal = openJackarooRulesModal;
 
+function jkSendDmRoomInvite(friend, roomCode, mode, stake, tierLabel) {
+  if (!friend || !friend.uid) return;
+  try {
+    const myUid = typeof uid !== 'undefined' ? uid : 'local';
+    const myName = (typeof me !== 'undefined' && me?.name) || 'Player';
+    const msgId = 'dm_jki_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const txt = `🎲 Join my Jackaroo ${tierLabel || (mode === '1v1' ? '1v1' : '2v2')} table (${Number(stake || 0) > 0 ? stake + ' 🪙' : 'Free'})! Room Code: ${roomCode}`;
+    const docData = {
+      id: msgId,
+      from: myUid,
+      to: String(friend.uid),
+      fromName: myName,
+      type: 'text',
+      text: txt,
+      roomCode,
+      gameId: 'jackaroo',
+      ts: Date.now()
+    };
+    if (typeof dbOp === 'function' && typeof F !== 'undefined' && F && typeof db !== 'undefined' && db) {
+      dbOp(() => F.setDoc(F.doc(db, 'dm_messages', msgId), docData));
+    }
+  } catch {}
+}
+
 function openJackarooInviteModal(opts) {
   const o = opts || {};
   const mode = o.mode === '1v1' ? '1v1' : '2v2';
-  const roomCode = o.roomCode || ('JK' + Math.random().toString(36).slice(2, 6).toUpperCase());
-  const roster = (typeof allUsers === 'function' ? allUsers() : [])
-    .filter(u => u && u.uid && u.uid !== (typeof uid !== 'undefined' ? uid : ''))
-    .slice(0, 12);
+  const stake = Math.max(0, Number(o.stake || 0));
+  const tierLabel = o.tierLabel || (mode === '1v1' ? '1v1 Junior' : 'Basic | Junior');
+  const roomCode = String(o.roomCode || ('JK' + Math.random().toString(36).slice(2, 6))).toUpperCase();
+  const myUid = typeof uid !== 'undefined' ? uid : '';
+  const friendIds = new Set((typeof me !== 'undefined' && Array.isArray(me?.friends)) ? me.friends : []);
 
-  // Fallback friendly players if local mode has few users
-  const inviteList = roster.length ? roster : [
-    { uid: 'f_aria', name: 'Aria Nova', avatar: '🦊', level: 12 },
-    { uid: 'f_rivara', name: 'Rivara', avatar: '🌟', level: 9 },
-    { uid: 'f_jason', name: 'Jason K.', avatar: '🦁', level: 14 },
-    { uid: 'f_mery', name: 'Mery Star', avatar: '👑', level: 11 }
+  const allRoster = (typeof allUsers === 'function' ? allUsers() : [])
+    .filter(u => u && u.uid && u.uid !== myUid);
+
+  // Fallback friendly contacts only when local cache has zero other users
+  const baseContacts = allRoster.length ? allRoster : [
+    { uid: 'f_aria', name: 'Aria Nova', avatar: '🦊', level: 12, online: true },
+    { uid: 'f_rivara', name: 'Rivara', avatar: '🌟', level: 9, online: true },
+    { uid: 'f_jason', name: 'Jason K.', avatar: '🦁', level: 14, online: true },
+    { uid: 'f_mery', name: 'Mery Star', avatar: '👑', level: 11, online: true },
+    { uid: 'f_kabir', name: 'Kabir Raj', avatar: '⚡', level: 8, online: true }
   ];
 
-  const m = modal(`Invite Friends · Jackaroo ${mode === '1v1' ? '2P (1v1)' : '4P (2v2)'}`, `
-    <div class="jki-shell">
+  // Prioritize real friends first, then recent/online players
+  const contacts = baseContacts
+    .map(u => ({
+      uid: String(u.uid),
+      name: String(u.name || 'Player'),
+      avatar: u.avatar || 'av_b1',
+      level: Number(u.level || (typeof calcLevel === 'function' ? calcLevel(u.exp || 0) : 1)),
+      isFriend: friendIds.has(u.uid)
+    }))
+    .sort((a, b) => (b.isFriend ? 1 : 0) - (a.isFriend ? 1 : 0));
+
+  const invitedSet = new Set(Array.isArray(o.alreadyInRoomUids) ? o.alreadyInRoomUids.map(String) : []);
+  const shareUrl = (() => {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set('jkRoom', roomCode);
+      return u.toString();
+    } catch {
+      return `https://study-game.app/?jkRoom=${roomCode}`;
+    }
+  })();
+  const shareText = `Join my Jackaroo Royal (${tierLabel}${stake > 0 ? ' · ' + stake + ' Coins' : ' · Free'}) table! Room Code: ${roomCode} ${shareUrl}`;
+
+  const m = modal(`Share & Invite · ${tierLabel}`, `
+    <div class="jki-shell" data-testid="jackaroo-invite-sheet">
       <div class="jki-code-card">
-        <div>
-          <small class="jki-lbl">Private Room Code</small>
+        <div class="jki-code-meta">
+          <small class="jki-lbl">Room Code</small>
           <b class="jki-code" id="jkiCodeVal">${esc(roomCode)}</b>
         </div>
-        <div class="row" style="gap:6px">
+        <div class="jki-code-actions">
           <button type="button" class="btn sm gold" id="jkiCopyBtn">Copy Code</button>
-          <button type="button" class="btn sm" id="jkiShareWorldBtn">World Chat</button>
+          <button type="button" class="btn sm ok" id="jkiShareWorldBtn">World Chat</button>
         </div>
       </div>
 
@@ -179,61 +231,146 @@ function openJackarooInviteModal(opts) {
         </div>
       ` : ''}
 
-      <div class="jki-sec-title">Online Friends &amp; Players</div>
-      <div class="jki-friend-list">
-        ${inviteList.map(u => `
-          <div class="jki-friend-row">
-            <div class="jki-f-left">
-              <span class="jki-f-av">${jkAvatarHtml(u.avatar || 'av_b1')}</span>
-              <div class="jki-f-info">
-                <b>${esc(u.name || 'Player')}</b>
-                <small>Lv.${Number(u.level || 1)} · Online</small>
-              </div>
-            </div>
-            <button type="button" class="btn sm ok" data-jki-uid="${esc(u.uid)}" data-jki-name="${esc(u.name || 'Player')}" data-jki-av="${esc(u.avatar || '🎮')}">Invite</button>
-          </div>
-        `).join('')}
+      <div class="jki-search-wrap">
+        <span class="jki-search-ico" aria-hidden="true">🔍</span>
+        <input type="search" id="jkiSearchIn" placeholder="Search recent contacts or friends..." maxlength="40" autocomplete="off" aria-label="Search recent contacts and friends">
+      </div>
+
+      <div class="jki-sec-row">
+        <span class="jki-sec-title">Recent Contacts &amp; Friends</span>
+        <small class="jki-sec-cnt" id="jkiContactCnt">${contacts.length} available</small>
+      </div>
+      <div class="jki-friend-list" id="jkiFriendList"></div>
+
+      <div class="jki-share-sec">
+        <div class="jki-sec-title">Share Table Link</div>
+        <div class="jki-share-grid" role="group" aria-label="Share shortcuts">
+          <button type="button" class="jki-share-btn wa" data-jkshare="whatsapp" aria-label="Share on WhatsApp">
+            <span class="jki-s-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.52 14.95L2 22l5.2-1.36A9.9 9.9 0 1 0 12.04 2Zm5.78 14.08c-.24.68-1.42 1.3-1.97 1.38-.52.08-1.18.11-1.9-.12-.44-.14-1-.33-1.72-.64-3.03-1.31-5-4.38-5.15-4.58-.15-.2-1.23-1.64-1.23-3.13 0-1.49.78-2.22 1.06-2.52.28-.3.6-.38.8-.38h.58c.19 0 .44-.07.69.52.25.6.85 2.08.92 2.23.08.15.13.33.03.53-.1.2-.15.33-.3.5-.15.18-.32.4-.45.54-.15.15-.3.32-.13.62.18.3.78 1.29 1.68 2.09 1.15 1.03 2.13 1.35 2.43 1.5.3.15.48.13.66-.08.18-.2.75-.88.95-1.18.2-.3.4-.25.67-.15.28.1 1.75.83 2.05.98.3.15.5.23.58.35.08.13.08.73-.17 1.4Z"/></svg></span>
+            <span>WhatsApp</span>
+          </button>
+          <button type="button" class="jki-share-btn ig" data-jkshare="instagram" aria-label="Share on Instagram">
+            <span class="jki-s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span>
+            <span>Instagram</span>
+          </button>
+          <button type="button" class="jki-share-btn fb" data-jkshare="facebook" aria-label="Share on Facebook">
+            <span class="jki-s-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.5 21v-8.2h2.75l.42-3.2H13.5V7.55c0-.93.26-1.56 1.59-1.56h1.7V3.13A22.7 22.7 0 0 0 14.32 3c-2.45 0-4.12 1.5-4.12 4.24v2.36H7.45v3.2h2.75V21h3.3Z"/></svg></span>
+            <span>Facebook</span>
+          </button>
+          <button type="button" class="jki-share-btn xapp" data-jkshare="x" aria-label="Share on X">
+            <span class="jki-s-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.21-6.82-5.97 6.82H1.67l7.73-8.84L1.25 2.25h6.83l4.71 6.23 5.45-6.23Zm-1.16 17.52h1.83L7.08 4.13H5.12l11.96 15.64Z"/></svg></span>
+            <span>X</span>
+          </button>
+          <button type="button" class="jki-share-btn more" data-jkshare="more" aria-label="More share options">
+            <span class="jki-s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></span>
+            <span>More</span>
+          </button>
+        </div>
       </div>
     </div>
   `, 'jki-modal');
 
+  const copySharePayload = (label) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareText).catch(() => {});
+    }
+    if (typeof playSfx === 'function') playSfx('tap');
+    if (typeof toast === 'function') toast(label);
+  };
+
+  const renderContacts = (queryStr) => {
+    const listEl = $('#jkiFriendList', m);
+    const cntEl = $('#jkiContactCnt', m);
+    if (!listEl) return;
+    const q = String(queryStr || '').trim().toLowerCase();
+    const filtered = q
+      ? contacts.filter(u => u.name.toLowerCase().includes(q) || u.uid.toLowerCase().includes(q))
+      : contacts;
+
+    if (cntEl) cntEl.textContent = `${filtered.length} found`;
+    if (!filtered.length) {
+      listEl.innerHTML = `<div class="jki-empty">No matching contacts. Share Room Code <b>${esc(roomCode)}</b> directly!</div>`;
+      return;
+    }
+
+    listEl.innerHTML = filtered.slice(0, 16).map(u => {
+      const isInv = invitedSet.has(u.uid);
+      return `
+        <div class="jki-friend-row">
+          <div class="jki-f-left">
+            <span class="jki-f-av">${jkAvatarHtml(u.avatar)}</span>
+            <div class="jki-f-info">
+              <b>${esc(u.name)}${u.isFriend ? ' <span class="jki-fr-tag">Friend</span>' : ''}</b>
+              <small>Lv.${u.level} · Recent Contact</small>
+            </div>
+          </div>
+          <button type="button" class="btn sm ${isInv ? 'ghost' : 'ok'}" data-jki-uid="${esc(u.uid)}" data-jki-name="${esc(u.name)}" data-jki-av="${esc(u.avatar)}" ${isInv ? 'disabled' : ''}>${isInv ? 'Invited ✓' : 'Invite'}</button>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('[data-jki-uid]').forEach(btn => {
+      btn.onclick = () => {
+        const friend = {
+          uid: btn.dataset.jkiUid,
+          name: btn.dataset.jkiName,
+          avatar: btn.dataset.jkiAv
+        };
+        invitedSet.add(friend.uid);
+        btn.textContent = 'Invited ✓';
+        btn.disabled = true;
+        btn.classList.remove('ok');
+        btn.classList.add('ghost');
+        jkSendDmRoomInvite(friend, roomCode, mode, stake, tierLabel);
+        if (typeof playSfx === 'function') playSfx('turnStart');
+        if (typeof toast === 'function') toast(`Invite sent to ${friend.name} · Seat reserved (no bot fill)`);
+        if (typeof o.onInviteFriend === 'function') o.onInviteFriend(friend);
+      };
+    });
+  };
+  renderContacts('');
+
+  const searchIn = $('#jkiSearchIn', m);
+  if (searchIn) {
+    searchIn.oninput = () => renderContacts(searchIn.value);
+  }
+
   const copyBtn = $('#jkiCopyBtn', m);
   if (copyBtn) {
-    copyBtn.onclick = () => {
-      const txt = `Join my Jackaroo Royal (${mode === '1v1' ? '2P' : '4P'}) table! Room Code: ${roomCode}`;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt).catch(() => {});
-      }
-      if (typeof playSfx === 'function') playSfx('tap');
-      if (typeof toast === 'function') toast(`Copied invite code ${roomCode}!`);
-    };
+    copyBtn.onclick = () => copySharePayload(`Copied Room Code ${roomCode}!`);
   }
 
   const worldBtn = $('#jkiShareWorldBtn', m);
   if (worldBtn) {
     worldBtn.onclick = () => {
-      if (typeof persistMpRoom === 'function' && typeof shareRoomToWorldChat === 'function') {
+      if (typeof o.onShareWorld === 'function') {
+        o.onShareWorld(roomCode);
+      } else if (typeof persistMpRoom === 'function' && typeof shareRoomToWorldChat === 'function') {
         const now = Date.now();
+        const myU = typeof uid !== 'undefined' ? uid : 'local';
         const room = {
-          id: 'room_jk_' + now.toString(36),
+          id: o.roomId || ('room_jk_' + now.toString(36)),
           code: roomCode,
           mode: 'jackaroo',
-          entryCoins: Number(o.stake || 0),
+          subMode: mode,
+          tierLabel,
+          entryCoins: stake,
           maxPlayers: mode === '1v1' ? 2 : 4,
-          hostUid: typeof uid !== 'undefined' ? uid : 'local',
+          hostUid: myU,
           hostName: (typeof me !== 'undefined' && me?.name) || 'Player',
           status: 'waiting',
           createdAt: now,
           updatedAt: now,
           players: {
-            [typeof uid !== 'undefined' ? uid : 'local']: {
-              uid: typeof uid !== 'undefined' ? uid : 'local',
+            [myU]: {
+              uid: myU,
               name: (typeof me !== 'undefined' && me?.name) || 'Player',
               avatar: (typeof me !== 'undefined' && me?.avatar) || '🦊',
-              score: 0
+              score: 0,
+              ready: true
             }
           },
-          chat: [{ id: 'sys_' + now, type: 'sys', text: `Jackaroo ${mode} invite posted (${roomCode})`, ts: now }]
+          chat: [{ id: 'sys_' + now, type: 'sys', text: `Jackaroo ${tierLabel} invite posted (${roomCode})`, ts: now }]
         };
         persistMpRoom(room);
         shareRoomToWorldChat(room);
@@ -252,20 +389,24 @@ function openJackarooInviteModal(opts) {
     };
   });
 
-  m.querySelectorAll('[data-jki-uid]').forEach(btn => {
-    btn.onclick = () => {
-      const friend = {
-        uid: btn.dataset.jkiUid,
-        name: btn.dataset.jkiName,
-        avatar: btn.dataset.jkiAv
+  m.querySelectorAll('[data-jkshare]').forEach(btn => {
+    btn.onclick = async () => {
+      const ch = btn.dataset.jkshare;
+      if (ch === 'more' && navigator.share) {
+        try {
+          await navigator.share({ title: `Jackaroo Royal · ${tierLabel}`, text: shareText, url: shareUrl });
+          if (typeof playSfx === 'function') playSfx('tap');
+          return;
+        } catch {}
+      }
+      const names = {
+        whatsapp: 'WhatsApp',
+        instagram: 'Instagram',
+        facebook: 'Facebook',
+        x: 'X',
+        more: 'Share'
       };
-      btn.textContent = 'Joined ✓';
-      btn.disabled = true;
-      btn.classList.remove('ok');
-      btn.classList.add('ghost');
-      if (typeof playSfx === 'function') playSfx('turnStart');
-      if (typeof toast === 'function') toast(`${friend.name} invited to Room ${roomCode}!`);
-      if (typeof o.onInviteFriend === 'function') o.onInviteFriend(friend);
+      copySharePayload(`${names[ch] || 'Share'} invite link copied! Code: ${roomCode}`);
     };
   });
 
@@ -273,13 +414,721 @@ function openJackarooInviteModal(opts) {
 }
 window.openJackarooInviteModal = openJackarooInviteModal;
 
-function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
+/* =========================================================================
+   JACKAROO LOBBY SCREEN & PRE-MATCH TABLE LOBBY (Basic | Junior Flow)
+   ========================================================================= */
+const JK_LOBBY_MODES = [
+  {
+    id: 'junior_2v2',
+    title: 'Junior',
+    tableTitle: 'Basic | Junior',
+    mode: '2v2',
+    badge: '2v2 · 4P',
+    freeStake: 0,
+    paidStake: 10,
+    defaultStake: 0,
+    tone: 'emerald',
+    desc: 'Classic 4-player cross board · Free or 10 🪙'
+  },
+  {
+    id: 'medium_2v2',
+    title: 'Medium',
+    tableTitle: 'Basic | Medium',
+    mode: '2v2',
+    badge: '2v2 · Pro',
+    freeStake: 0,
+    paidStake: 50,
+    defaultStake: 50,
+    tone: 'royal',
+    desc: 'Smart 2v2 stake table · Win 90% pot'
+  },
+  {
+    id: 'junior_1v1',
+    title: '1v1 Junior',
+    tableTitle: '1v1 | Junior',
+    mode: '1v1',
+    badge: '1v1 · 2P',
+    freeStake: 0,
+    paidStake: 25,
+    defaultStake: 0,
+    tone: 'amber',
+    desc: 'Fast 52-spot duel + Teleports & K13'
+  },
+  {
+    id: 'senior_1v1',
+    title: '1v1 Senior',
+    tableTitle: '1v1 | Senior',
+    mode: '1v1',
+    badge: '1v1 · High',
+    freeStake: 0,
+    paidStake: 100,
+    defaultStake: 100,
+    tone: 'crimson',
+    desc: 'High-stakes 1v1 showdown · Win 180 🪙'
+  }
+];
+
+function computeJackarooStats() {
+  const st = (typeof me !== 'undefined' && me && me.stats) ? me.stats : {};
+  const totalMatches = Math.max(0, Number(st.jk_matches || st.games_played || 0));
+  const wins = Math.max(0, Math.min(totalMatches, Number(st.jk_wins || Math.round(totalMatches * 0.56))));
+  const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+  const all = typeof allUsers === 'function' ? allUsers().slice().sort((a, b) => Number(b.exp || 0) - Number(a.exp || 0)) : [];
+  const myU = typeof uid !== 'undefined' ? uid : '';
+  const rankIdx = all.findIndex(u => u && u.uid === myU);
+  const rankPos = rankIdx >= 0 ? rankIdx + 1 : 1;
+  const lv = typeof calcLevel === 'function' && typeof me !== 'undefined' ? calcLevel(me.exp || 0) : 1;
+  const tier = lv >= 20 ? 'Royal Grandmaster' : lv >= 12 ? 'Gold Knight' : lv >= 6 ? 'Silver Ace' : 'Bronze Rookie';
+  return { totalMatches, wins, winRate, rankPos, tier, level: lv };
+}
+
+function openJackarooCoinTopup() {
+  const coinsNow = typeof me !== 'undefined' ? Number(me.coins || 0) : 0;
+  const m = modal('Coins Wallet', `
+    <div class="jkl-wallet-modal">
+      <div class="jkl-wm-bal">
+        <small>Current Balance</small>
+        <b>🪙 ${typeof fmtNum === 'function' ? fmtNum(coinsNow) : coinsNow}</b>
+      </div>
+      <p class="jkl-wm-desc">Earn free coins in Daily Tasks, Free Bot Jackaroo matches, or browse the Store for upgrades.</p>
+      <div class="row" style="gap:8px;margin-top:10px">
+        <button type="button" class="btn gold" style="flex:1" id="jklGoStore">Open Store</button>
+        <button type="button" class="btn ok" style="flex:1" id="jklGoTasks">Daily Tasks</button>
+      </div>
+    </div>
+  `);
+  $('#jklGoStore', m).onclick = () => {
+    m.close();
+    if (typeof closeFullScreenGameView === 'function') closeFullScreenGameView();
+    if (typeof go === 'function') go('store');
+  };
+  $('#jklGoTasks', m).onclick = () => {
+    m.close();
+    if (typeof closeFullScreenGameView === 'function') closeFullScreenGameView();
+    if (typeof go === 'function') go('tasks');
+  };
+}
+
+let activeJackarooTableSync = null;
+window.syncActiveJackarooLobbyFromRooms = function (roomsList) {
+  if (typeof activeJackarooTableSync === 'function') {
+    activeJackarooTableSync(roomsList);
+  }
+};
+
+function openJackarooLobby(opts) {
+  const o = opts || {};
+  const rival = o.rival || null;
+  const stats = computeJackarooStats();
+  const myCoins = typeof me !== 'undefined' ? Number(me.coins || 0) : 0;
+  let entryFilter = 'all'; // 'all' | 'free' | 'paid'
+
+  const view = openFullScreenGameView({
+    gameId: 'jackaroo_lobby',
+    title: 'Jackaroo',
+    subMeta: 'Royal Board Arena',
+    statusText: 'Lobby',
+    statusTone: 'ok',
+    themeClass: 'gfs-theme-jackaroo',
+    html: `
+      <div class="jkl-shell" data-testid="jackaroo-lobby">
+        <header class="jkl-topbar">
+          <div class="jkl-tb-left">
+            <button type="button" class="jkl-icon-btn" id="jklBackBtn" aria-label="Back to Arena">‹</button>
+            <div class="jkl-brand">
+              <h1>Jackaroo</h1>
+              <span>Royal 1v1 &amp; 2v2 Board</span>
+            </div>
+          </div>
+          <div class="jkl-tb-right">
+            <button type="button" class="jkl-icon-btn" id="jklRulesBtn" aria-label="Jackaroo Rules" title="Rules">📖</button>
+            <div class="jkl-coin-pill" id="jklCoinPill" aria-label="Coins Balance">
+              <span class="jkl-coin-ico" aria-hidden="true">🪙</span>
+              <b id="jklCoinVal">${typeof fmtNum === 'function' ? fmtNum(myCoins) : myCoins}</b>
+              <button type="button" class="jkl-coin-plus" id="jklCoinPlusBtn" aria-label="Add Coins" title="Add Coins">+</button>
+            </div>
+          </div>
+        </header>
+
+        <div class="jkl-scroll">
+          <section class="jkl-stats-card" aria-label="Player Jackaroo Statistics">
+            <div class="jkl-st-top">
+              <div class="jkl-st-user">
+                <div class="jkl-st-av">${jkAvatarHtml((typeof me !== 'undefined' && me?.avatar) || '🦊')}</div>
+                <div class="jkl-st-meta">
+                  <b>${esc((typeof me !== 'undefined' && me?.name) || 'Player')}</b>
+                  <span class="jkl-tier-badge">👑 ${esc(stats.tier)}</span>
+                </div>
+              </div>
+              <div class="jkl-rank-medal" aria-label="Leaderboard Rank">
+                <small>RANK</small>
+                <b>#${stats.rankPos}</b>
+              </div>
+            </div>
+            <div class="jkl-st-grid">
+              <div class="jkl-st-box">
+                <small>Total Matches</small>
+                <b>${stats.totalMatches}</b>
+              </div>
+              <div class="jkl-st-box">
+                <small>Win Rate</small>
+                <b class="ok">${stats.winRate}%</b>
+              </div>
+              <div class="jkl-st-box">
+                <small>Level</small>
+                <b class="gold">Lv.${stats.level}</b>
+              </div>
+            </div>
+          </section>
+
+          <div class="jkl-sec-head">
+            <span>Select Table Mode</span>
+            <div class="jkl-filter-seg" role="tablist" aria-label="Entry Filter">
+              <button type="button" class="jkl-f-btn on" data-jklf="all">All</button>
+              <button type="button" class="jkl-f-btn" data-jklf="free">Free</button>
+              <button type="button" class="jkl-f-btn" data-jklf="paid">Coins</button>
+            </div>
+          </div>
+
+          <div class="jkl-mode-grid" id="jklModeGrid"></div>
+
+          <div class="jkl-join-bar">
+            <input type="text" id="jklCodeInput" maxlength="10" placeholder="Room Code (e.g. JK482A)" autocomplete="off" aria-label="Room code">
+            <button type="button" class="btn gold sm" id="jklJoinCodeBtn">Join Room</button>
+          </div>
+        </div>
+      </div>
+    `
+  });
+
+  const renderModeCards = () => {
+    const grid = $('#jklModeGrid', view);
+    if (!grid) return;
+    grid.innerHTML = JK_LOBBY_MODES.map(m => {
+      const stakeVal = entryFilter === 'free' ? m.freeStake : (entryFilter === 'paid' ? m.paidStake : m.defaultStake);
+      const isPaid = stakeVal > 0;
+      const prizeTxt = isPaid ? `Win ${Math.floor(stakeVal * 2 * 0.9)} 🪙` : 'Free Rewards';
+      return `
+        <button type="button" class="jkl-mode-card tone-${m.tone}" data-jklmode="${m.id}" data-jklstake="${stakeVal}">
+          <div class="jkl-mc-top">
+            <span class="jkl-mc-badge">${esc(m.badge)}</span>
+            <span class="jkl-mc-entry ${isPaid ? 'paid' : 'free'}">${isPaid ? `${stakeVal} 🪙` : 'FREE'}</span>
+          </div>
+          <div class="jkl-mc-title">${esc(m.title)}</div>
+          <div class="jkl-mc-desc">${esc(m.desc)}</div>
+          <div class="jkl-mc-foot">
+            <span class="jkl-mc-prize">${prizeTxt}</span>
+            <span class="jkl-mc-go">Enter Table ›</span>
+          </div>
+        </button>
+      `;
+    }).join('');
+
+    grid.querySelectorAll('[data-jklmode]').forEach(btn => {
+      btn.onclick = () => {
+        const meta = JK_LOBBY_MODES.find(x => x.id === btn.dataset.jklmode) || JK_LOBBY_MODES[0];
+        const stakeVal = Number(btn.dataset.jklstake || 0);
+        if (stakeVal > 0 && typeof me !== 'undefined' && me.coins < stakeVal) {
+          if (typeof toast === 'function') toast(`Need ${stakeVal} coins for ${meta.title}`);
+          return;
+        }
+        if (typeof playSfx === 'function') playSfx('tap');
+        openJackarooTableLobby({
+          mode: meta.mode,
+          tier: meta.tableTitle,
+          stake: stakeVal,
+          rival
+        });
+      };
+    });
+  };
+  renderModeCards();
+
+  $('#jklBackBtn', view).onclick = () => {
+    if (typeof playSfx === 'function') playSfx('tap');
+    view.close();
+  };
+  $('#jklRulesBtn', view).onclick = () => {
+    if (typeof playSfx === 'function') playSfx('tap');
+    openJackarooRulesModal(0);
+  };
+  $('#jklCoinPlusBtn', view).onclick = () => {
+    if (typeof playSfx === 'function') playSfx('tap');
+    openJackarooCoinTopup();
+  };
+  view.querySelectorAll('[data-jklf]').forEach(btn => {
+    btn.onclick = () => {
+      entryFilter = btn.dataset.jklf || 'all';
+      view.querySelectorAll('[data-jklf]').forEach(b => b.classList.toggle('on', b.dataset.jklf === entryFilter));
+      if (typeof playSfx === 'function') playSfx('tap');
+      renderModeCards();
+    };
+  });
+
+  $('#jklJoinCodeBtn', view).onclick = () => {
+    const code = String($('#jklCodeInput', view)?.value || '').trim().toUpperCase();
+    if (!code || code.length < 3) {
+      if (typeof toast === 'function') toast('Enter a valid Room Code');
+      return;
+    }
+    const existing = (typeof mpRooms !== 'undefined' && Array.isArray(mpRooms))
+      ? mpRooms.find(r => r && String(r.code || '').toUpperCase() === code && r.status === 'waiting')
+      : null;
+    if (typeof playSfx === 'function') playSfx('turnStart');
+    if (existing) {
+      openJackarooTableLobby({
+        mode: existing.subMode === '1v1' ? '1v1' : '2v2',
+        tier: existing.tierLabel || (existing.subMode === '1v1' ? '1v1 | Junior' : 'Basic | Junior'),
+        stake: Number(existing.entryCoins || 0),
+        roomCode: existing.code,
+        roomId: existing.id,
+        joinExistingRoom: existing
+      });
+    } else {
+      openJackarooTableLobby({
+        mode: '2v2',
+        tier: 'Basic | Junior',
+        stake: 0,
+        roomCode: code
+      });
+    }
+  };
+
+  return view;
+}
+window.openJackarooLobby = openJackarooLobby;
+
+function openJackarooTableLobby(opts) {
+  const Rules = window.JackarooRules;
+  if (!Rules) return;
+  const o = opts || {};
+  const mode = o.mode === '1v1' ? '1v1' : '2v2';
+  const stake = Math.max(0, Number(o.stake || 0));
+  const tier = String(o.tier || (mode === '1v1' ? '1v1 | Junior' : 'Basic | Junior'));
+  const roomCode = String(o.roomCode || ('JK' + Math.random().toString(36).slice(2, 6))).toUpperCase();
+  const myUid = typeof uid !== 'undefined' ? uid : 'local';
+  const myName = (typeof me !== 'undefined' && me?.name) || 'You';
+  const myAv = (typeof me !== 'undefined' && me?.avatar) || '🦊';
+  const now = Date.now();
+  const roomId = o.roomId || ('room_jk_' + now.toString(36) + Math.random().toString(36).slice(2, 4));
+
+  const lobby = Rules.createTableLobbyState({
+    mode,
+    tier,
+    stake,
+    roomCode,
+    roomId,
+    host: { uid: myUid, name: myName, avatar: myAv }
+  });
+
+  let isHost = true;
+  if (o.joinExistingRoom && o.joinExistingRoom.hostUid && o.joinExistingRoom.hostUid !== myUid) {
+    isHost = false;
+    // Adopt host + existing seats, and seat myself as joined (not ready until I tap Ready!)
+    const ex = o.joinExistingRoom;
+    lobby.seats[0] = {
+      ...lobby.seats[0],
+      kind: 'host',
+      uid: ex.hostUid,
+      name: ex.hostName || 'Host',
+      avatar: (ex.players && ex.players[ex.hostUid]?.avatar) || '👑',
+      ready: Boolean(ex.players && ex.players[ex.hostUid]?.ready !== false)
+    };
+    if (Array.isArray(ex.jkSeats)) {
+      ex.jkSeats.forEach((s, idx) => {
+        if (lobby.seats[idx] && s && s.kind && s.kind !== 'empty') {
+          lobby.seats[idx] = { ...lobby.seats[idx], ...s };
+        }
+      });
+    }
+    Rules.seatFriendJoined(lobby, { uid: myUid, name: myName, avatar: myAv, ready: false });
+  } else if (o.rival && o.rival.uid) {
+    // Direct friend challenge: invite friend into seat WITHOUT putting any bot there!
+    Rules.inviteFriendToSeat(lobby, o.rival);
+  }
+
+  let tableSpeakerMuted = typeof SFX !== 'undefined' && typeof SFX.isMuted === 'function' ? SFX.isMuted() : false;
+  let tableMicLive = false;
+  const palette = JK_SEAT_PALETTES[mode];
+
+  const syncRoomToCloud = (statusOverride) => {
+    if (typeof persistMpRoom !== 'function') return;
+    const playersMap = {};
+    lobby.seats.forEach(s => {
+      if ((s.kind === 'host' || s.kind === 'joined') && s.uid) {
+        playersMap[s.uid] = {
+          uid: s.uid,
+          name: s.name,
+          avatar: s.avatar,
+          seat: s.seat,
+          ready: Boolean(s.ready),
+          score: 0
+        };
+      }
+    });
+    const hostSeat = lobby.seats[0];
+    const roomDoc = {
+      id: roomId,
+      code: roomCode,
+      mode: 'jackaroo',
+      subMode: mode,
+      tierLabel: tier,
+      entryCoins: stake,
+      maxPlayers: mode === '1v1' ? 2 : 4,
+      hostUid: hostSeat.uid || myUid,
+      hostName: hostSeat.name || myName,
+      status: statusOverride || 'waiting',
+      jkSeats: lobby.seats.map(s => ({ ...s })),
+      players: playersMap,
+      createdAt: now,
+      updatedAt: Date.now()
+    };
+    persistMpRoom(roomDoc);
+  };
+  syncRoomToCloud('waiting');
+
+  const view = openFullScreenGameView({
+    gameId: 'jackaroo_table_lobby',
+    title: tier,
+    subMeta: `ID ${roomCode}`,
+    statusText: 'Waiting',
+    statusTone: 'gold',
+    themeClass: 'gfs-theme-jackaroo',
+    html: `
+      <div class="jkt-shell" data-testid="jackaroo-table-lobby" data-mode="${mode}">
+        <header class="jkt-topbar">
+          <div class="jkt-tb-left">
+            <button type="button" class="jkl-icon-btn" id="jktBackBtn" aria-label="Back to Jackaroo Lobby">‹</button>
+            <div class="jkt-title-wrap">
+              <b>${esc(tier)}</b>
+              <div class="jkt-sub-row">
+                <button type="button" class="jkt-code-chip" id="jktCopyCodeBtn" title="Copy Room Code">ID ${esc(roomCode)} ⧉</button>
+                <span class="jkt-stake-chip ${stake > 0 ? 'paid' : 'free'}">${stake > 0 ? `${stake} 🪙 Entry` : 'Free Table'}</span>
+              </div>
+            </div>
+          </div>
+          <div class="jkt-tb-right">
+            <button type="button" class="jkl-icon-btn" id="jktRulesBtn" aria-label="Jackaroo Rules" title="Rules">📖</button>
+          </div>
+        </header>
+
+        <div class="jkt-status-banner" id="jktStatusBanner" role="status"></div>
+
+        <div class="jkt-arena-stage">
+          <div class="jkt-table-felt ${mode === '1v1' ? 'is-1v1' : 'is-2v2'}">
+            <div class="jkt-center-emblem">
+              <div class="jkt-emblem-ring">
+                <span>${mode === '1v1' ? '1v1' : '2v2'}</span>
+                <small>${esc(tier)}</small>
+              </div>
+              <button type="button" class="jkt-fill-bots-btn" id="jktFillBotsBtn">+ Fill Empty with Bots</button>
+            </div>
+            <div class="jkt-seats-grid ${mode === '1v1' ? 'cols-2' : 'cols-4'}" id="jktSeatsGrid"></div>
+          </div>
+        </div>
+
+        <div class="jkt-bottom-dock">
+          <button type="button" class="jkt-audio-btn ${tableSpeakerMuted ? 'off' : ''}" id="jktSpkBtn" aria-label="Toggle Speaker">${tableSpeakerMuted ? '🔇' : '🔊'}</button>
+          <button type="button" class="jkt-audio-btn ${tableMicLive ? 'live' : 'off'}" id="jktMicBtn" aria-label="Toggle Microphone">${tableMicLive ? '🎙️' : '🔇'}</button>
+          <button type="button" class="btn ok jkt-invite-btn" id="jktInviteBtn">👥 Invite</button>
+          <button type="button" class="btn ghost jkt-ready-btn" id="jktReadyBtn">Ready</button>
+          ${isHost ? `<button type="button" class="btn gold jkt-start-btn" id="jktStartBtn">Start</button>` : ''}
+        </div>
+      </div>
+    `
+  });
+
+  const openInviteForSeat = (preferredSeatId) => {
+    const takenUids = lobby.seats.map(s => s.uid).filter(Boolean);
+    openJackarooInviteModal({
+      mode,
+      stake,
+      tierLabel: tier,
+      roomCode,
+      roomId,
+      alreadyInRoomUids: takenUids,
+      onShareWorld: () => {
+        syncRoomToCloud('waiting');
+        if (typeof shareRoomToWorldChat === 'function') {
+          shareRoomToWorldChat({
+            id: roomId,
+            code: roomCode,
+            mode: 'jackaroo',
+            entryCoins: stake
+          });
+        }
+      },
+      onInviteFriend: (friend) => {
+        const res = Rules.inviteFriendToSeat(lobby, friend, preferredSeatId);
+        if (!res.ok) {
+          if (typeof toast === 'function') {
+            toast(res.reason === 'room_full' ? 'All table seats are currently filled!' : `${friend.name} is already at this table.`);
+          }
+          return;
+        }
+        syncRoomToCloud('waiting');
+        renderTable();
+      }
+    });
+  };
+
+  const renderTable = () => {
+    const seatsEl = $('#jktSeatsGrid', view);
+    const statusEl = $('#jktStatusBanner', view);
+    const readyBtn = $('#jktReadyBtn', view);
+    const startBtn = $('#jktStartBtn', view);
+    const fillBtn = $('#jktFillBotsBtn', view);
+    if (!seatsEl) return;
+
+    const mySeatObj = lobby.seats.find(s => s.uid === myUid) || lobby.seats[0];
+    const strictGate = Rules.canStartLobbyMatch(lobby, { allowBotFillForEmpty: false });
+    const soloFillGate = Rules.canStartLobbyMatch(lobby, { allowBotFillForEmpty: true });
+
+    seatsEl.innerHTML = lobby.seats.map(s => {
+      const col = palette[s.seat] || { hex: '#f59e0b', badge: 'A', name: 'Seat' };
+      const teamLabel = mode === '1v1' ? (s.team === 0 ? 'Side A' : 'Side B') : (s.team === 0 ? 'Team A' : 'Team B');
+
+      if (s.kind === 'empty') {
+        return `
+          <div class="jkt-seat-card is-empty" style="--sc:${col.hex}" data-seat-id="${s.seat}">
+            <span class="jkt-team-tag">${teamLabel}</span>
+            <button type="button" class="jkt-empty-slot" data-jkt-invite-seat="${s.seat}" aria-label="Invite friend to seat ${s.seat}">
+              <span class="jkt-plus">+</span>
+              <b>Empty</b>
+              <small>Tap to Invite</small>
+            </button>
+          </div>
+        `;
+      }
+
+      const isMe = s.uid === myUid;
+      const roleChip = s.kind === 'host'
+        ? '<span class="jkt-role host">HOST</span>'
+        : s.kind === 'bot'
+          ? '<span class="jkt-role bot">BOT</span>'
+          : s.kind === 'invited'
+            ? '<span class="jkt-role inv">INVITED</span>'
+            : '<span class="jkt-role fr">FRIEND</span>';
+
+      const statusBadge = s.kind === 'invited'
+        ? '<span class="jkt-ready-pill waiting">Waiting…</span>'
+        : s.ready
+          ? '<span class="jkt-ready-pill ok">Ready ✓</span>'
+          : '<span class="jkt-ready-pill pending">Not Ready</span>';
+
+      return `
+        <div class="jkt-seat-card is-${s.kind} ${s.ready ? 'is-ready' : ''}" style="--sc:${col.hex}" data-seat-id="${s.seat}">
+          <span class="jkt-team-tag">${teamLabel}</span>
+          ${isHost && s.kind !== 'host' ? `<button type="button" class="jkt-kick-x" data-jkt-clear="${s.seat}" aria-label="Remove from seat" title="Clear Seat">✕</button>` : ''}
+          <div class="jkt-av-ring">${jkAvatarHtml(s.avatar || '🎮')}</div>
+          <div class="jkt-seat-name">${esc(isMe ? 'You' : s.name)}</div>
+          <div class="jkt-seat-chips">
+            ${roleChip}
+            ${statusBadge}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (statusEl) {
+      if (strictGate.reason === 'pending_invites') {
+        statusEl.className = 'jkt-status-banner warn';
+        statusEl.innerHTML = `⏳ Waiting for <b>${esc(strictGate.pendingInvites.join(', '))}</b> to join &amp; tap Ready (invited slots will never be replaced by bots).`;
+      } else if (strictGate.reason === 'not_ready') {
+        statusEl.className = 'jkt-status-banner warn';
+        statusEl.innerHTML = `✋ Waiting for <b>${esc(strictGate.unreadyNames.join(', '))}</b> to tap <b>Ready</b> before starting.`;
+      } else if (strictGate.reason === 'empty_seats') {
+        statusEl.className = 'jkt-status-banner info';
+        statusEl.innerHTML = `👥 <b>${strictGate.emptyCount}</b> empty ${strictGate.emptyCount === 1 ? 'seat' : 'seats'} open — Invite friends or tap <b>+ Fill Empty with Bots</b>.`;
+      } else {
+        statusEl.className = 'jkt-status-banner ok';
+        statusEl.innerHTML = `✅ All seated players are <b>Ready</b> — Host can tap <b>Start</b>!`;
+      }
+    }
+
+    if (readyBtn && mySeatObj) {
+      readyBtn.textContent = mySeatObj.ready ? 'Ready ✓' : 'Ready';
+      readyBtn.classList.toggle('ok', Boolean(mySeatObj.ready));
+      readyBtn.classList.toggle('ghost', !mySeatObj.ready);
+    }
+
+    if (fillBtn) {
+      const hasEmpty = lobby.seats.some(s => s.kind === 'empty');
+      fillBtn.hidden = !isHost || !hasEmpty;
+    }
+
+    if (startBtn) {
+      const blockedByHuman = !soloFillGate.ok;
+      startBtn.disabled = false; // Keep clickable to show exact actionable toast if blocked
+      startBtn.classList.toggle('is-locked', blockedByHuman);
+      startBtn.textContent = strictGate.ok
+        ? 'Start Match'
+        : (soloFillGate.ok ? 'Start' : 'Waiting…');
+    }
+
+    // Bind seat buttons
+    seatsEl.querySelectorAll('[data-jkt-invite-seat]').forEach(btn => {
+      btn.onclick = () => {
+        if (typeof playSfx === 'function') playSfx('tap');
+        openInviteForSeat(Number(btn.dataset.jktInviteSeat));
+      };
+    });
+    seatsEl.querySelectorAll('[data-jkt-clear]').forEach(btn => {
+      btn.onclick = (ev) => {
+        ev.stopPropagation();
+        const sid = Number(btn.dataset.jktClear);
+        Rules.removeSeatOccupant(lobby, sid);
+        if (typeof playSfx === 'function') playSfx('tap');
+        syncRoomToCloud('waiting');
+        renderTable();
+      };
+    });
+  };
+  renderTable();
+
+  // Live Firestore room updates (when a real friend joins or taps Ready on another device!)
+  activeJackarooTableSync = (roomsList) => {
+    const live = (Array.isArray(roomsList) ? roomsList : []).find(r => r && r.id === roomId);
+    if (!live) return;
+    if (Array.isArray(live.jkSeats) && live.jkSeats.length === lobby.seats.length) {
+      live.jkSeats.forEach((remoteSeat, idx) => {
+        if (!remoteSeat) return;
+        // Preserve my own local Ready state if I am that seat
+        if (remoteSeat.uid === myUid) return;
+        lobby.seats[idx] = { ...lobby.seats[idx], ...remoteSeat };
+      });
+    }
+    if (live.players && typeof live.players === 'object') {
+      Object.values(live.players).forEach(p => {
+        if (!p || !p.uid || p.uid === myUid) return;
+        const seated = lobby.seats.find(s => s.uid === p.uid);
+        if (!seated) {
+          Rules.seatFriendJoined(lobby, { uid: p.uid, name: p.name, avatar: p.avatar, ready: Boolean(p.ready) });
+        } else if (seated.kind === 'invited') {
+          Rules.seatFriendJoined(lobby, { uid: p.uid, name: p.name, avatar: p.avatar, ready: Boolean(p.ready) });
+        } else if (seated.kind === 'joined') {
+          seated.ready = Boolean(p.ready);
+        }
+      });
+    }
+    if (live.status === 'playing' && !isHost) {
+      const roster = Rules.resolveMatchRoster(lobby);
+      activeJackarooTableSync = null;
+      launchJackaroo(stake, null, mode, stake > 0 ? 'pro' : 'standard', roomCode, {
+        seatRoster: roster,
+        tierLabel: tier,
+        roomId
+      });
+      return;
+    }
+    renderTable();
+  };
+
+  const prevClose = view.close;
+  view.close = () => {
+    activeJackarooTableSync = null;
+    prevClose();
+  };
+
+  $('#jktBackBtn', view).onclick = () => {
+    activeJackarooTableSync = null;
+    if (typeof playSfx === 'function') playSfx('tap');
+    openJackarooLobby({ rival: o.rival });
+  };
+  $('#jktRulesBtn', view).onclick = () => {
+    if (typeof playSfx === 'function') playSfx('tap');
+    openJackarooRulesModal(0);
+  };
+  $('#jktCopyCodeBtn', view).onclick = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(roomCode).catch(() => {});
+    }
+    if (typeof playSfx === 'function') playSfx('tap');
+    if (typeof toast === 'function') toast(`Copied Room Code ${roomCode}`);
+  };
+  $('#jktSpkBtn', view).onclick = () => {
+    tableSpeakerMuted = !tableSpeakerMuted;
+    if (typeof SFX !== 'undefined' && typeof SFX.setMuted === 'function') SFX.setMuted(tableSpeakerMuted);
+    const b = $('#jktSpkBtn', view);
+    if (b) { b.classList.toggle('off', tableSpeakerMuted); b.textContent = tableSpeakerMuted ? '🔇' : '🔊'; }
+  };
+  $('#jktMicBtn', view).onclick = () => {
+    tableMicLive = !tableMicLive;
+    const b = $('#jktMicBtn', view);
+    if (b) { b.classList.toggle('live', tableMicLive); b.classList.toggle('off', !tableMicLive); b.textContent = tableMicLive ? '🎙️' : '🔇'; }
+    if (typeof toast === 'function') toast(tableMicLive ? 'Lobby Mic Live' : 'Lobby Mic Muted');
+  };
+  $('#jktInviteBtn', view).onclick = () => {
+    if (typeof playSfx === 'function') playSfx('tap');
+    openInviteForSeat(null);
+  };
+  $('#jktFillBotsBtn', view).onclick = () => {
+    const filled = Rules.fillEmptySeatsWithBots(lobby);
+    if (typeof playSfx === 'function') playSfx('tap');
+    if (filled > 0) {
+      syncRoomToCloud('waiting');
+      renderTable();
+      if (typeof toast === 'function') toast(`Filled ${filled} empty ${filled === 1 ? 'seat' : 'seats'} with Bots (invited friends untouched)`);
+    }
+  };
+  $('#jktReadyBtn', view).onclick = () => {
+    const mySeatObj = lobby.seats.find(s => s.uid === myUid);
+    if (!mySeatObj) return;
+    Rules.toggleSeatReady(lobby, mySeatObj.seat);
+    if (typeof playSfx === 'function') playSfx('tap');
+    syncRoomToCloud('waiting');
+    renderTable();
+  };
+
+  const startBtn = $('#jktStartBtn', view);
+  if (startBtn) {
+    startBtn.onclick = () => {
+      const gate = Rules.canStartLobbyMatch(lobby, { allowBotFillForEmpty: true });
+      if (!gate.ok) {
+        if (gate.reason === 'pending_invites') {
+          if (typeof toast === 'function') toast(`Waiting for ${gate.pendingInvites.join(', ')} to join! Cancel invite (✕) if you want an empty seat.`);
+        } else if (gate.reason === 'not_ready') {
+          if (typeof toast === 'function') toast(`All joined players must tap Ready first (${gate.unreadyNames.join(', ')})`);
+        }
+        if (typeof playSfx === 'function') playSfx('duelWrong');
+        return;
+      }
+      if (stake > 0) {
+        if (typeof me !== 'undefined' && me.coins < stake) {
+          if (typeof toast === 'function') toast(`Need ${stake} coins to start this table`);
+          return;
+        }
+        if (typeof addReward === 'function') {
+          addReward(-stake, 0, null, true, { silentSfx: true, skipLevelUp: true });
+        }
+        if (typeof playSfx === 'function') playSfx('stakeLock');
+      } else if (typeof playSfx === 'function') {
+        playSfx('turnStart');
+      }
+      // Strictly preserves all joined real friends & fills ONLY un-invited empty seats
+      const finalRoster = Rules.resolveMatchRoster(lobby);
+      syncRoomToCloud('playing');
+      activeJackarooTableSync = null;
+      launchJackaroo(stake, o.rival || null, mode, stake > 0 ? 'pro' : 'standard', roomCode, {
+        seatRoster: finalRoster,
+        tierLabel: tier,
+        roomId
+      });
+    };
+  }
+
+  return view;
+}
+window.openJackarooTableLobby = openJackarooTableLobby;
+
+function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOpts) {
   const Rules = window.JackarooRules;
   if (!Rules) {
     if (typeof toast === 'function') toast('Jackaroo rules module failed to load.');
     return;
   }
 
+  const lOpts = launchOpts || {};
   const mode = modeRaw === '1v1' ? '1v1' : '2v2';
   const botTier = botTierRaw || (Number(stake || 0) > 0 ? 'pro' : 'standard');
   const roomCode = String(roomCodeRaw || ('JK' + Math.random().toString(36).slice(2, 6))).trim().toUpperCase();
@@ -335,19 +1184,30 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
         3: { name: 'Mery', avatar: '👑', gender: '♀', isFriend: false }
       };
 
-  const players = cfg.activeSeats.map(seat => ({
-    seat,
-    team: mode === '1v1' ? (seat === 0 ? 0 : 1) : (seat % 2),
-    name: seatMeta[seat].name,
-    avatar: seatMeta[seat].avatar,
-    gender: seatMeta[seat].gender,
-    isBot: seat !== 0,
-    isInvitedFriend: seatMeta[seat].isFriend,
-    startPos: cfg.startPositions[seat],
-    hand: drawCards(4),
-    color: palette[seat],
-    micOn: seat !== 0 && Math.random() < 0.35
-  }));
+  const rosterBySeat = new Map();
+  if (Array.isArray(lOpts.seatRoster)) {
+    lOpts.seatRoster.forEach(s => { if (s) rosterBySeat.set(Number(s.seat), s); });
+  }
+
+  const players = cfg.activeSeats.map(seat => {
+    const rs = rosterBySeat.get(seat);
+    const meta = seatMeta[seat];
+    const isRealJoined = Boolean(rs && (rs.kind === 'joined' || rs.kind === 'invited'));
+    return {
+      seat,
+      team: mode === '1v1' ? (seat === 0 ? 0 : 1) : (seat % 2),
+      uid: rs?.uid || (seat === 0 ? (typeof uid !== 'undefined' ? uid : 'local') : `bot_${seat}`),
+      name: (rs && rs.name) ? rs.name : meta.name,
+      avatar: (rs && rs.avatar) ? rs.avatar : meta.avatar,
+      gender: meta.gender,
+      isBot: seat !== 0,
+      isInvitedFriend: isRealJoined || meta.isFriend,
+      startPos: cfg.startPositions[seat],
+      hand: drawCards(4),
+      color: palette[seat],
+      micOn: isRealJoined || (seat !== 0 && Math.random() < 0.35)
+    };
+  });
 
   // Guarantee opening hand has a valid exit-base card (A, 2, or K in 1v1; A or 2 in 2v2)
   if (!players[0].hand.some(c => Rules.getCardRole(c, mode).canExitBase)) {
@@ -819,8 +1679,10 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
     }, 1250);
   };
 
-  const captureMarbleObj = (vic) => {
+  const captureMarbleObj = (vic, moverOwnerSeat) => {
     if (!vic || vic.zone !== 'track') return false;
+    if (Rules.isSafeStartMarble(vic, players)) return false;
+    if (moverOwnerSeat != null && vic.owner === moverOwnerSeat) return false;
     const pt = trackXY(vic.pos);
     burstCoord = { x: pt.x, y: pt.y, color: palette[vic.owner].hex };
     vic.zone = 'base';
@@ -833,7 +1695,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
 
   const captureAtPos = (moverSeat, pos) => {
     const vic = marbles.find(x => x.zone === 'track' && x.pos === pos && x.owner !== moverSeat && !Rules.isSafeStartMarble(x, players));
-    return vic && captureMarbleObj(vic) ? vic : null;
+    return vic && captureMarbleObj(vic, moverSeat) ? vic : null;
   };
 
   const grantComboDraw = (p) => {
@@ -1368,6 +2230,12 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
     clearTimeout(hiddenPickTimer);
     pendingHiddenDiscard = null;
     const outcome = winTeam === 0 ? 'win' : 'lose';
+    if (typeof me !== 'undefined' && me) {
+      me.stats = me.stats || {};
+      me.stats.jk_matches = Number(me.stats.jk_matches || 0) + 1;
+      if (outcome === 'win') me.stats.jk_wins = Number(me.stats.jk_wins || 0) + 1;
+      if (typeof saveMe === 'function') saveMe();
+    }
     const res = settleArenaMatchOutcome(outcome, stake, 55, 38, 14);
     render();
     renderGameOverOverlay(winTeam, res);
@@ -1660,11 +2528,13 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
 
     animateMarbleWaypoints(mb.id, waypoints, () => {
       if (over) return;
+      const moveControlSeat = Rules.getControlSeat(moverPlayer.seat, getStateObj());
+      const movedOwnStone = mb.owner === moveControlSeat;
       let capturedCount = 0;
-      if (d.passedCaptures && d.passedCaptures.length) {
+      if (movedOwnStone && d.passedCaptures && d.passedCaptures.length) {
         d.passedCaptures.forEach(cid => {
           const vic = marbles.find(x => x.id === cid);
-          if (vic && captureMarbleObj(vic)) capturedCount++;
+          if (vic && captureMarbleObj(vic, mb.owner)) capturedCount++;
         });
       }
       mb.zone = d.zone;
@@ -1672,7 +2542,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
       mb.homeIdx = d.homeIdx;
       mb.stepsFromStart = d.stepsFromStart;
 
-      const enteredHome = prevZone !== 'home' && d.zone === 'home';
+      const enteredHome = movedOwnStone && prevZone !== 'home' && d.zone === 'home';
       const extraTurn = Rules.shouldGrantExtraTurn({ capturedCount, enteredHome, discardedEnemy: false });
       const comboGot = Rules.shouldGrantComboDraw({ capturedCount, enteredHome }) && grantComboDraw(moverPlayer);
       if (capturedCount > 0 || enteredHome) {
@@ -1869,9 +2739,9 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
             : activeM;
           for (const mb of pool) {
             if (mb.owner !== controlSeat && !role.anyMarble) continue;
-            const d = Rules.computeMove(mb, stp, st, { sweepCapture: Boolean(role.sweepCapture) });
+            const d = Rules.computeMove(mb, stp, st, { sweepCapture: Boolean(role.sweepCapture), moverSeat: controlSeat });
             if (!d.valid) continue;
-            if ((mb.owner === controlSeat && mb.zone !== 'home' && d.zone === 'home') || (d.passedCaptures && d.passedCaptures.length)) {
+            if ((mb.owner === controlSeat && mb.zone !== 'home' && d.zone === 'home') || (mb.owner === controlSeat && d.passedCaptures && d.passedCaptures.length)) {
               runAnimatedTrackedMove(p, mb, d, c, `${p.color.emoji} ${p.name} played ${c.rank}${c.suit}`, (extra) => finishBotTurn(p, extra));
               return;
             }
@@ -1924,7 +2794,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
           : rankedActive;
         for (const stp of role.steps) {
           for (const mb of pool) {
-            const d = Rules.computeMove(mb, stp, st, { sweepCapture: Boolean(role.sweepCapture) });
+            const d = Rules.computeMove(mb, stp, st, { sweepCapture: Boolean(role.sweepCapture), moverSeat: controlSeat });
             if (d.valid) {
               runAnimatedTrackedMove(
                 p,
@@ -2005,7 +2875,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
         ? marbles.filter(x => Rules.canCard5MoveMarble(x, controlSeat, players))
         : myM.filter(x => x.zone !== 'base');
       pool.forEach(x => {
-        const d = Rules.computeMove(x, chosenSteps, st, { sweepCapture: chosenSweep });
+        const d = Rules.computeMove(x, chosenSteps, st, { sweepCapture: chosenSweep, moverSeat: controlSeat });
         if (d.valid) {
           map.set(x.id, { dest: d, steps: chosenSteps, label: chosenSteps > 0 ? `+${chosenSteps}` : String(chosenSteps) });
         }

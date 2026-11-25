@@ -151,7 +151,53 @@
   }
 
   /**
+   * Resolves a teleport spot landing if the track spot belongs to cfg.teleportMap,
+   * moves strictly forward toward the marble's own home entry, and is not blocked
+   * by an own stone, a safe-start stone, or (for rival Card-5 moves) any stone.
+   */
+  function applyTeleportIfEligible(np, ns, m, owner, cfg, marbles, players, path, passedCaptures, allowCapture) {
+    if (!cfg.teleportMap || cfg.teleportMap[np] === undefined) {
+      return { pos: np, stepsFromStart: ns, teleported: false, teleportFrom: -1 };
+    }
+    const homeEntrySteps = cfg.homeEntrySteps != null ? cfg.homeEntrySteps : (cfg.trackLen - 1);
+    const tp = cfg.teleportMap[np];
+    const curOffset = ((np - owner.startPos) % cfg.trackLen + cfg.trackLen) % cfg.trackLen;
+    const tpSteps = ((tp - owner.startPos) % cfg.trackLen + cfg.trackLen) % cfg.trackLen;
+
+    // Only teleport when the swirl advances this marble forward without overshooting its home entry
+    if (tpSteps > curOffset && tpSteps <= homeEntrySteps) {
+      const atTp = marbles.find(x => x.id !== m.id && x.zone === 'track' && x.pos === tp);
+      if (atTp) {
+        // Blocked by own stone or safe-start stone — stay on landing spot without teleporting
+        if (atTp.owner === m.owner) {
+          return { pos: np, stepsFromStart: ns, teleported: false, teleportFrom: -1 };
+        }
+        if (isSafeStartMarble(atTp, players)) {
+          return { pos: np, stepsFromStart: ns, teleported: false, teleportFrom: -1 };
+        }
+        // Rival stone moved via Card 5 cannot capture anyone at teleport destination
+        if (!allowCapture) {
+          return { pos: np, stepsFromStart: ns, teleported: false, teleportFrom: -1 };
+        }
+        if (!passedCaptures.includes(atTp.id)) {
+          passedCaptures.push(atTp.id);
+        }
+      }
+      path.push({ zone: 'track', pos: tp, homeIdx: -1, isTeleport: true });
+      return { pos: tp, stepsFromStart: tpSteps, teleported: true, teleportFrom: np };
+    }
+
+    return { pos: np, stepsFromStart: ns, teleported: false, teleportFrom: -1 };
+  }
+
+  /**
    * Computes destination, step-by-step path coordinates, teleport, and captures.
+   * Enforces strict ownership invariants:
+   * - Only the moving player's own (or teammate-assist controlled) stone may enter its Home lane.
+   * - Card 5 moving an opponent's stone advances strictly along track spots, never enters Home,
+   *   and never captures/sends any stone to Base wrongly.
+   * - Landing on a valid TELEPORT_MAP spot always teleports unless destination is blocked by own/safe stone,
+   *   updating both `pos` and `stepsFromStart`.
    */
   function computeMove(m, steps, state, opts) {
     const o = opts || {};
@@ -161,10 +207,13 @@
     const owner = players.find(p => p.seat === m.owner);
     if (!owner || m.zone === 'base' || !steps) return { valid: false, reason: 'invalid' };
 
+    // Determine whether mover is moving their own/controlled stone vs pushing an opponent's stone (Card 5)
+    const isOwnMove = (o.moverSeat == null) || (o.moverSeat === m.owner);
     const homeEntrySteps = cfg.homeEntrySteps != null ? cfg.homeEntrySteps : (cfg.trackLen - 1);
 
-    // Inside Home lane: advance step-by-step without jumping own home stones
+    // Inside Home lane: only owner/controlled stone can advance step-by-step without jumping own home stones
     if (m.zone === 'home') {
+      if (!isOwnMove) return { valid: false, reason: 'rival-home-forbidden' };
       if (steps <= 0) return { valid: false, reason: 'home-back' };
       const targetHome = m.homeIdx + steps;
       if (targetHome >= cfg.homeLen) return { valid: false, reason: 'home-overshoot' };
@@ -183,6 +232,7 @@
         homeIdx: targetHome,
         stepsFromStart: m.stepsFromStart + steps,
         teleported: false,
+        teleportFrom: -1,
         passedCaptures: [],
         path
       };
@@ -190,6 +240,7 @@
 
     // Backward move (-4)
     if (steps < 0) {
+      if (!isOwnMove) return { valid: false, reason: 'rival-back-forbidden' };
       const absSteps = Math.abs(steps);
       const path = [];
       const passedCaptures = [];
@@ -204,18 +255,20 @@
         }
         path.push({ zone: 'track', pos: checkPos, homeIdx: -1 });
       }
-      const np = ((m.pos + steps) % cfg.trackLen + cfg.trackLen) % cfg.trackLen;
+      const rawNp = ((m.pos + steps) % cfg.trackLen + cfg.trackLen) % cfg.trackLen;
       // Classic Jackaroo -4 wrap shortcut behind start spot
-      const ns = m.stepsFromStart >= absSteps
+      const rawNs = m.stepsFromStart >= absSteps
         ? (m.stepsFromStart - absSteps)
         : (cfg.trackLen + (m.stepsFromStart - absSteps));
+      const tpRes = applyTeleportIfEligible(rawNp, rawNs, m, owner, cfg, marbles, players, path, passedCaptures, true);
       return {
         valid: true,
         zone: 'track',
-        pos: np,
+        pos: tpRes.pos,
         homeIdx: -1,
-        stepsFromStart: ns,
-        teleported: false,
+        stepsFromStart: tpRes.stepsFromStart,
+        teleported: tpRes.teleported,
+        teleportFrom: tpRes.teleportFrom,
         passedCaptures,
         path
       };
@@ -223,7 +276,8 @@
 
     // Forward move (+steps)
     let ns = m.stepsFromStart + steps;
-    const enteringHome = m.stepsFromStart <= homeEntrySteps && ns > homeEntrySteps;
+    // Only the marble's own controller may turn into its Home lane!
+    const enteringHome = isOwnMove && m.stepsFromStart <= homeEntrySteps && ns > homeEntrySteps;
     const trackStepsToCheck = enteringHome ? Math.max(0, homeEntrySteps - m.stepsFromStart) : steps;
     const passedCaptures = [];
     const path = [];
@@ -242,7 +296,12 @@
         if (enteringHome && s === trackStepsToCheck && !o.sweepCapture) {
           return { valid: false, reason: 'pre-home-block' };
         }
-        if (o.sweepCapture) {
+        if (!isOwnMove) {
+          // Card 5 pushing an opponent's stone must NEVER capture or knock any stone to base!
+          if (isFinalStep) {
+            return { valid: false, reason: 'occupied-spot' };
+          }
+        } else if (o.sweepCapture) {
           passedCaptures.push(atSpot.id);
         } else if (isFinalStep) {
           passedCaptures.push(atSpot.id);
@@ -268,43 +327,27 @@
         homeIdx: hi,
         stepsFromStart: ns,
         teleported: false,
+        teleportFrom: -1,
         passedCaptures,
         path
       };
     }
 
-    let np = (m.pos + steps) % cfg.trackLen;
-    let teleported = false;
-    let teleportFrom = -1;
-    if (cfg.teleportMap && cfg.teleportMap[np] !== undefined) {
-      const tp = cfg.teleportMap[np];
-      const tpSteps = ((tp - owner.startPos) % cfg.trackLen + cfg.trackLen) % cfg.trackLen;
-      // Only teleport when the swirl advances this marble forward without overshooting its home entry
-      if (tpSteps > ns && tpSteps <= homeEntrySteps) {
-        const ownAtTp = marbles.some(x => x.id !== m.id && x.owner === m.owner && x.zone === 'track' && x.pos === tp);
-        const safeAtTp = marbles.some(x => x.id !== m.id && x.owner !== m.owner && x.zone === 'track' && x.pos === tp && isSafeStartMarble(x, players));
-        if (!ownAtTp && !safeAtTp) {
-          teleportFrom = np;
-          np = tp;
-          teleported = true;
-          ns = tpSteps;
-          path.push({ zone: 'track', pos: tp, homeIdx: -1, isTeleport: true });
-          const tpVictim = marbles.find(x => x.id !== m.id && x.owner !== m.owner && x.zone === 'track' && x.pos === tp && !isSafeStartMarble(x, players));
-          if (tpVictim && !passedCaptures.includes(tpVictim.id)) {
-            passedCaptures.push(tpVictim.id);
-          }
-        }
-      }
-    }
+    const rawNp = (m.pos + steps) % cfg.trackLen;
+    // Sync stepsFromStart cleanly to track offset when moving along track (prevents drift on rival Card-5 wrap)
+    const rawNs = isOwnMove
+      ? ns
+      : (((rawNp - owner.startPos) % cfg.trackLen + cfg.trackLen) % cfg.trackLen);
+    const tpRes = applyTeleportIfEligible(rawNp, rawNs, m, owner, cfg, marbles, players, path, passedCaptures, isOwnMove);
 
     return {
       valid: true,
       zone: 'track',
-      pos: np,
+      pos: tpRes.pos,
       homeIdx: -1,
-      stepsFromStart: ns,
-      teleported,
-      teleportFrom,
+      stepsFromStart: tpRes.stepsFromStart,
+      teleported: tpRes.teleported,
+      teleportFrom: tpRes.teleportFrom,
       passedCaptures,
       path
     };
@@ -400,7 +443,7 @@
       for (const stp of role.steps) {
         const list = [];
         for (const mb of pool) {
-          const d = computeMove(mb, stp, state, { sweepCapture: Boolean(role.sweepCapture) });
+          const d = computeMove(mb, stp, state, { sweepCapture: Boolean(role.sweepCapture), moverSeat: controlSeat });
           if (d.valid) {
             const item = { marbleId: mb.id, steps: stp, sweepCapture: Boolean(role.sweepCapture), dest: d };
             list.push(item);
@@ -557,6 +600,196 @@
     return isAfk ? TURN_CONFIG.AFK_AUTO_MS : TURN_CONFIG.TURN_SECONDS * 1000;
   }
 
+  /* =====================================================================
+     PRE-MATCH TABLE LOBBY STATE MACHINE (Strict No-Bot-Hijack & Ready Gate)
+     ===================================================================== */
+  const DEFAULT_LOBBY_BOTS = [
+    { uid: 'bot_rivara', name: 'Rivara', avatar: '🌟', gender: '♀' },
+    { uid: 'bot_alison', name: 'Alison', avatar: '🧑‍🎓', gender: '♀' },
+    { uid: 'bot_mery', name: 'Mery', avatar: '👑', gender: '♀' },
+    { uid: 'bot_linda', name: 'Linda', avatar: '👩', gender: '♀' }
+  ];
+
+  function createTableLobbyState(opts) {
+    const o = opts || {};
+    const mode = o.mode === '1v1' ? '1v1' : '2v2';
+    const cfg = getBoardConfig(mode);
+    const host = o.host || { uid: 'local', name: 'You', avatar: '🦊' };
+    const seats = cfg.activeSeats.map((seatId, idx) => {
+      const team = mode === '1v1' ? (seatId === 0 ? 0 : 1) : (seatId % 2);
+      if (idx === 0) {
+        return {
+          seat: seatId,
+          team,
+          kind: 'host', // 'host' | 'joined' | 'invited' | 'bot' | 'empty'
+          uid: String(host.uid || 'local'),
+          name: String(host.name || 'You'),
+          avatar: String(host.avatar || '🦊'),
+          ready: true
+        };
+      }
+      return {
+        seat: seatId,
+        team,
+        kind: 'empty',
+        uid: '',
+        name: '',
+        avatar: '',
+        ready: false
+      };
+    });
+    return {
+      mode,
+      tier: String(o.tier || (mode === '1v1' ? '1v1 Junior' : 'Junior')),
+      stake: Math.max(0, Number(o.stake || 0)),
+      roomCode: String(o.roomCode || 'JKROOM').toUpperCase(),
+      roomId: String(o.roomId || ''),
+      seats
+    };
+  }
+
+  function inviteFriendToSeat(lobby, friend, preferredSeatId) {
+    if (!lobby || !Array.isArray(lobby.seats) || !friend || !friend.uid) return { ok: false, reason: 'invalid' };
+    const fUid = String(friend.uid);
+    const already = lobby.seats.find(s => s.uid === fUid && (s.kind === 'invited' || s.kind === 'joined' || s.kind === 'host'));
+    if (already) return { ok: false, reason: 'already_in_room', seat: already.seat };
+
+    let target = null;
+    if (preferredSeatId != null) {
+      const cand = lobby.seats.find(s => s.seat === Number(preferredSeatId));
+      if (cand && cand.kind === 'empty') target = cand;
+    }
+    if (!target) {
+      target = lobby.seats.find(s => s.kind === 'empty');
+    }
+    if (!target) return { ok: false, reason: 'room_full' };
+
+    target.kind = 'invited';
+    target.uid = fUid;
+    target.name = String(friend.name || 'Friend');
+    target.avatar = String(friend.avatar || '🎮');
+    target.ready = false;
+    target.invitedAt = Date.now();
+    return { ok: true, seat: target.seat };
+  }
+
+  function seatFriendJoined(lobby, friend, preferredSeatId) {
+    if (!lobby || !Array.isArray(lobby.seats) || !friend || !friend.uid) return { ok: false, reason: 'invalid' };
+    const fUid = String(friend.uid);
+    let target = lobby.seats.find(s => s.uid === fUid && (s.kind === 'invited' || s.kind === 'joined'));
+    if (!target && preferredSeatId != null) {
+      const cand = lobby.seats.find(s => s.seat === Number(preferredSeatId));
+      if (cand && cand.kind === 'empty') target = cand;
+    }
+    if (!target) {
+      target = lobby.seats.find(s => s.kind === 'empty');
+    }
+    if (!target) return { ok: false, reason: 'room_full' };
+
+    const wasReady = target.kind === 'joined' ? Boolean(target.ready) : Boolean(friend.ready);
+    target.kind = 'joined';
+    target.uid = fUid;
+    target.name = String(friend.name || 'Player');
+    target.avatar = String(friend.avatar || '🎮');
+    target.ready = wasReady;
+    return { ok: true, seat: target.seat };
+  }
+
+  function toggleSeatReady(lobby, seatId, forceReady) {
+    if (!lobby || !Array.isArray(lobby.seats)) return false;
+    const target = lobby.seats.find(s => s.seat === Number(seatId));
+    if (!target) return false;
+    if (target.kind !== 'host' && target.kind !== 'joined') return false;
+    target.ready = typeof forceReady === 'boolean' ? forceReady : !target.ready;
+    return target.ready;
+  }
+
+  function removeSeatOccupant(lobby, seatId) {
+    if (!lobby || !Array.isArray(lobby.seats)) return false;
+    const target = lobby.seats.find(s => s.seat === Number(seatId));
+    if (!target || target.kind === 'host') return false;
+    target.kind = 'empty';
+    target.uid = '';
+    target.name = '';
+    target.avatar = '';
+    target.ready = false;
+    delete target.invitedAt;
+    return true;
+  }
+
+  /**
+   * STRICT NO-BOT-HIJACK:
+   * Only fills seats whose kind === 'empty'. NEVER overwrites 'host', 'invited', or 'joined' seats!
+   */
+  function fillEmptySeatsWithBots(lobby, customBots) {
+    if (!lobby || !Array.isArray(lobby.seats)) return 0;
+    const pool = Array.isArray(customBots) && customBots.length ? customBots : DEFAULT_LOBBY_BOTS;
+    const usedUids = new Set(lobby.seats.map(s => s.uid).filter(Boolean));
+    let botCursor = 0;
+    let filled = 0;
+    for (const s of lobby.seats) {
+      if (s.kind !== 'empty') continue;
+      let chosen = null;
+      for (let tries = 0; tries < pool.length; tries++) {
+        const cand = pool[(botCursor + tries) % pool.length];
+        if (cand && !usedUids.has(cand.uid)) {
+          chosen = cand;
+          botCursor = (botCursor + tries + 1) % pool.length;
+          break;
+        }
+      }
+      if (!chosen) chosen = { uid: 'bot_s' + s.seat, name: 'Bot ' + (s.seat + 1), avatar: '🤖' };
+      s.kind = 'bot';
+      s.uid = chosen.uid;
+      s.name = chosen.name;
+      s.avatar = chosen.avatar || '🤖';
+      s.ready = true;
+      usedUids.add(chosen.uid);
+      filled++;
+    }
+    return filled;
+  }
+
+  /**
+   * Strict Start Gate:
+   * - Never starts while any friend slot is still pending ('invited') — prevents bot-hijacking invited slots!
+   * - Never starts until ALL joined real players (and host) have ready === true!
+   * - If empty seats remain and allowBotFillForEmpty is false, asks host to invite friends or explicitly fill empty seats with bots.
+   */
+  function canStartLobbyMatch(lobby, opts) {
+    const o = opts || {};
+    if (!lobby || !Array.isArray(lobby.seats) || !lobby.seats.length) {
+      return { ok: false, reason: 'invalid', unreadyNames: [], pendingInvites: [], emptyCount: 0 };
+    }
+    const pendingInvites = lobby.seats.filter(s => s.kind === 'invited').map(s => s.name || 'Friend');
+    const unreadyNames = lobby.seats
+      .filter(s => (s.kind === 'host' || s.kind === 'joined') && !s.ready)
+      .map(s => s.name || 'Player');
+    const emptyCount = lobby.seats.filter(s => s.kind === 'empty').length;
+
+    if (pendingInvites.length > 0) {
+      return { ok: false, reason: 'pending_invites', unreadyNames, pendingInvites, emptyCount };
+    }
+    if (unreadyNames.length > 0) {
+      return { ok: false, reason: 'not_ready', unreadyNames, pendingInvites, emptyCount };
+    }
+    if (emptyCount > 0 && !o.allowBotFillForEmpty) {
+      return { ok: false, reason: 'empty_seats', unreadyNames, pendingInvites, emptyCount };
+    }
+    return { ok: true, reason: 'ready', unreadyNames: [], pendingInvites: [], emptyCount };
+  }
+
+  function resolveMatchRoster(lobby, customBots) {
+    if (!lobby || !Array.isArray(lobby.seats)) return [];
+    const cloned = {
+      ...lobby,
+      seats: lobby.seats.map(s => ({ ...s }))
+    };
+    // Only un-invited empty seats may be filled with bots; invited/joined seats are strictly untouched
+    fillEmptySeatsWithBots(cloned, customBots);
+    return cloned.seats;
+  }
+
   const api = {
     HOME_LEN,
     SUITS,
@@ -578,7 +811,15 @@
     getLegalActionsForCard,
     isCardPlayable,
     pickNoobAction,
-    getTurnActionDelayMs
+    getTurnActionDelayMs,
+    createTableLobbyState,
+    inviteFriendToSeat,
+    seatFriendJoined,
+    toggleSeatReady,
+    removeSeatOccupant,
+    fillEmptySeatsWithBots,
+    canStartLobbyMatch,
+    resolveMatchRoster
   };
 
   root.JackarooRules = api;
