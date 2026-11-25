@@ -1,17 +1,20 @@
 "use strict";
 /* =====================================================================
-   JACKAROO ROYAL — 4-PLAYER (2v2 TEAM) & 1v1 MARBLE CARD BOARD GAME (v12)
-   Full rulebook: Ace (Base/+1/+11), King (Base/+13), Queen (+12),
-   Jack (Swap non-safe marbles), 7 (Move 7 or Split across 2 marbles),
-   4 (-4 backward), 10 (+10 or Burn opponent card), Safe Zones, Capture,
-   Smart AI Teammates & Opponents, 3D Glossy Marbles & Quick Voice Chat.
+   JACKAROO ROYAL — 4-PLAYER (2v2) & 1v1 MARBLE CARD BOARD GAME (v16)
+   - Full Card Roles: A, 2, 3, 4 (-4), 5, 6, 7 (7 / Split), 8, 9,
+     10 (+10 / Burn), J (Swap / +11), Q (+12 / Discard), K (Base / +13)
+   - Teleport Spots + Capture/Home Draw Combo + Friend Room Invite
+   - Full-Screen Game View + Mic & Quick Voice + Game Over Rematch
    ===================================================================== */
 
-function launchJackaroo(stake, rival, modeRaw) {
+function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
   const mode = modeRaw === '1v1' ? '1v1' : '2v2';
+  const botTier = botTierRaw || (Number(stake || 0) > 0 ? 'pro' : 'standard');
+  const roomCode = String(roomCodeRaw || '').trim().toUpperCase();
   const TRACK_LEN = 48;
   const HOME_LEN = 4;
   const SAFE_SPOTS = [0, 12, 24, 36];
+  const TELEPORT_MAP = { 6: 18, 18: 30, 30: 42, 42: 6 };
   const SUITS = ['♠', '♥', '♦', '♣'];
   const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
   const SEAT_COLORS = [
@@ -23,7 +26,7 @@ function launchJackaroo(stake, rival, modeRaw) {
 
   const pay = calcArenaStakePayout(stake);
   const activeSeats = mode === '1v1' ? [0, 2] : [0, 1, 2, 3];
-  const oppName = rival?.name || (mode === '1v1' ? 'Royal Bot' : 'Viper Duo');
+  const oppName = rival?.name || (mode === '1v1' ? (botTier === 'pro' ? 'Royal Pro Bot' : 'Royal Bot') : 'Viper Duo');
 
   const shuffle = (arr) => {
     const a = arr.slice();
@@ -62,9 +65,9 @@ function launchJackaroo(stake, rival, modeRaw) {
 
   const seatNames = {
     0: me?.name || 'You',
-    1: 'Nova Bot',
+    1: botTier === 'pro' ? 'Nova Pro' : 'Nova Bot',
     2: mode === '1v1' ? oppName : 'Atlas (Mate)',
-    3: 'Viper Bot'
+    3: botTier === 'pro' ? 'Viper Pro' : 'Viper Bot'
   };
 
   const players = activeSeats.map(seat => ({
@@ -77,7 +80,6 @@ function launchJackaroo(stake, rival, modeRaw) {
     color: SEAT_COLORS[seat]
   }));
 
-  /* Give player a guaranteed Ace or King in opening hand so gameplay starts exciting immediately */
   if (!players[0].hand.some(c => c.rank === 'A' || c.rank === 'K')) {
     const akIdx = deck.findIndex(c => c.rank === 'A' || c.rank === 'K');
     if (akIdx >= 0) {
@@ -94,7 +96,7 @@ function launchJackaroo(stake, rival, modeRaw) {
         id: `jm_${p.seat}_${i}`,
         owner: p.seat,
         idx: i,
-        zone: 'base', // 'base' | 'track' | 'home'
+        zone: 'base',
         pos: -1,
         homeIdx: -1,
         stepsFromStart: 0
@@ -105,12 +107,12 @@ function launchJackaroo(stake, rival, modeRaw) {
   let turnIdx = 0;
   let over = false;
   let selectedCardId = null;
-  let actionSubMode = null; // null | 'ace_pick' | 'king_pick' | 'jack_pick_my' | 'jack_pick_opp' | 'seven_split' | 'ten_pick'
+  let actionSubMode = null;
   let chosenSteps = null;
   let jackMyMarbleId = null;
   let splitStepA = 3;
   let splitMarbleA = null;
-  let lastActionText = 'Tap a card (A/K exits base, J swaps, 7 splits, 4 goes back, 10 burns)!';
+  let lastActionText = 'Tap a card (A/2 base, J swap/11, Q +12/discard, 7 split, 4 back, 10 burn)!';
   let burstCoord = null;
   let botTimer = 0;
 
@@ -146,16 +148,23 @@ function launchJackaroo(stake, rival, modeRaw) {
       if (marbles.some(o => o.id !== m.id && o.owner === m.owner && o.zone === 'home' && o.homeIdx <= hi)) return { valid: false };
       return { valid: true, zone: 'home', pos: -1, homeIdx: hi, stepsFromStart: ns };
     }
-    const np = (m.pos + steps) % TRACK_LEN;
+    let np = (m.pos + steps) % TRACK_LEN;
+    let teleported = false;
+    if (TELEPORT_MAP[np] !== undefined) {
+      const tp = TELEPORT_MAP[np];
+      if (!marbles.some(o => o.id !== m.id && o.owner === m.owner && o.zone === 'track' && o.pos === tp)) {
+        np = tp;
+        teleported = true;
+      }
+    }
     if (marbles.some(o => o.id !== m.id && o.owner === m.owner && o.zone === 'track' && o.pos === np)) return { valid: false };
     if (marbles.some(o => o.owner !== m.owner && o.zone === 'track' && o.pos === np && isSafe(o))) return { valid: false };
-    return { valid: true, zone: 'track', pos: np, homeIdx: -1, stepsFromStart: ns };
+    return { valid: true, zone: 'track', pos: np, homeIdx: -1, stepsFromStart: ns, teleported };
   };
 
-  /* Coordinate mapping for 360x360 Royal Wooden Circular Board */
   const CX = 180, CY = 180, R_TRACK = 134;
   const trackXY = (pos) => {
-    const angle = (Math.PI / 2) + (pos / TRACK_LEN) * Math.PI * 2; // pos 0 at bottom (You!)
+    const angle = (Math.PI / 2) + (pos / TRACK_LEN) * Math.PI * 2;
     return { x: CX + Math.cos(angle) * R_TRACK, y: CY + Math.sin(angle) * R_TRACK };
   };
   const homeXY = (seat, hIdx) => {
@@ -164,10 +173,10 @@ function launchJackaroo(stake, rival, modeRaw) {
     return { x: CX + Math.cos(baseAngle) * r, y: CY + Math.sin(baseAngle) * r };
   };
   const baseCenters = {
-    0: { x: 54, y: 300 },   // Bottom-left (You - Blue)
-    1: { x: 54, y: 60 },    // Top-left (Crimson)
-    2: { x: 306, y: 60 },   // Top-right (Emerald)
-    3: { x: 306, y: 300 }   // Bottom-right (Amber)
+    0: { x: 54, y: 300 },
+    1: { x: 54, y: 60 },
+    2: { x: 306, y: 60 },
+    3: { x: 306, y: 300 }
   };
   const baseXY = (seat, idx) => {
     const c = baseCenters[seat];
@@ -193,6 +202,16 @@ function launchJackaroo(stake, rival, modeRaw) {
     return vic;
   };
 
+  const grantComboDraw = (p) => {
+    if (!p || p.hand.length >= 5) return false;
+    const bonus = drawCards(1);
+    if (bonus.length) {
+      p.hand.push(bonus[0]);
+      return true;
+    }
+    return false;
+  };
+
   const checkWinner = () => {
     for (const team of [0, 1]) {
       const teamSeats = players.filter(p => p.team === team).map(p => p.seat);
@@ -216,9 +235,10 @@ function launchJackaroo(stake, rival, modeRaw) {
 
   const cardTag = (rank) => {
     if (rank === 'A') return 'Base/+1/+11';
+    if (rank === '2') return 'Base/+2';
     if (rank === 'K') return 'Base/+13';
-    if (rank === 'Q') return '+12';
-    if (rank === 'J') return 'Swap';
+    if (rank === 'Q') return '+12 / Disc';
+    if (rank === 'J') return 'Swap / +11';
     if (rank === '7') return '7 / Split';
     if (rank === '4') return 'Back −4';
     if (rank === '10') return '+10 / Burn';
@@ -232,23 +252,51 @@ function launchJackaroo(stake, rival, modeRaw) {
 
   const totalTeamMarbles = mode === '1v1' ? 4 : 8;
 
-  const m = modal(`Jackaroo Royal · ${mode === '2v2' ? '2v2 Team' : '1v1'}${stake > 0 ? ` · ${stake} 🪙` : ''}`, `
-    <div class="jk-shell" id="jkShell" data-testid="jackaroo-stage">
-      <div class="arena-hud-bar jk-hud" id="jkHud">
-        <span class="hud-pill me" id="jkTeam0">🔵 ${mode === '2v2' ? 'Your Team' : 'You'}: 0/${totalTeamMarbles}</span>
-        <span class="hud-pill turn" id="jkTurn">Your Turn</span>
-        <span class="hud-pill bot" id="jkTeam1">${mode === '2v2' ? '🔴 Rivals' : '🟢 ' + esc(oppName)}: 0/${totalTeamMarbles}</span>
-      </div>
-      ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙 (${pay.feePercent}% fee)</div>` : ''}
-      <div class="jk-board-wrap" id="jkBoardWrap">
-        <svg class="jk-board-svg" id="jkSvg" viewBox="0 0 360 360" aria-label="Jackaroo Royal Board"></svg>
-      </div>
-      <div class="jk-action-bar" id="jkActionBar"></div>
-      <div class="jk-hand-tray" id="jkHandTray"></div>
-      ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('jk') : ''}
-      <div id="jkFoot"></div>
-    </div>
-  `, 'jk-modal');
+  const openShell = typeof openFullScreenGameView === 'function'
+    ? openFullScreenGameView({
+        gameId: 'jackaroo',
+        title: `Jackaroo Royal · ${mode === '2v2' ? '2v2 Team' : '1v1'}`,
+        subMeta: roomCode ? `Room ${roomCode}` : (stake > 0 ? `${stake} 🪙 · Smart Bot` : 'Free Bot'),
+        statusText: 'Your Turn',
+        statusTone: 'turn',
+        themeClass: 'gfs-theme-wood',
+        html: `
+          <div class="jk-shell" id="jkShell" data-testid="jackaroo-stage">
+            <div class="arena-hud-bar jk-hud" id="jkHud">
+              <span class="hud-pill me" id="jkTeam0">🔵 ${mode === '2v2' ? 'Your Team' : 'You'}: 0/${totalTeamMarbles}</span>
+              <span class="hud-pill turn" id="jkTurn">Your Turn</span>
+              <span class="hud-pill bot" id="jkTeam1">${mode === '2v2' ? '🔴 Rivals' : '🟢 ' + esc(oppName)}: 0/${totalTeamMarbles}</span>
+            </div>
+            ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙 (${pay.feePercent}% fee)</div>` : ''}
+            <div class="jk-board-wrap" id="jkBoardWrap">
+              <svg class="jk-board-svg" id="jkSvg" viewBox="0 0 360 360" aria-label="Jackaroo Royal Board"></svg>
+            </div>
+            <div class="jk-action-bar" id="jkActionBar"></div>
+            <div class="jk-hand-tray" id="jkHandTray"></div>
+            ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('jk') : ''}
+            <div id="jkFoot"></div>
+          </div>
+        `
+      })
+    : modal(`Jackaroo Royal · ${mode === '2v2' ? '2v2 Team' : '1v1'}${stake > 0 ? ` · ${stake} 🪙` : ''}`, `
+        <div class="jk-shell" id="jkShell" data-testid="jackaroo-stage">
+          <div class="arena-hud-bar jk-hud" id="jkHud">
+            <span class="hud-pill me" id="jkTeam0">🔵 ${mode === '2v2' ? 'Your Team' : 'You'}: 0/${totalTeamMarbles}</span>
+            <span class="hud-pill turn" id="jkTurn">Your Turn</span>
+            <span class="hud-pill bot" id="jkTeam1">${mode === '2v2' ? '🔴 Rivals' : '🟢 ' + esc(oppName)}: 0/${totalTeamMarbles}</span>
+          </div>
+          ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙 (${pay.feePercent}% fee)</div>` : ''}
+          <div class="jk-board-wrap" id="jkBoardWrap">
+            <svg class="jk-board-svg" id="jkSvg" viewBox="0 0 360 360" aria-label="Jackaroo Royal Board"></svg>
+          </div>
+          <div class="jk-action-bar" id="jkActionBar"></div>
+          <div class="jk-hand-tray" id="jkHandTray"></div>
+          ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('jk') : ''}
+          <div id="jkFoot"></div>
+        </div>
+      `, 'jk-modal');
+
+  const m = openShell;
 
   if (typeof QuickVoice !== 'undefined') {
     QuickVoice.bindGameVoiceBar(m, 'jk', 'jackaroo', '#jkBoardWrap');
@@ -261,8 +309,25 @@ function launchJackaroo(stake, rival, modeRaw) {
     const res = settleArenaMatchOutcome(outcome, stake, 55, 38, 14);
     const foot = $('#jkFoot', m);
     if (foot) {
-      foot.innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${winTeam === 0 ? 'All team marbles reached Royal Home!' : 'Rivals filled their Home first.'} · ${esc(res.detail)}</small><button type="button" class="btn gold sm" id="jkAgain" style="margin-top:8px">Play Again</button></div>`;
+      const myPts = winTeam === 0 ? '+18' : '-18';
+      const oppPts = winTeam === 0 ? '-18' : '+18';
+      foot.innerHTML = `<div class="arena-result-card">
+        <div style="font-size:11px;font-weight:900;letter-spacing:.08em;color:#fde047">GAME OVER · ${winTeam === 0 ? 'WIN' : 'LOSE'}</div>
+        <b>${esc(res.headline)}</b>
+        <small>You: <b>${myPts}</b> · ${esc(oppName)}: <b>${oppPts}</b> · ${esc(res.detail)}</small>
+        <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+          <button type="button" class="btn gold sm" id="jkAgain">Play Again</button>
+          <button type="button" class="btn ghost sm" id="jkFriendRoom">Invite Friend</button>
+        </div>
+      </div>`;
       $('#jkAgain', m).onclick = () => { m.close(); openArenaGame('jackaroo', rival?.uid); };
+      if ($('#jkFriendRoom', m)) {
+        $('#jkFriendRoom', m).onclick = () => {
+          m.close();
+          if (typeof openCreateRoomModal === 'function') openCreateRoomModal();
+          else if (typeof showTab === 'function') showTab('games');
+        };
+      }
     }
     render();
   };
@@ -278,7 +343,6 @@ function launchJackaroo(stake, rival, modeRaw) {
     if (w !== null) { endMatch(w); return; }
 
     refillHandsIfEmpty();
-    /* Skip any player whose hand was burned empty until next deal */
     for (let guard = 0; guard < players.length; guard++) {
       turnIdx = (turnIdx + 1) % players.length;
       if (players[turnIdx].hand.length > 0) break;
@@ -289,7 +353,6 @@ function launchJackaroo(stake, rival, modeRaw) {
     }
   };
 
-  /* Smart Jackaroo Bot AI (plays teammate & rival seats intelligently) */
   const scheduleBotMove = () => {
     clearTimeout(botTimer);
     botTimer = setTimeout(() => {
@@ -304,7 +367,6 @@ function launchJackaroo(stake, rival, modeRaw) {
       const trackM = myMarbles.filter(x => x.zone === 'track');
       let acted = false;
 
-      /* 1. Try entering home stretch or capturing an opponent */
       outer:
       for (const c of p.hand) {
         if (c.rank === 'J' || c.rank === '4') continue;
@@ -318,7 +380,8 @@ function launchJackaroo(stake, rival, modeRaw) {
               if (d.zone === 'track') captureAt(p.seat, d.pos);
               mb.zone = d.zone; mb.pos = d.pos; mb.homeIdx = d.homeIdx; mb.stepsFromStart = d.stepsFromStart;
               consumeCard(p, c.id);
-              lastActionText = `${p.color.emoji} ${p.name} played ${c.rank}${c.suit}${wouldCapture ? ' and CAPTURED!' : ' into Home!'}`;
+              const comboGot = (wouldCapture || d.zone === 'home') && grantComboDraw(p);
+              lastActionText = `${p.color.emoji} ${p.name} played ${c.rank}${c.suit}${wouldCapture ? ' and CAPTURED!' : ' into Home!'}${d.teleported ? ' ⚡Teleport!' : ''}${comboGot ? ' +1 Card!' : ''}`;
               if (typeof playSfx === 'function') playSfx(wouldCapture ? 'duelWrong' : 'turnStart');
               acted = true;
               break outer;
@@ -327,9 +390,8 @@ function launchJackaroo(stake, rival, modeRaw) {
         }
       }
 
-      /* 2. Exit base with Ace/King */
       if (!acted && baseM.length) {
-        const exitCard = p.hand.find(c => c.rank === 'A' || c.rank === 'K');
+        const exitCard = p.hand.find(c => c.rank === 'A' || c.rank === '2' || c.rank === 'K');
         const startBlocked = marbles.some(x => x.owner === p.seat && x.zone === 'track' && x.pos === p.startPos);
         if (exitCard && !startBlocked) {
           const mb = baseM[0];
@@ -342,7 +404,6 @@ function launchJackaroo(stake, rival, modeRaw) {
         }
       }
 
-      /* 3. Jack swap if opponent is far ahead and not safe */
       if (!acted && trackM.length) {
         const jCard = p.hand.find(c => c.rank === 'J');
         const oppTargets = marbles.filter(x => x.zone === 'track' && findPlayer(x.owner)?.team !== p.team && !isSafe(x));
@@ -365,11 +426,10 @@ function launchJackaroo(stake, rival, modeRaw) {
         }
       }
 
-      /* 4. Card 10 burn an enemy card if opponent has cards */
       if (!acted) {
         const tenCard = p.hand.find(c => c.rank === '10');
         const enemy = players.find(o => o.team !== p.team && o.hand.length > 0);
-        if (tenCard && enemy && Math.random() < 0.45) {
+        if (tenCard && enemy && Math.random() < (botTier === 'pro' ? 0.65 : 0.45)) {
           consumeCard(p, tenCard.id);
           const burned = enemy.hand.pop();
           if (burned) discard.push(burned);
@@ -379,7 +439,6 @@ function launchJackaroo(stake, rival, modeRaw) {
         }
       }
 
-      /* 5. Any legal move forward/backward */
       if (!acted && activeM.length) {
         outer2:
         for (const c of p.hand) {
@@ -392,7 +451,8 @@ function launchJackaroo(stake, rival, modeRaw) {
                 if (d.zone === 'track') captureAt(p.seat, d.pos);
                 mb.zone = d.zone; mb.pos = d.pos; mb.homeIdx = d.homeIdx; mb.stepsFromStart = d.stepsFromStart;
                 consumeCard(p, c.id);
-                lastActionText = `${p.color.emoji} ${p.name} moved ${stp > 0 ? '+' + stp : stp} with ${c.rank}${c.suit}`;
+                const comboGot = d.zone === 'home' && grantComboDraw(p);
+                lastActionText = `${p.color.emoji} ${p.name} moved ${stp > 0 ? '+' + stp : stp} with ${c.rank}${c.suit}${d.teleported ? ' ⚡Teleport!' : ''}${comboGot ? ' +1 Card!' : ''}`;
                 if (typeof playSfx === 'function') playSfx('tap');
                 acted = true;
                 break outer2;
@@ -402,14 +462,12 @@ function launchJackaroo(stake, rival, modeRaw) {
         }
       }
 
-      /* 6. Otherwise burn a card to pass */
       if (!acted && p.hand.length) {
         const burned = p.hand.shift();
         discard.push(burned);
         lastActionText = `${p.color.emoji} ${p.name} discarded ${burned.rank}${burned.suit}`;
       }
 
-      /* Occasional bot Quick Voice callout bubble */
       if (Math.random() < 0.22 && typeof QuickVoice !== 'undefined') {
         const lines = p.team === 0 ? ['Help me!', 'Nice move!', 'Finish strong!'] : ['Block them!', 'Swap now!', 'Watch out!'];
         const line = lines[Math.floor(Math.random() * lines.length)];
@@ -417,10 +475,9 @@ function launchJackaroo(stake, rival, modeRaw) {
       }
 
       advanceTurn();
-    }, 640);
+    }, botTier === 'pro' ? 500 : 640);
   };
 
-  /* Compute which marbles are currently highlighted as clickable targets for Player 0 */
   const getSelectableMarbleIds = () => {
     const ids = new Set();
     if (over || turnIdx !== 0 || !selectedCardId) return ids;
@@ -461,13 +518,19 @@ function launchJackaroo(stake, rival, modeRaw) {
 
     if (card.rank === 'A') {
       actionSubMode = 'ace_pick';
-      lastActionText = 'Ace selected: choose Exit Base, +1, or +11';
+      lastActionText = 'Ace: choose Exit Base, +1, or +11';
+    } else if (card.rank === '2') {
+      actionSubMode = 'two_pick';
+      lastActionText = 'Card 2: choose Exit Base or Move +2';
     } else if (card.rank === 'K') {
       actionSubMode = 'king_pick';
-      lastActionText = 'King selected: choose Exit Base or +13';
+      lastActionText = 'King: choose Exit Base or +13 (captures passed stones)';
+    } else if (card.rank === 'Q') {
+      actionSubMode = 'queen_pick';
+      lastActionText = 'Queen: Move +12 OR force next player to discard a card';
     } else if (card.rank === 'J') {
       actionSubMode = 'jack_pick_my';
-      lastActionText = 'Jack Swap: tap one of your track marbles first';
+      lastActionText = 'Jack: tap your track marble to swap, OR choose Move +11';
     } else if (card.rank === '7') {
       actionSubMode = 'seven_pick';
       lastActionText = 'Card 7: move +7 on one marble OR Split 7 across two marbles';
@@ -480,7 +543,7 @@ function launchJackaroo(stake, rival, modeRaw) {
       lastActionText = 'Card 4: tap a marble to move −4 steps backward';
     } else {
       actionSubMode = 'step';
-      chosenSteps = card.rank === 'Q' ? 12 : Number(card.rank);
+      chosenSteps = Number(card.rank);
       lastActionText = `${card.rank}${card.suit}: tap a glowing marble to move +${chosenSteps}`;
     }
     render();
@@ -544,12 +607,14 @@ function launchJackaroo(stake, rival, modeRaw) {
       const dA = computeDest(mA, splitStepA);
       const dB = computeDest(mB, 7 - splitStepA);
       if (!dA.valid || !dB.valid) return toast('Invalid split target');
-      if (dA.zone === 'track') captureAt(0, dA.pos);
+      let capAny = false;
+      if (dA.zone === 'track' && captureAt(0, dA.pos)) capAny = true;
       mA.zone = dA.zone; mA.pos = dA.pos; mA.homeIdx = dA.homeIdx; mA.stepsFromStart = dA.stepsFromStart;
-      if (dB.zone === 'track') captureAt(0, dB.pos);
+      if (dB.zone === 'track' && captureAt(0, dB.pos)) capAny = true;
       mB.zone = dB.zone; mB.pos = dB.pos; mB.homeIdx = dB.homeIdx; mB.stepsFromStart = dB.stepsFromStart;
       consumeCard(meP, card.id);
-      lastActionText = `✨ Split 7 played (+${splitStepA} & +${7 - splitStepA})!`;
+      const comboGot = (capAny || dA.zone === 'home' || dB.zone === 'home') && grantComboDraw(meP);
+      lastActionText = `✨ Split 7 played (+${splitStepA} & +${7 - splitStepA})${comboGot ? ' · +1 Combo Card!' : ''}!`;
       if (typeof playSfx === 'function') playSfx('duelCorrect');
       advanceTurn();
       return;
@@ -562,9 +627,10 @@ function launchJackaroo(stake, rival, modeRaw) {
       if (d.zone === 'track') cap = captureAt(0, d.pos);
       mb.zone = d.zone; mb.pos = d.pos; mb.homeIdx = d.homeIdx; mb.stepsFromStart = d.stepsFromStart;
       consumeCard(meP, card.id);
+      const comboGot = (Boolean(cap) || d.zone === 'home') && grantComboDraw(meP);
       lastActionText = cap
-        ? `💥 Captured rival marble with ${card.rank}${card.suit}!`
-        : `🔵 Moved ${chosenSteps > 0 ? '+' + chosenSteps : chosenSteps} with ${card.rank}${card.suit}${d.zone === 'home' ? ' into Home!' : ''}`;
+        ? `💥 Captured rival marble with ${card.rank}${card.suit}!${comboGot ? ' +1 Card!' : ''}`
+        : `🔵 Moved ${chosenSteps > 0 ? '+' + chosenSteps : chosenSteps} with ${card.rank}${card.suit}${d.teleported ? ' ⚡Teleport!' : ''}${d.zone === 'home' ? ' into Home!' : ''}${comboGot ? ' +1 Card!' : ''}`;
       if (typeof playSfx === 'function') playSfx(d.zone === 'home' ? 'duelCorrect' : 'tap');
       advanceTurn();
     }
@@ -579,12 +645,18 @@ function launchJackaroo(stake, rival, modeRaw) {
     for (let i = 0; i < TRACK_LEN; i++) {
       const pt = trackXY(i);
       const isSafeSpot = SAFE_SPOTS.includes(i);
+      const isTpSpot = TELEPORT_MAP[i] !== undefined;
       const seatForSafe = SAFE_SPOTS.indexOf(i);
       if (isSafeSpot) {
         const col = SEAT_COLORS[seatForSafe].hex;
         trackDots += `
           <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="8.5" fill="rgba(15,23,42,.82)" stroke="${col}" stroke-width="2.2"/>
           <text x="${pt.x.toFixed(1)}" y="${(pt.y + 3.2).toFixed(1)}" text-anchor="middle" font-size="9" fill="#fde047">★</text>
+        `;
+      } else if (isTpSpot) {
+        trackDots += `
+          <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="7.5" fill="rgba(124,58,237,.55)" stroke="#fef08a" stroke-width="1.8"/>
+          <text x="${pt.x.toFixed(1)}" y="${(pt.y + 3).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#fef08a">🌀</text>
         `;
       } else {
         trackDots += `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="5.2" fill="#2c1810" stroke="#a16207" stroke-opacity=".55" stroke-width="1.2"/>`;
@@ -597,7 +669,6 @@ function launchJackaroo(stake, rival, modeRaw) {
         const pt = homeXY(p.seat, h);
         homeSlots += `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="6.8" fill="rgba(15,23,42,.68)" stroke="${p.color.hex}" stroke-opacity=".75" stroke-width="1.6"/>`;
       }
-      /* Base carved wood pit */
       const bc = baseCenters[p.seat];
       const lblY = (p.seat === 0 || p.seat === 3) ? (bc.y + 37) : (bc.y - 30);
       homeSlots += `
@@ -676,6 +747,9 @@ function launchJackaroo(stake, rival, modeRaw) {
     if ($('#jkTeam0', m)) $('#jkTeam0', m).textContent = `🔵 ${mode === '2v2' ? 'Team' : 'You'}: ${t0}/${totalTeamMarbles}`;
     if ($('#jkTeam1', m)) $('#jkTeam1', m).textContent = `${mode === '2v2' ? '🔴 Rivals' : '🟢 ' + oppName}: ${t1}/${totalTeamMarbles}`;
     if ($('#jkTurn', m)) $('#jkTurn', m).textContent = over ? 'Finished' : (turnIdx === 0 ? 'Your Turn' : `${curP.name}…`);
+    if (typeof m.setStatus === 'function') {
+      m.setStatus(over ? 'Finished' : (turnIdx === 0 ? 'Your Turn' : `${curP.name}…`), over ? 'neutral' : (turnIdx === 0 ? 'turn' : 'bot'));
+    }
 
     renderBoardSvg();
 
@@ -691,10 +765,27 @@ function launchJackaroo(stake, rival, modeRaw) {
             <button type="button" class="btn sm gold" data-jkopt="step:11">Move +11</button>
             <button type="button" class="btn sm ghost" data-jkopt="burn">Discard</button>
           </div>`;
+        } else if (actionSubMode === 'two_pick') {
+          controls = `<div class="jk-sub-row">
+            <button type="button" class="btn sm ok" data-jkopt="leave_base">Exit Base</button>
+            <button type="button" class="btn sm" data-jkopt="step:2">Move +2</button>
+            <button type="button" class="btn sm ghost" data-jkopt="burn">Discard</button>
+          </div>`;
         } else if (actionSubMode === 'king_pick') {
           controls = `<div class="jk-sub-row">
             <button type="button" class="btn sm ok" data-jkopt="leave_base">Exit Base</button>
             <button type="button" class="btn sm gold" data-jkopt="step:13">Move +13</button>
+            <button type="button" class="btn sm ghost" data-jkopt="burn">Discard</button>
+          </div>`;
+        } else if (actionSubMode === 'queen_pick') {
+          controls = `<div class="jk-sub-row">
+            <button type="button" class="btn sm gold" data-jkopt="step:12">Move +12</button>
+            <button type="button" class="btn sm red" data-jkopt="burn_enemy">🃏 Discard Rival Card</button>
+            <button type="button" class="btn sm ghost" data-jkopt="burn">Discard</button>
+          </div>`;
+        } else if (actionSubMode === 'jack_pick_my') {
+          controls = `<div class="jk-sub-row">
+            <button type="button" class="btn sm gold" data-jkopt="step:11">Move +11</button>
             <button type="button" class="btn sm ghost" data-jkopt="burn">Discard</button>
           </div>`;
         } else if (actionSubMode === 'seven_pick') {
@@ -746,7 +837,7 @@ function launchJackaroo(stake, rival, modeRaw) {
             const burned = enemy.hand.pop();
             if (burned) discard.push(burned);
             if (typeof playSfx === 'function') playSfx('duelCorrect');
-            lastActionText = `🔥 Burned ${enemy.name}'s card with 10!`;
+            lastActionText = `🔥 Removed ${enemy.name}'s card!`;
             advanceTurn();
           } else if (opt === 'burn') {
             consumeCard(players[0], selectedCardId);

@@ -1,7 +1,7 @@
 "use strict";
 /* =====================================================================
-   COMPETITIVE ARENA GAMES (v12) · HIGH-GRAPHIC 3D/HD OVERHAUL
-   · JACKAROO ROYAL & UNO CLASH + 5 UPGRADED CLASSICS · SMART BOT AI
+   COMPETITIVE ARENA GAMES (v16) · FULL-SCREEN VIEW + FREE & STAKE MODES
+   · JACKAROO ROYAL & UNO CLASH + 5 CLASSICS · SMART BOT AI
    · 1v1 COIN STAKE MATCHES (10% FEE) · ANTI-FARMING CAP · QUICK VOICE
    ===================================================================== */
 
@@ -9,7 +9,7 @@ const ARENA_GAMES = [
   {
     id: 'jackaroo',
     name: 'Jackaroo Royal',
-    tag: 'NEW · 2v2 / 1v1',
+    tag: '2v2 / 1v1',
     live: 92,
     accent: '#d97706',
     accent2: '#7c2d12',
@@ -23,7 +23,7 @@ const ARENA_GAMES = [
   {
     id: 'uno',
     name: 'UNO Clash',
-    tag: 'NEW · 4P / 1v1',
+    tag: '4P / 1v1',
     live: 108,
     accent: '#ef4444',
     accent2: '#7c3aed',
@@ -195,7 +195,6 @@ function settleArenaMatchOutcome(outcome, stake, baseFreeCoins, expWin, expLose)
   return { headline: `Bot Wins`, detail: `+${expLose} EXP · Rematch anytime` };
 }
 
-/* Reusable DOM particle burst for tactile captures / scores */
 function spawnArenaSparks(hostEl, color = '#ffd36b', count = 10) {
   if (!hostEl) return;
   const wrap = document.createElement('div');
@@ -219,21 +218,15 @@ function renderArenaBannerArt(g) {
       <rect x="6" y="6" width="126" height="104" rx="22" fill="#3e1c0a" stroke="#fbbf24" stroke-width="3.5"/>
       <circle cx="69" cy="58" r="38" fill="#0f5132" stroke="#f59e0b" stroke-width="2.5"/>
       <circle cx="48" cy="46" r="10.5" fill="#38bdf8" stroke="#fff" stroke-width="1.5"/>
-      <circle cx="45" cy="43" r="3.2" fill="#fff" opacity=".8"/>
       <circle cx="90" cy="46" r="10.5" fill="#f43f5e" stroke="#fff" stroke-width="1.5"/>
-      <circle cx="87" cy="43" r="3.2" fill="#fff" opacity=".8"/>
       <circle cx="69" cy="74" r="10.5" fill="#10b981" stroke="#fff" stroke-width="1.5"/>
-      <circle cx="66" cy="71" r="3.2" fill="#fff" opacity=".8"/>
       <rect x="95" y="64" width="32" height="44" rx="6" transform="rotate(14 111 86)" fill="#fff" stroke="#fbbf24" stroke-width="1.8"/>
       <text x="111" y="92" text-anchor="middle" font-size="14" font-weight="900" fill="#dc2626" transform="rotate(14 111 86)">A♥</text>
     </g>`,
     uno: `<g transform="translate(174,14)">
       <rect x="12" y="18" width="54" height="78" rx="11" transform="rotate(-14 39 57)" fill="#ef4444" stroke="#fff" stroke-width="3"/>
-      <ellipse cx="39" cy="57" rx="18" ry="28" transform="rotate(18 39 57)" fill="rgba(255,255,255,.22)"/>
       <text x="39" y="64" text-anchor="middle" font-size="22" font-weight="900" fill="#fff" transform="rotate(-14 39 57)">+2</text>
       <rect x="64" y="14" width="56" height="82" rx="11" transform="rotate(12 92 55)" fill="#111827" stroke="#fef08a" stroke-width="3"/>
-      <circle cx="86" cy="46" r="9" fill="#ef4444"/><circle cx="98" cy="46" r="9" fill="#3b82f6"/>
-      <circle cx="86" cy="60" r="9" fill="#eab308"/><circle cx="98" cy="60" r="9" fill="#22c55e"/>
       <text x="92" y="84" text-anchor="middle" font-size="13" font-weight="900" fill="#fef08a" transform="rotate(12 92 55)">+4</text>
     </g>`,
     blitz_dots: `<g transform="translate(185,22)">
@@ -242,31 +235,18 @@ function renderArenaBannerArt(g) {
       <line x1="28" y1="28" x2="28" y2="78" stroke="#22d3ee" stroke-width="5.5" stroke-linecap="round"/>
       <line x1="78" y1="28" x2="78" y2="78" stroke="#f43f5e" stroke-width="5.5" stroke-linecap="round"/>
       <line x1="28" y1="78" x2="78" y2="78" stroke="#ffd36b" stroke-width="5.5" stroke-linecap="round"/>
-      <rect x="36" y="36" width="34" height="34" rx="8" fill="rgba(34,211,238,.4)" stroke="#7dd3fc" stroke-width="2"/>
-      <circle cx="28" cy="28" r="7.5" fill="#fde68a" stroke="#b45309" stroke-width="1.5"/>
-      <circle cx="78" cy="28" r="7.5" fill="#fde68a" stroke="#b45309" stroke-width="1.5"/>
-      <circle cx="28" cy="78" r="7.5" fill="#fde68a" stroke="#b45309" stroke-width="1.5"/>
-      <circle cx="78" cy="78" r="7.5" fill="#fde68a" stroke="#b45309" stroke-width="1.5"/>
     </g>`,
     pool_8ball: `<g transform="translate(174,18)">
       <rect x="0" y="12" width="128" height="82" rx="16" fill="#065f46" stroke="#92400e" stroke-width="6"/>
-      <rect x="3" y="15" width="122" height="76" rx="13" fill="none" stroke="#fbbf24" stroke-opacity=".45" stroke-width="1.5"/>
       <circle cx="44" cy="54" r="17" fill="#111827" stroke="#ffffff" stroke-width="2"/>
-      <circle cx="44" cy="54" r="7.5" fill="#fff"/><text x="44" y="57.5" text-anchor="middle" font-size="10" font-weight="900" fill="#111">8</text>
-      <circle cx="88" cy="40" r="12" fill="#ef4444" stroke="#fecaca" stroke-width="1.5"/>
-      <circle cx="94" cy="68" r="12" fill="#facc15" stroke="#fef9c3" stroke-width="1.5"/>
-      <line x1="8" y1="88" x2="35" y2="62" stroke="#fde68a" stroke-width="5" stroke-linecap="round"/>
+      <text x="44" y="57.5" text-anchor="middle" font-size="10" font-weight="900" fill="#fff">8</text>
     </g>`,
     undercover: `<g transform="translate(178,18)">
       <circle cx="62" cy="54" r="46" fill="rgba(244,63,94,.26)" stroke="#fda4af" stroke-width="2.2"/>
       <path d="M30 48c8-18 56-18 64 0-12 6-52 6-64 0z" fill="#111827" stroke="#ffd36b" stroke-width="2"/>
-      <ellipse cx="48" cy="54" rx="8" ry="5" fill="#38bdf8"/><ellipse cx="76" cy="54" rx="8" ry="5" fill="#f43f5e"/>
-      <rect x="52" y="72" width="20" height="24" rx="10" fill="#ffd36b" stroke="#7c2d12" stroke-width="2"/>
-      <path d="M44 86c0 10 36 10 36 0" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
     </g>`,
     squad_arena: `<g transform="translate(176,18)">
       <polygon points="62,6 76,38 110,42 84,65 92,99 62,82 32,99 40,65 14,42 48,38" fill="url(#gpStar_${id})" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
-      <path d="M56 38l-8 18h14l-6 20 20-26H62l8-12z" fill="#fff"/>
     </g>`,
     ludo_snakes: `<g transform="translate(182,18)">
       <rect x="8" y="8" width="90" height="90" rx="22" fill="#fffbeb" stroke="#fbbf24" stroke-width="4.5"/>
@@ -287,8 +267,6 @@ function renderArenaBannerArt(g) {
       </linearGradient>
     </defs>
     <rect width="320" height="142" fill="url(#gpBg_${id})"/>
-    <ellipse cx="72" cy="18" rx="120" ry="52" fill="#ffffff" opacity=".14"/>
-    <circle cx="244" cy="74" r="66" fill="#ffffff" opacity=".08"/>
     ${icons[g.id] || ''}
   </svg>`;
 }
@@ -341,9 +319,7 @@ function openRivalChallenge(targetUid) {
 }
 
 /* =====================================================================
-   DEDICATED FULL-SCREEN GAME VIEW ENGINE (v16)
-   Replaces floating modal popups with a clean 100dvh game viewport:
-   Top Header (Back, Title/Sub-Meta, Live Turn/Status Pill, Sound Toggle, Exit)
+   DEDICATED FULL-SCREEN GAME VIEW ENGINE
    ===================================================================== */
 let activeFullScreenGame = null;
 
@@ -464,7 +440,7 @@ function openArenaGame(gameId, rivalUid) {
   const g = ARENA_GAMES.find(x => x.id === gameId) || ARENA_GAMES[0];
   const rival = rivalUid ? allUsers().find(u => u.uid === rivalUid) : null;
   const cap = previewBotCapStatus();
-  let playType = 'free'; // 'free' | 'paid'
+  let playType = 'free';
   let selectedStake = 0;
   let lastPaidStake = 50;
   let selectedMode = g.modes ? g.modes[0].id : '1v1';
@@ -591,8 +567,11 @@ function openArenaGame(gameId, rivalUid) {
     } else if (typeof playSfx === 'function') {
       playSfx('turnStart');
     }
-    if (gameId === 'jackaroo' && typeof launchJackaroo === 'function') launchJackaroo(selectedStake, rival, selectedMode, botTier);
-    else if (gameId === 'uno' && typeof launchUnoGame === 'function') launchUnoGame(selectedStake, rival, selectedMode, botTier);
+    const activeCode = (typeof activeRoomId !== 'undefined' && activeRoomId && typeof mpRooms !== 'undefined')
+      ? (mpRooms.find(r => r.id === activeRoomId)?.code || '')
+      : '';
+    if (gameId === 'jackaroo' && typeof launchJackaroo === 'function') launchJackaroo(selectedStake, rival, selectedMode, botTier, activeCode);
+    else if (gameId === 'uno' && typeof launchUnoGame === 'function') launchUnoGame(selectedStake, rival, selectedMode, botTier, activeCode);
     else if (gameId === 'blitz_dots') launchBlitzDots(selectedStake, rival, botTier);
     else if (gameId === 'pool_8ball') launchPool8Ball(selectedStake, rival, botTier);
     else if (gameId === 'undercover') launchUndercoverSpy(selectedStake, botTier);
@@ -601,9 +580,7 @@ function openArenaGame(gameId, rivalUid) {
   };
 }
 
-/* =====================================================================
-   1. BLITZ DOTS & BOXES — FULL-SCREEN MAHOGANY & BRASS 3D BOARD + SMART AI
-   ===================================================================== */
+/* 1. BLITZ DOTS & BOXES */
 function chooseSmartDotsAiMove(n, h, v) {
   const countSides = (r, c) =>
     (r >= 0 && c >= 0 && r < n && c < n)
@@ -771,9 +748,7 @@ function launchBlitzDots(stake, rival, botTierRaw) {
   renderBoard();
 }
 
-/* =====================================================================
-   2. 8-BALL POOL 1v1 — FULL-SCREEN MAHOGANY & BAIZE FELT TABLE · CUE STICK
-   ===================================================================== */
+/* 2. 8-BALL POOL 1v1 */
 function launchPool8Ball(stake, rival, botTierRaw) {
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const oppName = rival?.name || (botTier === 'pro' ? 'Pool Pro Bot' : 'Pool Bot');
@@ -886,7 +861,6 @@ function launchPool8Ball(stake, rival, botTierRaw) {
         });
       });
       if (botTier === 'pro') {
-        // Pro Bot aims at ghost-ball impact point behind target ball toward nearest pocket
         const pdx = bestPocket[0] - bestBall.x, pdy = bestPocket[1] - bestBall.y;
         const pd = Math.hypot(pdx, pdy) || 1;
         const gx = bestBall.x - (pdx / pd) * (bestBall.r * 1.45);
@@ -901,7 +875,6 @@ function launchPool8Ball(stake, rival, botTierRaw) {
   };
 
   const drawTable = () => {
-    /* Outer mahogany rail wood gradient */
     const wood = ctx.createLinearGradient(0, 0, W, H);
     wood.addColorStop(0, '#78350f');
     wood.addColorStop(0.5, '#451a03');
@@ -909,13 +882,11 @@ function launchPool8Ball(stake, rival, botTierRaw) {
     ctx.fillStyle = wood;
     ctx.fillRect(0, 0, W, H);
 
-    /* Gold brass corner accents */
     ctx.fillStyle = '#fbbf24';
     [[0, 0], [W - 14, 0], [0, H - 14], [W - 14, H - 14]].forEach(([x, y]) => {
       ctx.fillRect(x, y, 14, 14);
     });
 
-    /* Baize emerald felt with overhead pool-lamp lighting */
     const felt = ctx.createRadialGradient(W * 0.5, H * 0.45, 24, W * 0.5, H * 0.5, W * 0.6);
     felt.addColorStop(0, '#0f766e');
     felt.addColorStop(0.45, '#065f46');
@@ -923,7 +894,6 @@ function launchPool8Ball(stake, rival, botTierRaw) {
     ctx.fillStyle = felt;
     ctx.fillRect(RAIL, RAIL, W - RAIL * 2, H - RAIL * 2);
 
-    /* Inner cushion bevel shadow + baulk line */
     ctx.strokeStyle = 'rgba(0,0,0,0.45)';
     ctx.lineWidth = 3;
     ctx.strokeRect(RAIL + 1, RAIL + 1, W - RAIL * 2 - 2, H - RAIL * 2 - 2);
@@ -934,14 +904,6 @@ function launchPool8Ball(stake, rival, botTierRaw) {
     ctx.lineTo(94, H - RAIL - 4);
     ctx.stroke();
 
-    /* Brass rail sights */
-    ctx.fillStyle = '#fde68a';
-    [W * 0.25, W * 0.75].forEach(sx => {
-      ctx.beginPath(); ctx.arc(sx, RAIL / 2, 2.2, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(sx, H - RAIL / 2, 2.2, 0, Math.PI * 2); ctx.fill();
-    });
-
-    /* Deep leather pockets with brass lip */
     pockets.forEach(([px, py]) => {
       ctx.beginPath(); ctx.arc(px, py, 13, 0, Math.PI * 2);
       ctx.fillStyle = '#78350f'; ctx.fill();
@@ -949,7 +911,6 @@ function launchPool8Ball(stake, rival, botTierRaw) {
       ctx.fillStyle = '#030712'; ctx.fill();
     });
 
-    /* Live laser aim guide + wooden cue stick on player's turn */
     if (!moving && !over && turn === 'me') {
       const dx = aimPt.x - cue.x, dy = aimPt.y - cue.y;
       const d = Math.hypot(dx, dy) || 1;
@@ -964,7 +925,6 @@ function launchPool8Ball(stake, rival, botTierRaw) {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      /* Carved Cue Stick behind cue ball */
       ctx.strokeStyle = '#fde68a';
       ctx.lineWidth = 4.2;
       ctx.lineCap = 'round';
@@ -972,16 +932,9 @@ function launchPool8Ball(stake, rival, botTierRaw) {
       ctx.moveTo(cue.x - ux * 14, cue.y - uy * 14);
       ctx.lineTo(cue.x - ux * 74, cue.y - uy * 74);
       ctx.stroke();
-      ctx.strokeStyle = '#78350f';
-      ctx.lineWidth = 4.6;
-      ctx.beginPath();
-      ctx.moveTo(cue.x - ux * 48, cue.y - uy * 48);
-      ctx.lineTo(cue.x - ux * 74, cue.y - uy * 74);
-      ctx.stroke();
       ctx.restore();
     }
 
-    /* 3D Glossy Balls with cast shadow, stripe/number disc, and specular shine */
     for (const b of [cue, ...balls]) {
       if (!b.alive) continue;
       ctx.beginPath(); ctx.arc(b.x + 2, b.y + 3, b.r, 0, Math.PI * 2);
@@ -994,10 +947,6 @@ function launchPool8Ball(stake, rival, botTierRaw) {
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
       ctx.fillStyle = bg; ctx.fill();
 
-      if (b.stripe) {
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 1, -0.5, 0.5);
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2.6; ctx.stroke();
-      }
       if (b.num) {
         ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
@@ -1007,11 +956,8 @@ function launchPool8Ball(stake, rival, botTierRaw) {
         ctx.textBaseline = 'middle';
         ctx.fillText(b.num, b.x, b.y + 0.5);
       }
-      ctx.beginPath(); ctx.arc(b.x - 2.6, b.y - 2.8, 2.2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.fill();
     }
 
-    /* Pocket spark particles */
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       p.x += p.vx; p.y += p.vy; p.life -= 0.04;
@@ -1122,9 +1068,7 @@ function launchPool8Ball(stake, rival, botTierRaw) {
   rafId = requestAnimationFrame(step);
 }
 
-/* =====================================================================
-   3. UNDERCOVER SPY — VELVET DETECTIVE TABLE · MIC PASS · QUICK VOICE
-   ===================================================================== */
+/* 3. UNDERCOVER SPY */
 function launchUndercoverSpy(stake, botTierRaw) {
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const pairs = [
@@ -1191,7 +1135,6 @@ function launchUndercoverSpy(stake, botTierRaw) {
     if (!curP || curP.isMe || phase !== 'mic' || over) return;
     setTimeout(() => {
       if (phase !== 'mic' || over) return;
-      // Pro Spy gives subtler blended clues
       const pool = curP.isSpy
         ? (botTier === 'pro' ? [pair.spyClues[0], 'Daily favorite', pair.spyClues[2]] : pair.spyClues)
         : pair.civClues;
@@ -1292,9 +1235,7 @@ function launchUndercoverSpy(stake, botTierRaw) {
   render();
 }
 
-/* =====================================================================
-   4. SQUAD TRIVIA 1v1 — FULL-SCREEN GLASS ARENA · STREAK SPARKS
-   ===================================================================== */
+/* 4. SQUAD TRIVIA 1v1 */
 function launchSquadTrivia(stake, rival, botTierRaw) {
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const qs = [
@@ -1381,9 +1322,7 @@ function launchSquadTrivia(stake, rival, botTierRaw) {
   render();
 }
 
-/* =====================================================================
-   5. LUDO EXPRESS — FULL-SCREEN 24-TILE JEWEL WOOD BOARD · 3D DICE
-   ===================================================================== */
+/* 5. LUDO EXPRESS */
 function launchLudoExpress(stake, rival, botTierRaw) {
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const goal = 24;

@@ -1,13 +1,12 @@
 "use strict";
 /* =====================================================================
-   UNO CARD CLASH — 2-4 PLAYERS / 1v1 HIGH-GRAPHIC 3D CARD GAME (v12)
-   Full Classic Rules: 0-9, +2, +4 Wild, Reverse, Skip, Wild Color Picker,
-   Glowing UNO! Call Button with +2 Missed-UNO Penalty, Smart AI,
-   Glossy 3D Fanned Cards & Free Fire-Style Quick Voice Chat.
+   UNO CARD CLASH — 2-4 PLAYERS / 1v1 + FRIEND ADD + MIC & QUICK VOICE
    ===================================================================== */
 
-function launchUnoGame(stake, rival, modeRaw) {
+function launchUnoGame(stake, rival, modeRaw, botTierRaw, roomCodeRaw) {
   const mode = modeRaw === '1v1' ? '1v1' : '4p';
+  const botTier = botTierRaw || (Number(stake || 0) > 0 ? 'pro' : 'standard');
+  const roomCode = String(roomCodeRaw || '').trim().toUpperCase();
   const COLORS = ['red', 'yellow', 'green', 'blue'];
   const COLOR_META = {
     red: { label: 'Red', hex: '#ef4444', dark: '#991b1b', glow: 'rgba(239,68,68,.55)' },
@@ -18,7 +17,7 @@ function launchUnoGame(stake, rival, modeRaw) {
   };
 
   const pay = calcArenaStakePayout(stake);
-  const oppName = rival?.name || 'UNO Pro Bot';
+  const oppName = rival?.name || (botTier === 'pro' ? 'UNO Pro Bot' : 'UNO Bot');
 
   const shuffle = (arr) => {
     const a = arr.slice();
@@ -47,16 +46,26 @@ function launchUnoGame(stake, rival, modeRaw) {
   };
 
   let deck = buildDeck();
-  const names = mode === '1v1' ? [me?.name || 'You', oppName] : [me?.name || 'You', 'Aria Bot', 'Leo Bot', 'Zara Bot'];
-  const avatars = [me?.avatar || 'av_b1', 'av_g1', 'av_b3', 'av_g3'];
-  const players = names.map((name, i) => ({
-    id: i === 0 ? 'me' : `bot_${i}`,
-    name,
-    avatar: avatars[i],
-    isBot: i !== 0,
-    hand: deck.splice(0, 7),
-    calledUno: false
-  }));
+  const oppList = mode === '1v1'
+    ? [{ uid: rival?.uid || 'bot_uno_1', name: oppName, avatar: rival?.avatar || 'av_g1' }]
+    : [
+        { uid: 'bot_uno_1', name: botTier === 'pro' ? 'Aria Pro' : 'Aria Bot', avatar: 'av_g1' },
+        { uid: 'bot_uno_2', name: botTier === 'pro' ? 'Leo Pro' : 'Leo Bot', avatar: 'av_b3' },
+        { uid: 'bot_uno_3', name: botTier === 'pro' ? 'Zara Pro' : 'Zara Bot', avatar: 'av_g3' }
+      ];
+
+  const players = [
+    { id: 'me', uid, name: me?.name || 'You', avatar: me?.avatar || 'av_b1', isBot: false, hand: deck.splice(0, 7), calledUno: false },
+    ...oppList.map((o, i) => ({
+      id: `bot_${i + 1}`,
+      uid: o.uid,
+      name: o.name,
+      avatar: o.avatar,
+      isBot: true,
+      hand: deck.splice(0, 7),
+      calledUno: false
+    }))
+  ];
 
   let startIdx = deck.findIndex(c => c.color !== 'wild' && /^\d$/.test(c.value));
   if (startIdx < 0) startIdx = 0;
@@ -66,8 +75,10 @@ function launchUnoGame(stake, rival, modeRaw) {
   let direction = 1;
   let over = false;
   let pendingWildCardId = null;
-  let vulnerableSeat = null; // seat at 1 card who forgot to shout UNO!
-  let statusLine = 'Match color, number, or play a Wild card!';
+  let vulnerableSeat = null;
+  let statusLine = roomCode
+    ? `Room ${roomCode} · Match color, number, or Wild!`
+    : 'Match color, number, or play a Wild card!';
   let botTimer = 0;
 
   const topCard = () => discard[discard.length - 1];
@@ -102,12 +113,61 @@ function launchUnoGame(stake, rival, modeRaw) {
     return c.color === 'wild' ? (c.value === 'wild4' ? 'Wild +4' : 'Wild') : `${COLOR_META[c.color].label} ${g}`;
   };
 
-  const m = modal(`UNO Clash · ${mode === '1v1' ? '1v1' : '4-Player'}${stake > 0 ? ` · ${stake} 🪙` : ''}`, `
+  const openAddFriendPicker = () => {
+    const candidates = typeof allUsers === 'function'
+      ? allUsers().filter(u => u && u.uid && u.uid !== uid)
+      : oppList.filter(o => o.uid && !String(o.uid).startsWith('bot_'));
+    const html = `
+      <div class="list" style="gap:8px">
+        ${oppList.filter(o => o.uid && !String(o.uid).startsWith('bot_')).map(o => {
+          const already = typeof isFriend === 'function' ? isFriend(o.uid) : false;
+          return `<div class="row" style="justify-content:space-between;padding:8px;border-radius:10px;background:var(--card2)">
+            <b>${esc(o.name)}</b>
+            <button type="button" class="btn sm ${already ? 'ghost' : 'ok'}" data-addunofr="${esc(o.uid)}">${already ? 'Added ✓' : '+ Add Friend'}</button>
+          </div>`;
+        }).join('')}
+        ${candidates.slice(0, 12).map(u => {
+          const already = typeof isFriend === 'function' ? isFriend(u.uid) : false;
+          return `<div class="row" style="justify-content:space-between;padding:8px;border-radius:10px;background:var(--card2)">
+            <span><b>${esc(u.name || 'Player')}</b> <small style="color:var(--mu)">${esc(String(u.uid).slice(-6))}</small></span>
+            <button type="button" class="btn sm ${already ? 'ghost' : 'ok'}" data-addunofr="${esc(u.uid)}">${already ? 'Added ✓' : '+ Add Friend'}</button>
+          </div>`;
+        }).join('') || '<div class="empty">No friends to add yet</div>'}
+        <button type="button" class="btn gold full" id="unoShareInviteBtn">Share UNO Room Invite</button>
+      </div>
+    `;
+    const fm = modal('Add Friend to UNO', html);
+    fm.querySelectorAll('[data-addunofr]').forEach(btn => {
+      btn.onclick = () => {
+        const targetId = btn.dataset.addunofr;
+        if (typeof toggleFriend === 'function' && !isFriend(targetId)) {
+          toggleFriend(targetId);
+        }
+        btn.textContent = 'Added ✓';
+        btn.className = 'btn sm ghost';
+        toast('Friend added!');
+      };
+    });
+    if ($('#unoShareInviteBtn', fm)) {
+      $('#unoShareInviteBtn', fm).onclick = () => {
+        if (typeof openCreateRoomModal === 'function') {
+          fm.close();
+          openCreateRoomModal();
+        } else if (typeof showTab === 'function') {
+          fm.close();
+          if (typeof closeFullScreenGameView === 'function') closeFullScreenGameView();
+          showTab('chat');
+        }
+      };
+    }
+  };
+
+  const innerHtml = `
     <div class="uno-shell" id="unoShell" data-testid="uno-stage">
       <div class="arena-hud-bar uno-hud">
         <span class="hud-pill me" id="unoMyCnt">You: 7 cards</span>
         <span class="hud-pill turn" id="unoTurnPill">Your Turn</span>
-        <span class="hud-pill bot" id="unoDirPill">↻ Clockwise</span>
+        <button type="button" class="btn sm ok" id="unoAddFriendBtn">+ Add Friend</button>
       </div>
       ${stake > 0 ? `<div class="arena-pot-ribbon">Pot ${fmtNum(pay.grossPot)} 🪙 · Win +${fmtNum(pay.winnerPayout)} 🪙 (${pay.feePercent}% fee)</div>` : ''}
 
@@ -142,10 +202,26 @@ function launchUnoGame(stake, rival, modeRaw) {
       ${typeof QuickVoice !== 'undefined' ? QuickVoice.renderGameVoiceBar('uno') : ''}
       <div id="unoFoot"></div>
     </div>
-  `, 'uno-modal');
+  `;
+
+  const m = typeof openFullScreenGameView === 'function'
+    ? openFullScreenGameView({
+        gameId: 'uno',
+        title: `UNO Clash · ${mode === '1v1' ? '1v1' : '4-Player'}`,
+        subMeta: roomCode ? `Room ${roomCode}` : (stake > 0 ? `${stake} 🪙 · Smart Bot` : 'Free Bot'),
+        statusText: 'Your Turn',
+        statusTone: 'turn',
+        themeClass: 'gfs-theme-felt',
+        html: innerHtml
+      })
+    : modal(`UNO Clash · ${mode === '1v1' ? '1v1' : '4-Player'}${stake > 0 ? ` · ${stake} 🪙` : ''}`, innerHtml, 'uno-modal');
 
   if (typeof QuickVoice !== 'undefined') {
     QuickVoice.bindGameVoiceBar(m, 'uno', 'uno', '#unoTable');
+  }
+
+  if ($('#unoAddFriendBtn', m)) {
+    $('#unoAddFriendBtn', m).onclick = openAddFriendPicker;
   }
 
   const finishMatch = (winnerIdx) => {
@@ -182,15 +258,14 @@ function launchUnoGame(stake, rival, modeRaw) {
       return true;
     }
 
-    /* Check UNO! vulnerability when hitting 1 card */
     if (p.hand.length === 1) {
       if (!p.calledUno) {
         vulnerableSeat = seatIdx;
         if (seatIdx === 0) {
           statusLine = '🚨 You have 1 card! Tap UNO! fast before a bot catches you (+2)!';
         }
-      } else {
-        if (vulnerableSeat === seatIdx) vulnerableSeat = null;
+      } else if (vulnerableSeat === seatIdx) {
+        vulnerableSeat = null;
       }
     } else {
       p.calledUno = false;
@@ -239,8 +314,8 @@ function launchUnoGame(stake, rival, modeRaw) {
     botTimer = setTimeout(() => {
       if (over) return;
 
-      /* Smart Bot catches player if player forgot to shout UNO! (65% chance) */
-      if (vulnerableSeat === 0 && players[0].hand.length === 1 && !players[0].calledUno && Math.random() < 0.65) {
+      const catchChance = botTier === 'pro' ? 0.85 : 0.55;
+      if (vulnerableSeat === 0 && players[0].hand.length === 1 && !players[0].calledUno && Math.random() < catchChance) {
         players[0].hand.push(...drawFromDeck(2));
         vulnerableSeat = null;
         statusLine = `🚨 Caught! You forgot UNO! (+2 penalty cards)`;
@@ -252,7 +327,6 @@ function launchUnoGame(stake, rival, modeRaw) {
       const p = players[currentTurn];
       if (!p || !p.isBot) return;
 
-      /* Smart AI picks optimal playable card */
       const playable = p.hand.filter(canPlay);
       const colCnt = { red: 0, yellow: 0, green: 0, blue: 0 };
       p.hand.forEach(c => { if (c.color !== 'wild') colCnt[c.color]++; });
@@ -265,14 +339,14 @@ function launchUnoGame(stake, rival, modeRaw) {
           let s = c.color === 'wild' ? (c.value === 'wild4' ? 8 : 14) : 25 + (Number(c.value) || 10);
           if (c.value === 'draw2') s += 30;
           if (c.value === 'skip' || c.value === 'reverse') s += 24;
-          if (urgent && (c.value === 'draw2' || c.value === 'wild4' || c.value === 'skip')) s += 50;
+          if (urgent && (c.value === 'draw2' || c.value === 'wild4' || c.value === 'skip')) s += (botTier === 'pro' ? 75 : 50);
           return s;
         };
         playable.sort((a, b) => score(b) - score(a));
         const pick = playable[0];
 
-        /* Bot remembers to call UNO 75% of the time (25% chance user can catch them!) */
-        if (p.hand.length === 2 && Math.random() < 0.75) {
+        const callChance = botTier === 'pro' ? 0.9 : 0.7;
+        if (p.hand.length === 2 && Math.random() < callChance) {
           p.calledUno = true;
           if (typeof QuickVoice !== 'undefined') QuickVoice.showBubble($('#unoTable', m), 'UNO! Watch out!', p.name, false);
         }
@@ -287,7 +361,7 @@ function launchUnoGame(stake, rival, modeRaw) {
         render();
         if (!over && players[currentTurn].isBot) scheduleBotTurn();
       }
-    }, 680);
+    }, botTier === 'pro' ? 520 : 680);
   };
 
   const renderUnoCardHtml = (c, playable, interactive) => {
@@ -308,10 +382,12 @@ function launchUnoGame(stake, rival, modeRaw) {
   const render = () => {
     const meP = players[0];
     if ($('#unoMyCnt', m)) $('#unoMyCnt', m).textContent = `You: ${meP.hand.length} card${meP.hand.length === 1 ? '' : 's'}`;
-    if ($('#unoTurnPill', m)) $('#unoTurnPill', m).textContent = over ? 'Finished' : (currentTurn === 0 ? 'Your Turn' : `${players[currentTurn].name}…`);
-    if ($('#unoDirPill', m)) $('#unoDirPill', m).textContent = direction === 1 ? '↻ Clockwise' : '↺ Counter';
+    if ($('#unoTurnPill', m)) $('#unoTurnPill', m).textContent = over ? 'Finished' : (currentTurn === 0 ? 'Your Turn' : `${players[currentTurn].name}… (${direction === 1 ? '↻' : '↺'})`);
     if ($('#unoDeckCnt', m)) $('#unoDeckCnt', m).textContent = `Draw (${deck.length})`;
     if ($('#unoStatus', m)) $('#unoStatus', m).textContent = statusLine;
+    if (typeof m.setStatus === 'function') {
+      m.setStatus(over ? 'Finished' : (currentTurn === 0 ? 'Your Turn' : `${players[currentTurn].name}…`), over ? 'neutral' : (currentTurn === 0 ? 'turn' : 'bot'));
+    }
 
     const orb = $('#unoColorOrb', m);
     if (orb) {

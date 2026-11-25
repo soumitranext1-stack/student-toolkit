@@ -73,6 +73,24 @@ const HUB_GAMES=[
 
 const DUEL_GAMES=[
   {
+    id:'jackaroo',name:'Jackaroo Royal Room',icon:'custom',
+    questions:[
+      {q:'Which card in Jackaroo moves 1 or 2 stones a total of 7 steps?',o:['Card 4','Card 7','Card 10','Queen'],a:1},
+      {q:'Card 4 in Jackaroo moves a stone how many steps back?',o:['2 steps','3 steps','4 steps','5 steps'],a:2},
+      {q:'Which card lets you swap with another player\'s stone or move +11?',o:['Jack (J)','King (K)','2','6'],a:0},
+      {q:'King (K) in Jackaroo can exit base or move how many steps?',o:['10','11','12','13'],a:3}
+    ]
+  },
+  {
+    id:'uno',name:'UNO Clash Room',icon:'duel',
+    questions:[
+      {q:'What happens if you reach 1 card and forget to call UNO?',o:['Nothing','+2 penalty cards','Instant win','Skip next turn'],a:1},
+      {q:'Which card reverses turn direction?',o:['Skip','Reverse','Wild','0'],a:1},
+      {q:'Wild +4 lets you choose the next color and forces next player to draw?',o:['2 cards','3 cards','4 cards','1 card'],a:2},
+      {q:'In 1v1 UNO, how does a Reverse card act?',o:['Same as Skip','Draws 1','Ends round','Changes deck'],a:0}
+    ]
+  },
+  {
     id:'math',name:'Math Speed Sprint',icon:'math',
     questions:[
       {q:'(24 ÷ 3) + (6 × 5) = ?',o:['34','38','42','30'],a:1},
@@ -393,7 +411,6 @@ function startLocalRoomMatchRunner(room){
   const meP=room.players&&room.players[uid];
   if(!meP||meP.finished)return;
 
-  /* Deduct coin match stake once per round safely */
   const stake=clampSafeInt(room.entryCoins||0,0,500);
   const stakeKey='room_stake_'+room.id+'_'+Number(room.roundNo||1);
   if(stake>0&&!me.done[stakeKey]){
@@ -468,6 +485,7 @@ function refreshActiveRoomModal(){
   const rosterHtml=`<div class="mp-roster">${players.map((p,idx)=>{
     const liveUser=allUsers().find(u=>u.uid===p.uid)||p;
     const isMe=p.uid===uid;
+    const isFr=typeof isFriend==='function'?isFriend(p.uid):false;
     const badge=room.status==='finished'&&idx===0?'🏆':(p.finished?'✓':(room.status==='playing'?'⚡':'Ready'));
     return `<div class="mp-player-row ${isMe?'me':''}">
       ${av(liveUser,34)}
@@ -475,12 +493,20 @@ function refreshActiveRoomModal(){
         <b>${esc(liveUser.name||p.name||'Player')}${p.uid===room.hostUid?' <span class="mp-host-tag">HOST</span>':''}</b>
         <small>Score: <b>${Number(p.score||0)}</b> · ${badge}</small>
       </div>
-      ${!isMe?`<button type="button" class="btn gold sm rk-gift-btn" data-mpgift="${esc(p.uid)}" data-mpname="${esc(liveUser.name||p.name||'Player')}">Gift</button>`:''}
+      <div class="row" style="gap:4px">
+        ${!isMe&&typeof toggleFriend==='function'?`<button type="button" class="btn ${isFr?'ghost':'ok'} sm" data-mpaddfr="${esc(p.uid)}">${isFr?'✓':'+Fr'}</button>`:''}
+        ${!isMe?`<button type="button" class="btn gold sm rk-gift-btn" data-mpgift="${esc(p.uid)}" data-mpname="${esc(liveUser.name||p.name||'Player')}">Gift</button>`:''}
+      </div>
     </div>`;
   }).join('')}</div>`;
 
   let stageHtml='';
   if(room.status==='waiting'){
+    const launchBoardBtn=(room.mode==='jackaroo'&&typeof launchJackaroo==='function')
+      ? `<button type="button" class="btn gold sm" id="mpLaunchJackarooBtn">Launch Jackaroo Board</button>`
+      : ((room.mode==='uno'&&typeof launchUnoGame==='function')
+        ? `<button type="button" class="btn gold sm" id="mpLaunchUnoBtn">Launch UNO Table</button>`
+        : '');
     stageHtml=`
       <div class="mp-stage">
         <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
@@ -489,6 +515,7 @@ function refreshActiveRoomModal(){
         </div>
         <div class="row" style="margin-top:10px;flex-wrap:wrap">
           ${isHost?`<button type="button" class="btn ok" style="flex:1" id="mpStartBtn">Start Match (${players.length} ${players.length===1?'Solo/Open':'Players'})</button>`:`<span class="dur-pill" style="flex:1;text-align:center">Waiting for host to start…</span>`}
+          ${launchBoardBtn}
           <button type="button" class="btn ghost sm" id="mpShareWorldBtn">Share to World Chat</button>
           <button type="button" class="btn red sm" id="mpLeaveBtn">${isHost?'Close':'Leave'}</button>
         </div>
@@ -527,7 +554,6 @@ function refreshActiveRoomModal(){
     </div>`;
   }
 
-  /* Live Room Chat & Gift Feed (visible in Lobby & Finished states to prevent gameplay overlap) */
   const chatFeedHtml=room.status!=='playing'?`
     <div class="mp-chat-box">
       <div class="mp-chat-head">Room Chat &amp; Live Gifts</div>
@@ -553,8 +579,15 @@ function refreshActiveRoomModal(){
   const sc=$('#mpChatScroll',body);
   if(sc)sc.scrollTop=sc.scrollHeight;
 
-  /* Bind controls */
   body.onclick=e=>{
+    const fb=e.target.closest('[data-mpaddfr]');
+    if(fb&&typeof toggleFriend==='function'){
+      const fUid=fb.dataset.mpaddfr;
+      if(!isFriend(fUid))toggleFriend(fUid);
+      toast('Friend added!');
+      refreshActiveRoomModal();
+      return;
+    }
     const gb=e.target.closest('[data-mpgift]');
     if(gb&&typeof openGiftSendModal==='function'){
       openGiftSendModal(gb.dataset.mpgift,{inRoom:room.id,targetName:gb.dataset.mpname||'Player'});
@@ -580,6 +613,18 @@ function refreshActiveRoomModal(){
     }
   };
 
+  if($('#mpLaunchJackarooBtn',body)){
+    $('#mpLaunchJackarooBtn',body).onclick=()=>{
+      if(activeRoomModal)activeRoomModal.close();
+      launchJackaroo(room.entryCoins||0,null,'2v2',room.entryCoins>0?'pro':'standard',room.code);
+    };
+  }
+  if($('#mpLaunchUnoBtn',body)){
+    $('#mpLaunchUnoBtn',body).onclick=()=>{
+      if(activeRoomModal)activeRoomModal.close();
+      launchUnoGame(room.entryCoins||0,null,'4p',room.entryCoins>0?'pro':'standard',room.code);
+    };
+  }
   if($('#mpShareWorldBtn',body))$('#mpShareWorldBtn',body).onclick=()=>shareRoomToWorldChat(room);
   if($('#mpStartBtn',body))$('#mpStartBtn',body).onclick=()=>{
     const liveRoom=mpRooms.find(r=>r.id===room.id)||room;
@@ -668,7 +713,6 @@ function renderGameSlots(){
     </div>
   </button>`;
 
-  /* Strictly Developer Only: normal/guest users never see + New Game Slot */
   const devSlotCard=devMode?`<button type="button" class="mini-game-3d-card glossy-card mg-dev-slot" data-addgameslot="1">
     <span class="mg-3d-badge">DEV</span>
     <div class="mg-3d-art">${GAME_SVG.plus}</div>
@@ -732,7 +776,6 @@ if($('#gamesGiftBtn'))$('#gamesGiftBtn').onclick=()=>{
   if(typeof openGiftSendModal==='function')openGiftSendModal(null,{allowPickPlayer:true});
 };
 
-/* ===== 60s Chat MCQ Duel (Fixed Settlement + Sound FX + In-Match Gifting) ===== */
 function settleDuel(m){
   if(m.type!=='duel'||m.settled||m.myScore==null||!me.done['bet_'+m.id])return;
   if(m.oppScore==null){
