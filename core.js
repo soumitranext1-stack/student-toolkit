@@ -215,7 +215,8 @@ function freshDefaultProfile(targetUid, isGuest){
     spinFreeDay:'',spinTickets:0,activitySec:0,claimedChestsDay:{},
     dailyCoinsByDay:{},claimedByDay:{},friends:[],tempUnlocks:{},rankVerified:{},devGrants:{},done:{},bioStyle:'',
     unreadFrom:{},activeDays:[today()],referredBy:'',referralRewardClaimed:false,
-    lastLoginBonusDay:'',poemReqDay:'',usageSec:0,banned:false,resetAt:0,devStatsUpdatedAt:0,giftResetAt:0,lastRewardedLevel:1,lastSeen:Date.now()
+    lastLoginBonusDay:'',poemReqDay:'',usageSec:0,banned:false,resetAt:0,devStatsUpdatedAt:0,giftResetAt:0,lastRewardedLevel:1,
+    activity:{type:'online',label:'Online',updatedAt:Date.now()},lastSeen:Date.now()
   };
 }
 
@@ -422,10 +423,10 @@ if(!Array.isArray(users)||!users.length){
   const td=today();
   const futureVip=Date.now()+86400000*14;
   users=[
-    {uid:'bot_aria',name:'Aria Nova',avatar:'av_g1',frame:'crown',banner:'bn-aurora',region:'India',gender:'female',bio:'Voice lounge host & Blitz Dots champ',exp:1420,charm:3680,likesCount:48,vipTier:'gold',vipUntil:futureVip,clanTag:'NOVA',dailyCoinsByDay:{[td]:420},giftWallet:{g01_rose:24,g25_tiara:3},lastSeen:Date.now()},
-    {uid:'bot_leo',name:'Leo Blaze',avatar:'av_b3',frame:'flame',banner:'bn-crimson',region:'USA',gender:'male',bio:'Undercover Spy & 8-Ball Pool shark',exp:1890,charm:5120,likesCount:62,vipTier:'royal',vipUntil:futureVip,clanTag:'APEX',dailyCoinsByDay:{[td]:510},giftWallet:{g01_rose:18,g40_falcon:2},lastSeen:Date.now()},
-    {uid:'bot_zara',name:'Zara Star',avatar:'av_g3',frame:'star',banner:'bn-galaxy',region:'Japan',gender:'female',bio:'Trivia speedrunner & cinema fan',exp:1160,charm:2450,likesCount:39,vipTier:'silver',vipUntil:futureVip,clanTag:'STAR',dailyCoinsByDay:{[td]:340},giftWallet:{g01_rose:12},lastSeen:Date.now()},
-    {uid:'bot_kai',name:'Kai Volt',avatar:'av_b1',frame:'neon',banner:'bn-ocean',region:'UK',gender:'male',bio:'1v1 Stake Arena grinder',exp:920,charm:1790,likesCount:29,vipTier:'',vipUntil:0,clanTag:'VOLT',dailyCoinsByDay:{[td]:260},giftWallet:{g01_rose:8},lastSeen:Date.now()}
+    {uid:'bot_aria',name:'Aria Nova',accountType:'account',online:true,avatar:'av_g1',frame:'crown',banner:'bn-aurora',region:'India',gender:'female',bio:'Ludo Royal Queen & Voice Host',exp:1420,charm:3680,likesCount:48,vipTier:'gold',vipUntil:futureVip,clanTag:'NOVA',dailyCoinsByDay:{[td]:420},giftWallet:{g01_rose:24,g25_tiara:3},activity:{type:'playing',gameId:'ludo',gameName:'Ludo',roomCode:'LU4821',mode:'4p',updatedAt:Date.now()},lastSeen:Date.now()},
+    {uid:'bot_leo',name:'Leo Blaze',accountType:'account',online:true,avatar:'av_b3',frame:'flame',banner:'bn-crimson',region:'USA',gender:'male',bio:'Jackaroo Captain & 8-Ball Shark',exp:1890,charm:5120,likesCount:62,vipTier:'royal',vipUntil:futureVip,clanTag:'APEX',dailyCoinsByDay:{[td]:510},giftWallet:{g01_rose:18,g40_falcon:2},activity:{type:'playing',gameId:'jackaroo',gameName:'Jackaroo',roomCode:'JK7290',mode:'2v2',updatedAt:Date.now()},lastSeen:Date.now()},
+    {uid:'bot_zara',name:'Zara Star',accountType:'account',online:true,avatar:'av_g3',frame:'star',banner:'bn-galaxy',region:'Japan',gender:'female',bio:'UNO Garden & Trivia Speedrunner',exp:1160,charm:2450,likesCount:39,vipTier:'silver',vipUntil:futureVip,clanTag:'STAR',dailyCoinsByDay:{[td]:340},giftWallet:{g01_rose:12},activity:{type:'playing',gameId:'uno',gameName:'UNO',roomCode:'UN3154',mode:'classic',updatedAt:Date.now()},lastSeen:Date.now()},
+    {uid:'bot_kai',name:'Kai Volt',accountType:'account',online:true,avatar:'av_b1',frame:'neon',banner:'bn-ocean',region:'UK',gender:'male',bio:'1v1 Stake Arena Grinder',exp:920,charm:1790,likesCount:29,vipTier:'',vipUntil:0,clanTag:'VOLT',dailyCoinsByDay:{[td]:260},giftWallet:{g01_rose:8},activity:{type:'online',label:'Online',updatedAt:Date.now()},lastSeen:Date.now()}
   ];
 }
 let devInbox=ls.get('sg_dev_inbox',{});
@@ -488,6 +489,7 @@ const base=()=>({
   streakDays:calcStreak(me.activeDays),activeDays:me.activeDays,tags:me.tags,
   accountType:me.accountType,accountId:me.accountId,authProvider:me.authProvider||(me.accountType==='account'?'google.com':'anonymous'),
   exp:clampExp(me.exp),charm:clampSafeInt(me.charm||0,0,MAX_COINS),charmSent:clampSafeInt(me.charmSent||0,0,MAX_COINS),
+  activity:me.activity||{type:'online',label:'Online',updatedAt:Date.now()},online:true,
   giftWallet:me.giftWallet||{},
   dailyCoinsByDay:sanitizeDailyMap(me.dailyCoinsByDay),claimedByDay:me.claimedByDay,
   friends:me.friends,tempUnlocks:me.tempUnlocks,rankVerified:me.rankVerified||{},devGrants:me.devGrants||{},
@@ -1221,6 +1223,565 @@ function resolvePlayerForProfile(targetUid){
   return null;
 }
 
+/* =====================================================================
+   ONLINE PRESENCE, GUEST FILTER, LIVE ACTIVITY, CLICKABLE INVITES,
+   SPECTATE & SHARED IN-GAME CHAT WIDGET
+   ===================================================================== */
+function isGuestUser(u){
+  if(!u)return true;
+  const id=String(u.uid||'').trim();
+  const nm=String(u.name||'').trim();
+  if(!id)return true;
+  if(u.accountType==='guest')return true;
+  if(/^SG\d{6,}$/i.test(id) && u.accountType!=='account')return true;
+  if(/^guest[_\-\s]/i.test(id))return true;
+  if(/^Guest\s+\d{3,}$/i.test(nm) && u.accountType!=='account')return true;
+  return false;
+}
+window.isGuestUser=isGuestUser;
+
+function isUserOnline(u){
+  if(!u||isGuestUser(u))return false;
+  if(u.uid===uid)return true;
+  const lsTs=Number(u.lastSeen||0);
+  if(lsTs>0 && (Date.now()-lsTs)<5*60*1000)return true;
+  if(u.online===true && (lsTs===0 || (Date.now()-lsTs)<30*60*1000))return true;
+  return false;
+}
+window.isUserOnline=isUserOnline;
+
+function getRealOnlineUsers(opts){
+  const o=opts||{};
+  const includeSelf=Boolean(o.includeSelf);
+  const friendsOnly=Boolean(o.friendsOnly);
+  const friendSet=new Set(Array.isArray(me?.friends)?me.friends:[]);
+  const list=(typeof allUsers==='function'?allUsers():[])
+    .filter(u=>u&&u.uid&&(includeSelf||u.uid!==uid))
+    .filter(u=>!isGuestUser(u))
+    .filter(u=>isUserOnline(u))
+    .filter(u=>!friendsOnly||friendSet.has(u.uid));
+  list.sort((a,b)=>{
+    const af=friendSet.has(a.uid)?1:0, bf=friendSet.has(b.uid)?1:0;
+    if(bf!==af)return bf-af;
+    return Number(b.lastSeen||0)-Number(a.lastSeen||0);
+  });
+  return list;
+}
+window.getRealOnlineUsers=getRealOnlineUsers;
+
+function getUserLiveActivity(u){
+  if(!u||isGuestUser(u)){
+    return {isOnline:false,type:'offline',label:'Offline',shortLabel:'Offline',badgeCls:'off',canSpectate:false};
+  }
+  const on=isUserOnline(u);
+  const act=u.activity&&typeof u.activity==='object'?u.activity:null;
+  const fresh=!act||!act.updatedAt||(Date.now()-Number(act.updatedAt))<45*60*1000;
+  if(on && act && fresh && (act.type==='playing' || act.type==='game') && (act.gameId||act.gameName)){
+    const gMap={ludo:'Ludo',jackaroo:'Jackaroo',uno:'UNO',pool_8ball:'8-Ball Pool',ludo_snakes:'Ludo Express',blitz_dots:'Blitz Dots',squad_arena:'Squad Arena',undercover:'Undercover'};
+    const gLabel=act.gameName||gMap[act.gameId]||'Game';
+    const cleanG=gLabel.replace(/\s+(Royal|Garden)$/i,'');
+    return {
+      isOnline:true,
+      type:'playing',
+      label:`Playing ${cleanG}`,
+      shortLabel:`Playing ${cleanG}`,
+      badgeCls:'playing',
+      gameId:String(act.gameId||'ludo'),
+      gameName:gLabel,
+      roomCode:String(act.roomCode||''),
+      roomId:String(act.roomId||''),
+      mode:String(act.mode||''),
+      canSpectate:true
+    };
+  }
+  if(on && act && fresh && act.type==='party'){
+    return {
+      isOnline:true,
+      type:'party',
+      label:'In Voice Room',
+      shortLabel:'In Voice Room',
+      badgeCls:'party',
+      roomId:String(act.roomId||''),
+      roomCode:String(act.roomCode||''),
+      gameName:act.gameName||'Voice Room',
+      canSpectate:Boolean(act.roomId)
+    };
+  }
+  if(on){
+    return {isOnline:true,type:'online',label:'Online',shortLabel:'Online',badgeCls:'on',canSpectate:false};
+  }
+  return {isOnline:false,type:'offline',label:'Offline',shortLabel:'Offline',badgeCls:'off',canSpectate:false};
+}
+window.getUserLiveActivity=getUserLiveActivity;
+
+function setMyLiveActivity(act){
+  const next=act&&act.type&&act.type!=='online'
+    ? {...act,updatedAt:Date.now()}
+    : {type:'online',label:'Online',updatedAt:Date.now()};
+  me.activity=next;
+  me.lastSeen=Date.now();
+  saveMe();
+  patchUser(uid,{activity:next,lastSeen:me.lastSeen,online:true});
+  if(online&&db&&F&&uid){
+    dbOp(()=>F.setDoc(userRef(uid),{activity:next,lastSeen:me.lastSeen,online:true},{merge:true}));
+  }
+}
+window.setMyLiveActivity=setMyLiveActivity;
+
+function renderOnlineActivityBadge(u, opts){
+  const o=opts||{};
+  const act=getUserLiveActivity(u);
+  if(!act.isOnline){
+    return o.hideOffline?'':'<span class="sg-act-badge off"><i></i>Offline</span>';
+  }
+  const ico=act.type==='playing'?'🎮':(act.type==='party'?'🎙️':'');
+  return `<span class="sg-act-badge ${esc(act.badgeCls)}"><i></i>${ico?ico+' ':''}${esc(act.label)}</span>`;
+}
+window.renderOnlineActivityBadge=renderOnlineActivityBadge;
+
+function buildRoomInviteUrl(opts){
+  const o=opts||{};
+  const code=String(o.roomCode||'').trim().toUpperCase();
+  const gameId=String(o.gameId||'').trim().toLowerCase();
+  const partyId=String(o.roomId||o.partyId||'').trim();
+  const mode=String(o.mode||'').trim();
+  try{
+    const baseHref=(typeof window!=='undefined'&&window.location&&window.location.href)?window.location.href:'https://study-game.app/';
+    const u=new URL(baseHref);
+    u.search='';
+    u.hash='';
+    if(o.type==='party'||partyId.startsWith('pr_')){
+      if(partyId)u.searchParams.set('party',partyId);
+      if(code)u.searchParams.set('room',code);
+    }else{
+      if(code)u.searchParams.set('room',code);
+      if(gameId)u.searchParams.set('game',gameId);
+      if(mode)u.searchParams.set('mode',mode);
+    }
+    return u.toString();
+  }catch{
+    if(o.type==='party'||partyId.startsWith('pr_')){
+      return `?party=${encodeURIComponent(partyId)}&room=${encodeURIComponent(code)}`;
+    }
+    return `?room=${encodeURIComponent(code)}${gameId?'&game='+encodeURIComponent(gameId):''}${mode?'&mode='+encodeURIComponent(mode):''}`;
+  }
+}
+window.buildRoomInviteUrl=buildRoomInviteUrl;
+
+function detectInviteGameFromCodeOrText(code, text, explicitGame){
+  const g=String(explicitGame||'').trim().toLowerCase();
+  if(g)return g;
+  const c=String(code||'').toUpperCase();
+  const t=String(text||'').toLowerCase();
+  if(c.startsWith('PL')||/8-?ball|pool/.test(t))return 'pool_8ball';
+  if(c.startsWith('CH')||/chess/.test(t))return 'chess_blitz';
+  if(c.startsWith('TR')||/tile\s*race/.test(t))return 'tile_race';
+  if(c.startsWith('TD')||/trap\s*door/.test(t))return 'trap_door';
+  if(c.startsWith('MC')||/mind\s*clash/.test(t))return 'mind_clash';
+  if(c.startsWith('PT')||/pocket\s*territory|territory/.test(t))return 'pocket_territory';
+  if(c.startsWith('LU')||/\bludo\b/.test(t))return 'ludo';
+  if(c.startsWith('NM')||/number\s*match/.test(t))return 'number_match';
+  if(c.startsWith('JK')||/\bjackaroo\b/.test(t))return 'jackaroo';
+  if(c.startsWith('UN')||/\buno\b/.test(t))return 'uno';
+  if(c.startsWith('PR')||/voice\s*room|party\s*room|\?party=/.test(t))return 'party';
+  if(/blitz|dots/.test(t))return 'blitz_dots';
+  if(/undercover/.test(t))return 'undercover';
+  if(/squad/.test(t))return 'squad_arena';
+  return 'room';
+}
+
+function parseRoomInviteFromText(rawText, meta){
+  const txt=String(rawText||'');
+  const m=meta&&typeof meta==='object'?meta:{};
+  let roomCode=String(m.roomCode||'').trim().toUpperCase();
+  let roomId=String(m.roomId||m.partyId||'').trim();
+  let gameId=String(m.gameId||'').trim().toLowerCase();
+  let mode=String(m.mode||'').trim();
+  let stake=Number(m.stake||0);
+
+  const qRoom=txt.match(/[?&]room=([A-Za-z0-9_-]{3,16})/i);
+  const qJk=txt.match(/[?&]jkRoom=([A-Za-z0-9_-]{3,16})/i);
+  const qParty=txt.match(/[?&]party=([A-Za-z0-9_-]{3,40})/i);
+  const qGame=txt.match(/[?&]game=([A-Za-z0-9_-]{2,24})/i);
+  const qMode=txt.match(/[?&]mode=([A-Za-z0-9_-]{2,20})/i);
+
+  if(!roomCode && qRoom)roomCode=qRoom[1].toUpperCase();
+  if(!roomCode && qJk){roomCode=qJk[1].toUpperCase();if(!gameId)gameId='jackaroo';}
+  if(!roomId && qParty){roomId=qParty[1];if(!gameId)gameId='party';}
+  if(!gameId && qGame)gameId=qGame[1].toLowerCase();
+  if(!mode && qMode)mode=qMode[1];
+
+  if(!roomCode){
+    const cMatch=txt.match(/(?:Room\s*Code|Table\s*Code|Code)\s*[:#]\s*([A-Z0-9-]{4,14})/i);
+    if(cMatch)roomCode=cMatch[1].toUpperCase();
+  }
+  if(!roomCode && !roomId)return null;
+
+  const isParty=m.type==='party_invite'||gameId==='party'||Boolean(qParty)||(roomId&&roomId.startsWith('pr_'));
+  const resolvedGame=isParty?'party':detectInviteGameFromCodeOrText(roomCode,txt,gameId);
+  const gameNames={
+    pool_8ball:'8-Ball Pool',
+    jackaroo:'Jackaroo',
+    uno:'UNO',
+    chess_blitz:'Chess Blitz',
+    tile_race:'60-Second Tile Race',
+    trap_door:'Trap Door Duel',
+    mind_clash:'Mind Clash 1v1',
+    pocket_territory:'Pocket Territory',
+    ludo:'Ludo Royal 3D',
+    number_match:'Number Match',
+    party:'Voice Party Room',
+    blitz_dots:'Blitz Dots',
+    squad_arena:'Squad Arena',
+    undercover:'Undercover',
+    room:'Multiplayer Room'
+  };
+  const gameIcons={
+    pool_8ball:'🎱',
+    jackaroo:'🃏',
+    uno:'🌈',
+    chess_blitz:'♟️',
+    tile_race:'⚡',
+    trap_door:'🚪',
+    mind_clash:'🧠',
+    pocket_territory:'🗺️',
+    ludo:'🎲',
+    number_match:'🔢',
+    party:'🎙️',
+    blitz_dots:'🔵',
+    squad_arena:'⚡',
+    undercover:'🕵️',
+    room:'🎮'
+  };
+  if(!mode){
+    if(/\b1v1\b/i.test(txt))mode='1v1';
+    else if(/\b2v2\b/i.test(txt))mode='2v2';
+    else if(/\b4p\b|4\s*player/i.test(txt))mode='4p';
+    else if(/\bfun\b/i.test(txt)&&resolvedGame==='uno')mode='fun';
+  }
+  if(!stake){
+    const sMatch=txt.match(/(\d{2,6})\s*(?:🪙|Coins?)/i);
+    if(sMatch)stake=Number(sMatch[1])||0;
+  }
+
+  return {
+    kind:isParty?'party':'game',
+    gameId:resolvedGame,
+    gameName:m.gameName||gameNames[resolvedGame]||'Multiplayer Room',
+    icon:gameIcons[resolvedGame]||'🎮',
+    roomCode,
+    roomId,
+    mode,
+    stake,
+    url:buildRoomInviteUrl({type:isParty?'party':'game',gameId:resolvedGame,roomCode,roomId,mode})
+  };
+}
+window.parseRoomInviteFromText=parseRoomInviteFromText;
+
+function renderClickableInviteCard(inv, opts){
+  if(!inv)return '';
+  const o=opts||{};
+  const payload=encodeURIComponent(JSON.stringify({
+    kind:inv.kind,gameId:inv.gameId,gameName:inv.gameName,roomCode:inv.roomCode,roomId:inv.roomId,mode:inv.mode,stake:inv.stake
+  }));
+  const subParts=[];
+  if(inv.roomCode)subParts.push(`Room Code: ${inv.roomCode}`);
+  if(inv.mode)subParts.push(inv.mode.toUpperCase());
+  if(inv.stake>0)subParts.push(`${inv.stake} 🪙`);
+  return `
+    <button type="button" class="sg-invite-card ${esc(inv.gameId||'room')}" data-sg-join-invite="${payload}" aria-label="Join ${esc(inv.gameName)} Room ${esc(inv.roomCode||'')}">
+      <div class="sg-inv-left">
+        <span class="sg-inv-ico" aria-hidden="true">${inv.icon||'🎮'}</span>
+        <div class="sg-inv-meta">
+          <b>${esc(inv.gameName||'Game Invite')}</b>
+          <small>${esc(subParts.join(' · ')||'Tap to join live room')}</small>
+        </div>
+      </div>
+      <span class="sg-inv-cta">${o.btnLabel||(inv.kind==='party'?'Enter Room':'Join')} ›</span>
+    </button>
+  `;
+}
+window.renderClickableInviteCard=renderClickableInviteCard;
+
+function joinFromInvitePayload(raw){
+  if(!raw)return;
+  let inv=raw;
+  if(typeof raw==='string'){
+    try{inv=JSON.parse(decodeURIComponent(raw));}
+    catch{inv=parseRoomInviteFromText(raw);}
+  }
+  if(!inv)return;
+  if(typeof playSfx==='function')playSfx('tap');
+
+  const thr=$('#thread');
+  if(thr&&!thr.hidden){thr.hidden=true;if(typeof cur!=='undefined')cur=null;}
+
+  if(inv.kind==='party'||inv.gameId==='party'){
+    const rooms=typeof partyRooms!=='undefined'&&Array.isArray(partyRooms)?partyRooms:[];
+    const match=rooms.find(r=>r&&(r.id===inv.roomId||(inv.roomCode&&String(r.code||r.shortId||'').toUpperCase()===inv.roomCode)));
+    if(match && typeof openPartyRoomModal==='function'){
+      showTab('party');
+      openPartyRoomModal(match.id);
+      return;
+    }
+    if(inv.roomId && typeof openPartyRoomModal==='function'){
+      showTab('party');
+      openPartyRoomModal(inv.roomId);
+      return;
+    }
+    showTab('party');
+    toast(inv.roomCode?`Voice Room ${inv.roomCode} not active right now`:'Opening Voice Rooms');
+    return;
+  }
+
+  if(inv.roomCode && typeof mpRooms!=='undefined'&&Array.isArray(mpRooms)){
+    const liveR=mpRooms.find(r=>r&&String(r.code||'').toUpperCase()===inv.roomCode&&r.status!=='finished');
+    if(liveR&&typeof joinMultiplayerRoom==='function'){
+      showTab('games');
+      joinMultiplayerRoom(liveR.code);
+      return;
+    }
+  }
+
+  if(['pool_8ball','chess_blitz','tile_race','trap_door','mind_clash','pocket_territory','jackaroo','uno','ludo','number_match'].includes(inv.gameId)){
+    if(typeof openVisualModeSelect==='function'){
+      openVisualModeSelect(inv.gameId, null, { initialTab:'invite', roomCode:inv.roomCode, mode:inv.mode, stake:inv.stake||0 });
+      return;
+    }
+    if(typeof launchStandardizedGame==='function'){
+      launchStandardizedGame(inv.gameId, { modeType:'invite', roomCode:inv.roomCode, subMode:inv.mode, stake:inv.stake||0 });
+      return;
+    }
+  }
+  if(inv.roomCode && typeof joinMultiplayerRoom==='function'){
+    showTab('games');
+    joinMultiplayerRoom(inv.roomCode);
+    return;
+  }
+  showTab('games');
+  toast(`Opening ${inv.gameName||'Arena'} (${inv.roomCode||'Live'})`);
+}
+window.joinFromInvitePayload=joinFromInvitePayload;
+
+function sendUniversalRoomInviteToDm(friend, payload){
+  if(!friend||!friend.uid)return false;
+  const targetUid=String(friend.uid);
+  const p=payload||{};
+  const roomCode=String(p.roomCode||'').trim().toUpperCase();
+  const gameId=String(p.gameId||'room').trim().toLowerCase();
+  const isParty=p.type==='party'||gameId==='party';
+  const url=buildRoomInviteUrl({type:isParty?'party':'game',gameId,roomCode,roomId:p.roomId,mode:p.mode});
+  const gameName=p.gameName||(gameId==='ludo'?'Ludo Royal':gameId==='number_match'?'Number Match':gameId==='jackaroo'?'Jackaroo Royal':gameId==='uno'?'UNO Garden':isParty?'Voice Party Room':'Game Room');
+  const txt=p.text||`${isParty?'🎙️':'🎮'} Join my ${gameName}${p.mode?' ('+p.mode.toUpperCase()+')':''}${Number(p.stake||0)>0?' · '+p.stake+' 🪙':''}! Room Code: ${roomCode} ${url}`;
+  const msgId='dm_inv_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  const msgObj={
+    id:msgId,
+    from:uid,
+    to:targetUid,
+    fromName:me.name||'Player',
+    type:isParty?'party_invite':'game_invite',
+    text:txt,
+    roomCode,
+    roomId:p.roomId||'',
+    gameId,
+    gameName,
+    mode:p.mode||'',
+    stake:Number(p.stake||0),
+    url,
+    ts:Date.now()
+  };
+  if(typeof chats!=='undefined'&&chats){
+    if(!chats[targetUid])chats[targetUid]={id:targetUid,name:friend.name||'Friend',uid:targetUid,messages:[]};
+    chats[targetUid].messages.push({...msgObj,from:'me'});
+    if(chats[targetUid].messages.length>120)chats[targetUid].messages=chats[targetUid].messages.slice(-120);
+    if(typeof saveChats==='function')saveChats();
+    if(typeof cur!=='undefined'&&cur===targetUid&&typeof renderThread==='function')renderThread();
+    if(typeof renderChats==='function')renderChats();
+  }
+  if(online&&db&&F){
+    dbOp(()=>F.setDoc(F.doc(db,'dm_messages',msgId),msgObj));
+  }
+  return true;
+}
+window.sendUniversalRoomInviteToDm=sendUniversalRoomInviteToDm;
+
+function spectateUserMatch(targetUidOrUser){
+  const u=typeof targetUidOrUser==='string'?resolvePlayerForProfile(targetUidOrUser):targetUidOrUser;
+  if(!u)return toast('Player not found');
+  const act=getUserLiveActivity(u);
+  if(!act.isOnline||!act.canSpectate){
+    return toast(`${u.name||'Player'} is not in a live match right now`);
+  }
+  if(typeof playSfx==='function')playSfx('tap');
+  if(act.type==='party'&&act.roomId&&typeof openPartyRoomModal==='function'){
+    showTab('party');
+    openPartyRoomModal(act.roomId);
+    return;
+  }
+  const code=act.roomCode||('SP'+Math.floor(1000+Math.random()*9000));
+  if(act.gameId==='ludo'&&typeof launchLudoGame==='function'){
+    launchLudoGame({stake:0,rival:u,mode:act.mode==='1v1'?'1v1':'4p',roomCode:code,spectate:true,spectateHost:u});
+    return;
+  }
+  if(act.gameId==='number_match'&&typeof launchNumberMatch==='function'){
+    launchNumberMatch({stake:0,rival:u,mode:act.mode==='duel'?'duel':'classic',roomCode:code,spectate:true,spectateHost:u});
+    return;
+  }
+  if(act.gameId==='jackaroo'&&typeof launchJackaroo==='function'){
+    launchJackaroo(0,u,act.mode==='1v1'?'1v1':'2v2','standard',code,{spectate:true,spectateHost:u});
+    return;
+  }
+  if(act.gameId==='uno'&&typeof launchUnoGame==='function'){
+    launchUnoGame(0,u,act.mode||'classic','standard',code,{spectate:true,spectateHost:u});
+    return;
+  }
+  if(typeof launchLudoGame==='function'){
+    launchLudoGame({stake:0,rival:u,mode:'4p',roomCode:code,spectate:true,spectateHost:u});
+  }else{
+    toast(`Viewing ${u.name||'Player'}'s match (${act.label})`);
+  }
+}
+window.spectateUserMatch=spectateUserMatch;
+
+function createInGameChatWidget(opts){
+  const o=opts||{};
+  const roomCode=String(o.roomCode||'ROOM').toUpperCase();
+  const gameId=String(o.gameId||'game');
+  const spectate=Boolean(o.spectate);
+  const storageKey=`sg_gchat_${gameId}_${roomCode}`;
+  const rawQuick=Array.isArray(o.quickLines)&&o.quickLines.length?o.quickLines:(Array.isArray(o.quickMessages)&&o.quickMessages.length?o.quickMessages:null);
+  const quickLines=rawQuick||[
+    'Nice move! 🔥','Good luck! 🍀','Watch this! 😎','GG! 👏','Haha 😂','Hurry up! ⚡'
+  ];
+  let messages=ls.get(storageKey,[]);
+  if(!Array.isArray(messages))messages=[];
+  if(!messages.length){
+    messages.push({
+      id:'sys_0',
+      system:true,
+      name:'Table',
+      text:spectate?`You joined Room ${roomCode} as a Spectator 👁️`:`In-game chat ready · Room ${roomCode}`,
+      ts:Date.now()
+    });
+  }
+  let expanded=false;
+  let hostEl=null;
+  let destroyed=false;
+
+  const persist=()=>{
+    try{ls.set(storageKey,messages.slice(-40));}catch{}
+  };
+
+  const renderMessagesList=()=>{
+    if(!hostEl||destroyed)return;
+    const logEl=hostEl.querySelector('[data-gc-log]');
+    const previewEl=hostEl.querySelector('[data-gc-preview]');
+    const last=messages[messages.length-1];
+    if(previewEl&&last){
+      previewEl.innerHTML=last.system
+        ? `<span class="gc-sys">${esc(last.text)}</span>`
+        : `<b>${esc(last.name)}:</b> ${esc(last.text)}`;
+    }
+    if(logEl){
+      logEl.innerHTML=messages.slice(-24).map(m=>m.system
+        ? `<div class="gc-line sys">${esc(m.text)}</div>`
+        : `<div class="gc-line ${m.uid===uid?'me':''}"><span class="gc-who">${esc(m.name)}${m.spectate?' <em>(Viewer)</em>':''}:</span> <span class="gc-txt">${esc(m.text)}</span></div>`
+      ).join('');
+      logEl.scrollTop=logEl.scrollHeight;
+    }
+  };
+
+  const pushMessage=(name, text, meta={})=>{
+    if(destroyed)return;
+    const clean=String(text||'').trim().slice(0,140);
+    if(!clean)return;
+    const item={
+      id:'gm_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+      uid:meta.uid||uid,
+      name:String(name||me.name||'You'),
+      text:clean,
+      spectate:Boolean(meta.spectate),
+      system:Boolean(meta.system),
+      ts:Date.now()
+    };
+    messages.push(item);
+    if(messages.length>50)messages=messages.slice(-50);
+    persist();
+    renderMessagesList();
+    if(typeof o.onMessage==='function')o.onMessage(item);
+    if(typeof o.onSend==='function'&&item.uid===uid&&!item.system)o.onSend(item.text,item);
+  };
+
+  const mount=(container)=>{
+    if(!container||destroyed)return;
+    hostEl=container;
+    hostEl.innerHTML=`
+      <div class="sg-gchat-box" data-testid="ingame-chat-box">
+        <div class="sg-gchat-drawer" data-gc-drawer hidden>
+          <div class="sg-gchat-head">
+            <b>💬 Table Chat · ${esc(roomCode)}</b>
+            <button type="button" class="sg-gc-x" data-gc-toggle="0" aria-label="Collapse chat">✕</button>
+          </div>
+          <div class="sg-gchat-log" data-gc-log></div>
+          <div class="sg-gchat-quick">
+            ${quickLines.map(q=>`<button type="button" class="sg-gc-qbtn" data-gc-quick="${esc(q)}">${esc(q)}</button>`).join('')}
+          </div>
+        </div>
+        <div class="sg-gchat-bar">
+          <button type="button" class="sg-gc-toggle-btn" data-gc-toggle="1" title="Toggle chat history" aria-label="Toggle in-game chat">💬</button>
+          <div class="sg-gc-preview" data-gc-preview data-gc-toggle="1"></div>
+          <input type="text" class="sg-gc-input" data-gc-input placeholder="${spectate?'Cheer players…':'Message table…'}" maxlength="120" autocomplete="off" aria-label="In-game chat message">
+          <button type="button" class="sg-gc-send" data-gc-send aria-label="Send in-game message">Send</button>
+        </div>
+      </div>
+    `;
+    renderMessagesList();
+    const drawer=hostEl.querySelector('[data-gc-drawer]');
+    const input=hostEl.querySelector('[data-gc-input]');
+
+    const submit=()=>{
+      if(!input)return;
+      const val=input.value.trim();
+      if(!val)return;
+      input.value='';
+      if(typeof playSfx==='function')playSfx('chatSend');
+      pushMessage(me.name||'You',val,{uid,spectate});
+    };
+
+    hostEl.onclick=(e)=>{
+      const tog=e.target.closest('[data-gc-toggle]');
+      if(tog&&drawer){
+        expanded=tog.dataset.gcToggle==='0'?false:!expanded;
+        drawer.hidden=!expanded;
+        if(expanded)renderMessagesList();
+        return;
+      }
+      const qBtn=e.target.closest('[data-gc-quick]');
+      if(qBtn){
+        if(typeof playSfx==='function')playSfx('chatSend');
+        pushMessage(me.name||'You',qBtn.dataset.gcQuick,{uid,spectate});
+        return;
+      }
+      if(e.target.closest('[data-gc-send]')){
+        submit();
+      }
+    };
+    if(input){
+      input.onkeydown=(ev)=>{
+        if(ev.key==='Enter'){ev.preventDefault();submit();}
+      };
+    }
+  };
+
+  const destroy=()=>{
+    destroyed=true;
+    if(hostEl){hostEl.onclick=null;hostEl=null;}
+  };
+
+  return {mount,pushMessage,destroy};
+}
+window.createInGameChatWidget=createInGameChatWidget;
+
 function openPublicProfile(targetUid){
   const devViewer=isDevSession();
   if(targetUid==='developer'||targetUid===DEV_UID){
@@ -1254,11 +1815,15 @@ function openPublicProfile(targetUid){
   const bondsHtml=typeof renderBondsGridHtml==='function'?renderBondsGridHtml(u,self):'';
   const genderChip=u.gender==='male'?'<span class="wp-gender m">♂</span>':(u.gender==='female'?'<span class="wp-gender f">♀</span>':'');
   const flag=getRegionFlag(u.region||'India');
+  const liveAct=getUserLiveActivity(u);
 
   const m=modal('Profile',`
     <div class="wp-prof-cover bn-box ${esc(u.banner||'bn-aurora')}">
       <div class="wp-prof-top">
-        ${av(u,74)}
+        <div class="sg-av-presence-wrap">
+          ${av(u,74)}
+          ${liveAct.isOnline?'<span class="sg-online-dot lg" title="Online"></span>':''}
+        </div>
         <div class="wp-prof-id">
           <div class="wp-prof-name-row">
             <b>${styledName(u)}</b>
@@ -1266,6 +1831,7 @@ function openPublicProfile(targetUid){
             ${genderChip}
           </div>
           <div class="wp-prof-pills">
+            ${renderOnlineActivityBadge(u)}
             <span class="wp-pill lv">Lv.${fmtNum(calcLevel(u.exp),MAX_LEVEL)}</span>
             <span class="wp-pill charm">💎 ${fmtNum(gwStats.totalCharm)}</span>
             ${u.clanTag?`<span class="wp-pill clan">[${esc(u.clanTag)}]</span>`:''}
@@ -1280,6 +1846,19 @@ function openPublicProfile(targetUid){
       </div>
       ${renderTags(u.tags,u)}
     </div>
+
+    ${!self&&liveAct.canSpectate?`
+      <div class="sg-prof-live-card">
+        <div class="sg-plc-info">
+          <span class="sg-live-pulse">LIVE</span>
+          <div>
+            <b>${esc(liveAct.label)}</b>
+            <small>${liveAct.roomCode?`Room ${esc(liveAct.roomCode)}`:'Live session in progress'}</small>
+          </div>
+        </div>
+        <button type="button" class="btn sm ok" id="pfSpectateTop">👁️ View / Spectate</button>
+      </div>
+    `:''}
 
     ${u.bio?`<div class="wp-sig-box"><span class="${esc(u.bioStyle||'')}">${esc(u.bio)}</span></div>`:''}
 
@@ -1296,6 +1875,7 @@ function openPublicProfile(targetUid){
       <div class="wp-prof-mini-acts">
         <button type="button" class="wp-mini-btn ${fr?'on':''}" id="pfAdd">${fr?'✓ Friend':'+ Friend'}</button>
         <button type="button" class="wp-mini-btn ${likedByMe?'liked':''}" id="pfLike">${likedByMe?'❤️':'🤍'} ${fmtNum(likesCnt)}</button>
+        ${liveAct.canSpectate?'<button type="button" class="wp-mini-btn on" id="pfSpectate">👁️ View</button>':''}
         <button type="button" class="wp-mini-btn" id="pfChallenge">⚔️ Duel</button>
         <button type="button" class="wp-mini-btn bad" id="pfReport">🚩</button>
       </div>
@@ -1450,6 +2030,9 @@ function openPublicProfile(targetUid){
     }
   };
   if($('#pfLike',m))$('#pfLike',m).onclick=()=>{toggleProfileLike(u.uid);m.close();openPublicProfile(u.uid)};
+  const onSpec=()=>{m.close();spectateUserMatch(u);};
+  if($('#pfSpectate',m))$('#pfSpectate',m).onclick=onSpec;
+  if($('#pfSpectateTop',m))$('#pfSpectateTop',m).onclick=onSpec;
   if($('#pfChallenge',m))$('#pfChallenge',m).onclick=()=>{
     m.close();
     if(typeof openRivalChallenge==='function')openRivalChallenge(u.uid);

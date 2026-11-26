@@ -220,14 +220,22 @@ const SFX = (() => {
   }
 
   function duelWin() {
-    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
-      tone(f, { delay: i * 0.07, dur: 0.22, type: 'triangle', vol: 0.12 });
+    // Energetic celebratory royal victory fanfare (arpeggio + triumphant chord + shimmer)
+    const lead = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98];
+    lead.forEach((f, i) => {
+      tone(f, { delay: i * 0.065, dur: 0.24, type: i % 2 === 0 ? 'triangle' : 'sine', vol: 0.135 });
     });
+    // Triumphant final C-major chord swell
+    [523.25, 659.25, 783.99, 1046.5, 1567.98].forEach((f) => {
+      tone(f, { delay: 0.42, dur: 0.46, type: 'triangle', vol: 0.085 });
+    });
+    tone(2093.0, { delay: 0.46, dur: 0.34, type: 'sine', vol: 0.075 });
+    noiseBurst({ delay: 0.38, dur: 0.28, freq: 3800, vol: 0.045 });
   }
 
   function matchLose() {
     [392.0, 349.23, 293.66, 220.0].forEach((f, i) => {
-      tone(f, { delay: i * 0.09, dur: 0.18, type: 'triangle', vol: 0.095 });
+      tone(f, { delay: i * 0.095, dur: 0.2, type: 'triangle', vol: 0.095 });
     });
   }
 
@@ -261,9 +269,59 @@ const SFX = (() => {
   }
 
   function diceRoll() {
-    for (let i = 0; i < 4; i++) {
-      tone(420 + i * 95, { delay: i * 0.045, dur: 0.04, type: 'triangle', vol: 0.07 });
+    // Tactile wooden/ivory multi-rattle + crisp final land clack
+    const hops = [0, 0.055, 0.115, 0.18, 0.255, 0.34];
+    const pitches = [460, 580, 510, 670, 590, 740];
+    hops.forEach((d, i) => {
+      tone(pitches[i], { delay: d, dur: 0.038, type: 'triangle', vol: 0.085, endFreq: pitches[i] * 0.65 });
+      noiseBurst({ delay: d, dur: 0.032, freq: 1900 + i * 260, vol: 0.05 });
+    });
+    tone(310, { delay: 0.35, dur: 0.055, type: 'sine', vol: 0.09, endFreq: 195 });
+  }
+
+  function cardPlay() {
+    noiseBurst({ dur: 0.055, freq: 2600, vol: 0.065 });
+    tone(520, { dur: 0.045, type: 'triangle', vol: 0.085, endFreq: 860 });
+  }
+
+  function cardDraw() {
+    noiseBurst({ dur: 0.06, freq: 1600, vol: 0.05 });
+    tone(420, { delay: 0.015, dur: 0.05, type: 'sine', vol: 0.065, endFreq: 620 });
+  }
+
+  function pawnStep() {
+    tone(380, { dur: 0.042, type: 'triangle', vol: 0.08, endFreq: 540 });
+    noiseBurst({ dur: 0.022, freq: 1500, vol: 0.03 });
+  }
+
+  function capture() {
+    tone(290, { dur: 0.09, type: 'sawtooth', vol: 0.085, endFreq: 130 });
+    tone(660, { delay: 0.04, dur: 0.11, type: 'triangle', vol: 0.12, endFreq: 1180 });
+    tone(1318.5, { delay: 0.11, dur: 0.16, type: 'sine', vol: 0.11 });
+    noiseBurst({ delay: 0.02, dur: 0.1, freq: 2400, vol: 0.055 });
+  }
+
+  function pairMatch(combo) {
+    const step = Math.min(8, Math.max(0, Number(combo || 1) - 1));
+    const base = 523.25 * Math.pow(1.06, step);
+    tone(base, { dur: 0.085, type: 'triangle', vol: 0.105 });
+    tone(base * 1.25, { delay: 0.055, dur: 0.13, type: 'sine', vol: 0.115 });
+    if (step >= 2) {
+      tone(base * 1.5, { delay: 0.11, dur: 0.16, type: 'sine', vol: 0.095 });
     }
+  }
+
+  function rowClear() {
+    [587.33, 739.99, 880, 1174.66, 1479.98].forEach((f, i) => {
+      tone(f, { delay: i * 0.048, dur: 0.17, type: i % 2 ? 'sine' : 'triangle', vol: 0.115 });
+    });
+    noiseBurst({ delay: 0.08, dur: 0.18, freq: 3600, vol: 0.04 });
+  }
+
+  function addRows() {
+    [420, 500, 590, 680].forEach((f, i) => {
+      tone(f, { delay: i * 0.038, dur: 0.055, type: 'triangle', vol: 0.075 });
+    });
   }
 
   function chestOpen() {
@@ -310,16 +368,31 @@ const SFX = (() => {
       case 'redPacketDrop': redPacketDrop(); break;
       case 'redPacketClaim': redPacketClaim(); break;
       case 'duelCorrect': duelCorrect(); break;
-      case 'duelWrong': duelWrong(); break;
-      case 'duelWin': duelWin(); break;
-      case 'matchLose': matchLose(); break;
+      case 'duelWrong':
+      case 'error':
+      case 'wrong': duelWrong(); break;
+      case 'duelWin':
+      case 'win':
+      case 'victory': duelWin(); break;
+      case 'matchLose':
+      case 'lose':
+      case 'defeat': matchLose(); break;
       case 'vipEntrance': vipEntrance(); break;
       case 'weddingBells':
       case 'weddingBell': weddingBells(); break;
       case 'wheelTick': wheelTick(); break;
       case 'wheelWin': wheelWin(); break;
       case 'poolHit': poolHit(); break;
-      case 'diceRoll': diceRoll(); break;
+      case 'diceRoll':
+      case 'dice': diceRoll(); break;
+      case 'cardPlay': cardPlay(); break;
+      case 'cardDraw': cardDraw(); break;
+      case 'pawnStep':
+      case 'move': pawnStep(); break;
+      case 'capture': capture(); break;
+      case 'pairMatch': pairMatch(opts.combo); break;
+      case 'rowClear': rowClear(); break;
+      case 'addRows': addRows(); break;
       case 'chestOpen': chestOpen(); break;
       case 'flashDrop': flashDrop(); break;
       case 'warningAlert': warningAlert(); break;

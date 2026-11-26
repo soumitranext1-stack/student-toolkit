@@ -126,6 +126,11 @@ function mergeAppearanceFromCloud(m){
   if(typeof m.banReason==='string')me.banReason=m.banReason;
   if(typeof m.banUntil==='number')me.banUntil=m.banUntil;
   if(typeof m.banned==='boolean')me.banned=m.banned;
+  if(m.activity&&typeof m.activity==='object'&&!Array.isArray(m.activity)){
+    if(!me.activity||Number(m.activity.updatedAt||0)>Number(me.activity.updatedAt||0)){
+      me.activity={...m.activity};
+    }
+  }
 
   me=normalizeProfile(me,uid);
   me.lastRewardedLevel=Math.max(Number(me.lastRewardedLevel||1),calcLevel(me.exp));
@@ -293,7 +298,12 @@ async function initFirebase(){
 
     S.onSnapshot(S.collection(db,'users'),snap=>{
       const docs=snap.docs.map(d=>sanitizeUserAppearance({uid:d.id,...d.data()}));
-      cleanupInactiveGuestUsers(docs);users=docs;usersHydrated=true;ls.set('sg_users_cache',users);
+      cleanupInactiveGuestUsers(docs);
+      const docIds=new Set(docs.map(x=>x.uid));
+      const friendSet=new Set(Array.isArray(me?.friends)?me.friends:[]);
+      const keptLocal=(users||[]).filter(u=>u&&u.uid&&!docIds.has(u.uid)&&(friendSet.has(u.uid)||String(u.uid).startsWith('demo_')));
+      users=[...docs,...keptLocal];
+      usersHydrated=true;ls.set('sg_users_cache',users);
       const m=users.find(x=>x.uid===uid);
       if(m){mergeAppearanceFromCloud(m);applyDevUI();checkBan()}
       setStatus(true);claimRankReward();checkReferralPayout();updateHud();renderAll();
@@ -354,6 +364,11 @@ async function initFirebase(){
             playSfx('chatRecv');
           }
         }
+      }
+      const cloudIds=new Set(list.map(x=>x.id));
+      const keptLocalMsgs=(worldMsgs||[]).filter(m=>m&&m.id&&!cloudIds.has(m.id)&&m.uid===uid&&(now-Number(m.ts||0))<600000);
+      if(keptLocalMsgs.length){
+        list=[...list,...keptLocalMsgs].sort((a,b)=>(a.ts||0)-(b.ts||0)).slice(-150);
       }
       worldHydrated=true;
       prevWorldIds=new Set(list.map(x=>x.id));

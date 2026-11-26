@@ -7,83 +7,81 @@
 
 const ARENA_GAMES = [
   {
+    id: 'pool_8ball',
+    name: '8-Ball Pool',
+    accent: '#10b981',
+    accent2: '#064e3b'
+  },
+  {
     id: 'jackaroo',
-    name: 'Jackaroo Royal',
-    tag: '2v2 / 1v1',
-    live: 92,
+    name: 'Jackaroo',
     accent: '#d97706',
     accent2: '#7c2d12',
-    badge: 'Marbles & Cards',
-    desc: '3D Marbles · A/K/Q/J/7/4/10',
     modes: [
-      { id: '1v1', label: '2 Players (1v1)' },
-      { id: '2v2', label: '4 Players (2v2)' }
+      { id: '1v1', label: '1v1 Duel' },
+      { id: '2v2', label: '2v2 Squad' }
     ]
   },
   {
     id: 'uno',
-    name: 'UNO Garden',
-    tag: 'Classic / Fun',
-    live: 108,
-    accent: '#78b824',
-    accent2: '#1575e8',
-    badge: 'Stack & ONE!',
-    desc: 'Classic · Fun +Stack · Voice',
+    name: 'UNO',
+    accent: '#ef4444',
+    accent2: '#1d4ed8',
     modes: [
-      { id: 'classic', label: 'Classic (4P)' },
-      { id: 'fun', label: 'Fun Play (+Stack)' },
+      { id: 'classic', label: 'Classic' },
+      { id: 'fun', label: 'Fun +Stack' },
+      { id: '1v1', label: '1v1' }
+    ]
+  },
+  {
+    id: 'chess_blitz',
+    name: 'Chess Blitz',
+    accent: '#f59e0b',
+    accent2: '#312e81'
+  },
+  {
+    id: 'tile_race',
+    name: '60-Second Tile Race',
+    accent: '#06b6d4',
+    accent2: '#1e3a8a'
+  },
+  {
+    id: 'trap_door',
+    name: 'Trap Door Duel',
+    accent: '#f43f5e',
+    accent2: '#4c1d95'
+  },
+  {
+    id: 'mind_clash',
+    name: 'Mind Clash 1v1',
+    accent: '#8b5cf6',
+    accent2: '#0f172a'
+  },
+  {
+    id: 'pocket_territory',
+    name: 'Pocket Territory',
+    accent: '#3b82f6',
+    accent2: '#065f46'
+  },
+  {
+    id: 'ludo',
+    name: 'Ludo Royal 3D',
+    accent: '#ef4444',
+    accent2: '#7c2d12',
+    modes: [
+      { id: '4p', label: '4 Players' },
       { id: '1v1', label: '1v1 Duel' }
     ]
   },
   {
-    id: 'pool_8ball',
-    name: '8-Ball Pool 1v1',
-    tag: 'HD Physics',
-    live: 74,
-    accent: '#10b981',
-    accent2: '#064e3b',
-    badge: 'Pro Billiards',
-    desc: 'Mahogany Felt · Laser Cue'
-  },
-  {
-    id: 'blitz_dots',
-    name: 'Blitz Dots 1v1',
-    tag: 'Tactical AI',
-    live: 51,
-    accent: '#22d3ee',
-    accent2: '#3730a3',
-    badge: '1v1 Stake',
-    desc: 'Brass Grid · Chain Boxes'
-  },
-  {
-    id: 'ludo_snakes',
-    name: 'Ludo Express',
-    tag: '3D Board',
-    live: 63,
-    accent: '#a855f7',
-    accent2: '#1d4ed8',
-    badge: '3D Dice & Pawns',
-    desc: '24-Tile Board · Boost Stars'
-  },
-  {
-    id: 'squad_arena',
-    name: 'Squad Trivia 1v1',
-    tag: 'Glass Stage',
-    live: 84,
-    accent: '#f59e0b',
-    accent2: '#be185d',
-    badge: '1v1 Stake',
-    desc: '5-Round Blitz · Smart Rival'
-  },
-  {
-    id: 'undercover',
-    name: 'Undercover Spy',
-    tag: 'Mic Pass',
-    live: 69,
-    accent: '#f43f5e',
-    accent2: '#5b21b6',
-    badge: 'Turn Mic',
-    desc: 'Detective Table · Find Spy'
+    id: 'number_match',
+    name: 'Number Match',
+    accent: '#6366f1',
+    accent2: '#0f172a',
+    modes: [
+      { id: 'classic', label: 'Classic' },
+      { id: 'duel', label: '1v1 Duel' }
+    ]
   }
 ];
 
@@ -215,81 +213,126 @@ function spawnArenaSparks(hostEl, color = '#ffd36b', count = 10) {
 function renderArenaBannerArt(g) {
   const id = esc(g.id);
   const icons = {
-    jackaroo: `<g transform="translate(172,14)">
-      <rect x="6" y="6" width="126" height="104" rx="22" fill="#3e1c0a" stroke="#fbbf24" stroke-width="3.5"/>
-      <circle cx="69" cy="58" r="38" fill="#0f5132" stroke="#f59e0b" stroke-width="2.5"/>
-      <circle cx="48" cy="46" r="10.5" fill="#38bdf8" stroke="#fff" stroke-width="1.5"/>
-      <circle cx="90" cy="46" r="10.5" fill="#f43f5e" stroke="#fff" stroke-width="1.5"/>
-      <circle cx="69" cy="74" r="10.5" fill="#10b981" stroke="#fff" stroke-width="1.5"/>
-      <rect x="95" y="64" width="32" height="44" rx="6" transform="rotate(14 111 86)" fill="#fff" stroke="#fbbf24" stroke-width="1.8"/>
-      <text x="111" y="92" text-anchor="middle" font-size="14" font-weight="900" fill="#dc2626" transform="rotate(14 111 86)">A♥</text>
+    pool_8ball: `<g transform="translate(86,16)">
+      <rect x="0" y="6" width="148" height="92" rx="18" fill="#065f46" stroke="#92400e" stroke-width="7"/>
+      <circle cx="8" cy="14" r="6" fill="#030712"/><circle cx="74" cy="10" r="6" fill="#030712"/><circle cx="140" cy="14" r="6" fill="#030712"/>
+      <circle cx="8" cy="90" r="6" fill="#030712"/><circle cx="74" cy="94" r="6" fill="#030712"/><circle cx="140" cy="90" r="6" fill="#030712"/>
+      <line x1="16" y1="84" x2="62" y2="56" stroke="#fde68a" stroke-width="4.5" stroke-linecap="round"/>
+      <circle cx="64" cy="54" r="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+      <circle cx="96" cy="52" r="15" fill="#111827" stroke="#f8fafc" stroke-width="2"/>
+      <circle cx="96" cy="52" r="6.5" fill="#ffffff"/>
+      <text x="96" y="55" text-anchor="middle" font-size="9" font-weight="900" fill="#0f172a">8</text>
+      <circle cx="118" cy="36" r="10" fill="#ef4444" stroke="#fff" stroke-width="1.4"/>
+      <circle cx="118" cy="68" r="10" fill="#f59e0b" stroke="#fff" stroke-width="1.4"/>
     </g>`,
-    uno: `<g transform="translate(174,14)">
-      <rect x="12" y="18" width="54" height="78" rx="11" transform="rotate(-14 39 57)" fill="#ef4444" stroke="#fff" stroke-width="3"/>
-      <text x="39" y="64" text-anchor="middle" font-size="22" font-weight="900" fill="#fff" transform="rotate(-14 39 57)">+2</text>
-      <rect x="64" y="14" width="56" height="82" rx="11" transform="rotate(12 92 55)" fill="#111827" stroke="#fef08a" stroke-width="3"/>
-      <text x="92" y="84" text-anchor="middle" font-size="13" font-weight="900" fill="#fef08a" transform="rotate(12 92 55)">+4</text>
+    jackaroo: `<g transform="translate(94,14)">
+      <rect x="4" y="4" width="132" height="98" rx="22" fill="#3e1c0a" stroke="#fbbf24" stroke-width="3.5"/>
+      <circle cx="70" cy="53" r="35" fill="#0f5132" stroke="#f59e0b" stroke-width="2.6"/>
+      <circle cx="50" cy="43" r="10" fill="#38bdf8" stroke="#fff" stroke-width="1.6"/>
+      <circle cx="90" cy="43" r="10" fill="#f43f5e" stroke="#fff" stroke-width="1.6"/>
+      <circle cx="70" cy="69" r="10" fill="#10b981" stroke="#fff" stroke-width="1.6"/>
+      <rect x="96" y="52" width="32" height="44" rx="6" transform="rotate(14 112 74)" fill="#fff" stroke="#fbbf24" stroke-width="2"/>
+      <text x="112" y="80" text-anchor="middle" font-size="14" font-weight="900" fill="#dc2626" transform="rotate(14 112 74)">A♥</text>
     </g>`,
-    blitz_dots: `<g transform="translate(185,22)">
-      <rect x="6" y="6" width="94" height="94" rx="18" fill="#1e120b" stroke="#fbbf24" stroke-width="3"/>
-      <line x1="28" y1="28" x2="78" y2="28" stroke="#22d3ee" stroke-width="5.5" stroke-linecap="round"/>
-      <line x1="28" y1="28" x2="28" y2="78" stroke="#22d3ee" stroke-width="5.5" stroke-linecap="round"/>
-      <line x1="78" y1="28" x2="78" y2="78" stroke="#f43f5e" stroke-width="5.5" stroke-linecap="round"/>
-      <line x1="28" y1="78" x2="78" y2="78" stroke="#ffd36b" stroke-width="5.5" stroke-linecap="round"/>
+    uno: `<g transform="translate(94,12)">
+      <rect x="12" y="16" width="54" height="78" rx="12" transform="rotate(-14 39 55)" fill="#ef4444" stroke="#fff" stroke-width="3"/>
+      <text x="39" y="63" text-anchor="middle" font-size="22" font-weight="900" fill="#fff" transform="rotate(-14 39 55)">+2</text>
+      <rect x="64" y="12" width="56" height="82" rx="12" transform="rotate(12 92 53)" fill="#111827" stroke="#fef08a" stroke-width="3"/>
+      <circle cx="92" cy="46" r="14" fill="none" stroke="#38bdf8" stroke-width="3.5"/>
+      <text x="92" y="80" text-anchor="middle" font-size="14" font-weight="900" fill="#fef08a" transform="rotate(12 92 53)">+4</text>
     </g>`,
-    pool_8ball: `<g transform="translate(174,18)">
-      <rect x="0" y="12" width="128" height="82" rx="16" fill="#065f46" stroke="#92400e" stroke-width="6"/>
-      <circle cx="44" cy="54" r="17" fill="#111827" stroke="#ffffff" stroke-width="2"/>
-      <text x="44" y="57.5" text-anchor="middle" font-size="10" font-weight="900" fill="#fff">8</text>
+    chess_blitz: `<g transform="translate(102,12)">
+      <rect x="10" y="10" width="96" height="92" rx="16" fill="#1e1b4b" stroke="#fbbf24" stroke-width="3"/>
+      <rect x="20" y="20" width="25" height="24" fill="#eeeed2"/><rect x="45" y="20" width="25" height="24" fill="#769656"/><rect x="70" y="20" width="25" height="24" fill="#eeeed2"/>
+      <rect x="20" y="44" width="25" height="24" fill="#769656"/><rect x="45" y="44" width="25" height="24" fill="#eeeed2"/><rect x="70" y="44" width="25" height="24" fill="#769656"/>
+      <rect x="20" y="68" width="25" height="24" fill="#eeeed2"/><rect x="45" y="68" width="25" height="24" fill="#769656"/><rect x="70" y="68" width="25" height="24" fill="#eeeed2"/>
+      <text x="58" y="66" text-anchor="middle" font-size="44" fill="#fef08a" stroke="#78350f" stroke-width="1.5">♞</text>
     </g>`,
-    undercover: `<g transform="translate(178,18)">
-      <circle cx="62" cy="54" r="46" fill="rgba(244,63,94,.26)" stroke="#fda4af" stroke-width="2.2"/>
-      <path d="M30 48c8-18 56-18 64 0-12 6-52 6-64 0z" fill="#111827" stroke="#ffd36b" stroke-width="2"/>
+    tile_race: `<g transform="translate(94,14)">
+      <rect x="6" y="4" width="120" height="96" rx="18" fill="#0f172a" stroke="#38bdf8" stroke-width="3"/>
+      <rect x="16" y="14" width="30" height="34" rx="8" fill="#06b6d4" stroke="#cffafe" stroke-width="1.6"/>
+      <text x="31" y="37" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">1</text>
+      <rect x="52" y="14" width="30" height="34" rx="8" fill="#f59e0b" stroke="#fef3c7" stroke-width="1.8"/>
+      <text x="67" y="37" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">2</text>
+      <rect x="88" y="14" width="30" height="34" rx="8" fill="#3b82f6" stroke="#dbeafe" stroke-width="1.6"/>
+      <text x="103" y="37" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">3</text>
+      <rect x="16" y="54" width="30" height="34" rx="8" fill="#10b981" stroke="#d1fae5" stroke-width="1.6"/>
+      <text x="31" y="77" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">4</text>
+      <rect x="52" y="54" width="66" height="34" rx="8" fill="#1e293b" stroke="#fde047" stroke-width="1.8"/>
+      <text x="85" y="76" text-anchor="middle" font-size="14" font-weight="900" fill="#fde047">⚡ 60s</text>
     </g>`,
-    squad_arena: `<g transform="translate(176,18)">
-      <polygon points="62,6 76,38 110,42 84,65 92,99 62,82 32,99 40,65 14,42 48,38" fill="url(#gpStar_${id})" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
+    trap_door: `<g transform="translate(94,14)">
+      <rect x="6" y="6" width="120" height="94" rx="18" fill="#1e1b4b" stroke="#f43f5e" stroke-width="3"/>
+      <rect x="18" y="18" width="42" height="70" rx="8" fill="#312e81" stroke="#a78bfa" stroke-width="2"/>
+      <polygon points="39,34 50,48 39,66 28,48" fill="#38bdf8" stroke="#e0f2fe" stroke-width="1.6" stroke-linejoin="round"/>
+      <polygon points="39,34 45,48 39,66 33,48" fill="#7dd3fc" fill-opacity="0.55"/>
+      <circle cx="54" cy="54" r="3" fill="#fde047"/>
+      <rect x="72" y="18" width="42" height="70" rx="8" fill="#090d16" stroke="#fb7185" stroke-width="2" stroke-dasharray="4 3"/>
+      <ellipse cx="93" cy="54" rx="14" ry="20" fill="#450a0a" stroke="#f43f5e" stroke-width="2"/>
+      <ellipse cx="93" cy="56" rx="8" ry="12" fill="#020617"/>
+      <path d="M87 48l12 12M99 48l-12 12" stroke="#fb7185" stroke-width="2.4" stroke-linecap="round"/>
     </g>`,
-    ludo_snakes: `<g transform="translate(182,18)">
-      <rect x="8" y="8" width="90" height="90" rx="22" fill="#fffbeb" stroke="#fbbf24" stroke-width="4.5"/>
-      <circle cx="32" cy="32" r="8.5" fill="#dc2626"/><circle cx="74" cy="32" r="8.5" fill="#7c3aed"/>
-      <circle cx="53" cy="53" r="8.5" fill="#f59e0b"/>
-      <circle cx="32" cy="74" r="8.5" fill="#2563eb"/><circle cx="74" cy="74" r="8.5" fill="#16a34a"/>
+    mind_clash: `<g transform="translate(96,14)">
+      <circle cx="64" cy="52" r="44" fill="#1e1b4b" stroke="#a855f7" stroke-width="3.2"/>
+      <path d="M56 24L38 56h18l-4 24 28-36H62l6-20z" fill="#fde047" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
+      <circle cx="96" cy="28" r="10" fill="#38bdf8" stroke="#fff" stroke-width="1.6"/>
+      <circle cx="30" cy="76" r="9" fill="#f43f5e" stroke="#fff" stroke-width="1.6"/>
+    </g>`,
+    pocket_territory: `<g transform="translate(98,14)">
+      <rect x="8" y="4" width="104" height="96" rx="18" fill="#0f172a" stroke="#34d399" stroke-width="3"/>
+      <rect x="18" y="14" width="26" height="24" rx="6" fill="#38bdf8"/>
+      <rect x="48" y="14" width="26" height="24" rx="6" fill="#38bdf8"/>
+      <rect x="78" y="14" width="24" height="24" rx="6" fill="#334155"/>
+      <rect x="18" y="42" width="26" height="24" rx="6" fill="#38bdf8" stroke="#fde047" stroke-width="2"/>
+      <rect x="48" y="42" width="26" height="24" rx="6" fill="#f43f5e"/>
+      <rect x="78" y="42" width="24" height="24" rx="6" fill="#f43f5e"/>
+      <rect x="18" y="70" width="26" height="22" rx="6" fill="#334155"/>
+      <rect x="48" y="70" width="26" height="22" rx="6" fill="#f43f5e"/>
+      <rect x="78" y="70" width="24" height="22" rx="6" fill="#f43f5e"/>
+    </g>`,
+    ludo: `<g transform="translate(104,12)">
+      <rect x="4" y="4" width="100" height="100" rx="18" fill="#451a03" stroke="#fbbf24" stroke-width="3.5"/>
+      <rect x="12" y="12" width="38" height="38" rx="8" fill="#10b981"/>
+      <rect x="58" y="12" width="38" height="38" rx="8" fill="#f59e0b"/>
+      <rect x="12" y="58" width="38" height="38" rx="8" fill="#ef4444"/>
+      <rect x="58" y="58" width="38" height="38" rx="8" fill="#3b82f6"/>
+      <circle cx="54" cy="54" r="14" fill="#fef08a" stroke="#b45309" stroke-width="2.2"/>
+    </g>`,
+    number_match: `<g transform="translate(96,14)">
+      <rect x="4" y="4" width="118" height="96" rx="18" fill="#1e1b4b" stroke="#fbbf24" stroke-width="3"/>
+      <rect x="14" y="14" width="30" height="34" rx="8" fill="#38bdf8"/><text x="29" y="38" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">3</text>
+      <rect x="50" y="14" width="30" height="34" rx="8" fill="#f97316"/><text x="65" y="38" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">7</text>
+      <rect x="86" y="14" width="26" height="34" rx="8" fill="#334155"/><text x="99" y="37" text-anchor="middle" font-size="16" font-weight="800" fill="#cbd5e1">4</text>
+      <rect x="14" y="54" width="30" height="34" rx="8" fill="#10b981"/><text x="29" y="78" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">5</text>
+      <rect x="50" y="54" width="30" height="34" rx="8" fill="#a855f7"/><text x="65" y="78" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">5</text>
+      <rect x="86" y="54" width="26" height="34" rx="8" fill="#ec4899"/><text x="99" y="77" text-anchor="middle" font-size="15" font-weight="900" fill="#fff">10</text>
     </g>`
   };
+  const gradId = `gpBg_${id}_${Math.random().toString(36).slice(2, 7)}`;
   return `<svg class="gp-svg" viewBox="0 0 320 142" preserveAspectRatio="xMidYMid slice" fill="none" aria-hidden="true">
     <defs>
-      <linearGradient id="gpBg_${id}" x1="0" y1="0" x2="320" y2="142" gradientUnits="userSpaceOnUse">
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="320" y2="142" gradientUnits="userSpaceOnUse">
         <stop offset="0%" stop-color="${g.accent}"/>
-        <stop offset="55%" stop-color="${g.accent2}"/>
+        <stop offset="58%" stop-color="${g.accent2}"/>
         <stop offset="100%" stop-color="#0b1024"/>
       </linearGradient>
-      <linearGradient id="gpStar_${id}" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#fef08a"/><stop offset="100%" stop-color="#f97316"/>
-      </linearGradient>
     </defs>
-    <rect width="320" height="142" fill="url(#gpBg_${id})"/>
+    <rect width="320" height="142" fill="url(#${gradId})"/>
     ${icons[g.id] || ''}
   </svg>`;
 }
 
 function renderArenaPostersGrid(container) {
   if (!container) return;
-  if (container.dataset.arenaMounted === '1' && container.children.length === ARENA_GAMES.length) return;
-  container.dataset.arenaMounted = '1';
+  if (container.dataset.arenaMounted === '2' && container.children.length === ARENA_GAMES.length) return;
+  container.dataset.arenaMounted = '2';
   container.innerHTML = ARENA_GAMES.map(g => `
-    <button type="button" class="arena-poster-card glossy-card" data-arenagame="${esc(g.id)}">
+    <button type="button" class="arena-poster-card arena-visual-card" data-arenagame="${esc(g.id)}" data-testid="game-card-${esc(g.id)}" aria-label="${esc(g.name)}">
       <div class="arena-poster-art">
         ${renderArenaBannerArt(g)}
-        <span class="ap-tag">${esc(g.tag)}</span>
-        <span class="ap-live">● ${g.live}</span>
-        <div class="ap-overlay-copy">
-          <b>${esc(g.name)}</b>
-          <small>${esc(g.desc)}</small>
+        <div class="ap-clean-scrim">
+          <b class="ap-clean-title">${esc(g.name)}</b>
         </div>
-      </div>
-      <div class="arena-poster-foot">
-        <span class="ap-badge">${esc(g.badge)}</span>
-        <span class="ap-play-cta">Play →</span>
       </div>
     </button>
   `).join('');
@@ -307,7 +350,7 @@ function openRivalChallenge(targetUid) {
   const rival = allUsers().find(u => u.uid === targetUid);
   const m = modal(`⚔️ Challenge ${esc(rival?.name || 'Rival')}`, `
     <div class="list" style="gap:8px">
-      ${ARENA_GAMES.map(g => `<button type="button" class="btn ghost full" data-rvg="${esc(g.id)}" style="justify-content:space-between"><span>${esc(g.name)}</span><span class="dur-pill">${esc(g.badge)}</span></button>`).join('')}
+      ${ARENA_GAMES.map(g => `<button type="button" class="btn ghost full" data-rvg="${esc(g.id)}" style="justify-content:space-between"><span>${esc(g.name)}</span><span>›</span></button>`).join('')}
     </div>
   `);
   $$('[data-rvg]', m).forEach(b => {
@@ -436,18 +479,14 @@ function openFullScreenGameView(opts) {
 }
 window.openFullScreenGameView = openFullScreenGameView;
 
-/* Pre-Match Full-Screen Launch View: Free Bot (Default) + Smart Bot Paid Stake */
-function openArenaGame(gameId, rivalUid) {
-  const g = ARENA_GAMES.find(x => x.id === gameId) || ARENA_GAMES[0];
-  const rival = rivalUid ? allUsers().find(u => u.uid === rivalUid) : null;
-  if (g.id === 'jackaroo' && typeof openJackarooLobby === 'function') {
-    if (rival && typeof openJackarooTableLobby === 'function') {
-      openJackarooTableLobby({ mode: '1v1', tier: '1v1 | Junior', stake: 0, rival });
-    } else {
-      openJackarooLobby({ rival });
-    }
+/* Pre-Match Full-Screen Launch View: Always open Dedicated Visual Mode Selection */
+function openArenaGame(gameId, rivalUid, extraOpts) {
+  if (typeof openVisualModeSelect === 'function') {
+    openVisualModeSelect(gameId, rivalUid, extraOpts);
     return;
   }
+  const g = ARENA_GAMES.find(x => x.id === gameId) || ARENA_GAMES[0];
+  const rival = rivalUid ? allUsers().find(u => u.uid === rivalUid) : null;
   const cap = previewBotCapStatus();
   let playType = 'free';
   let selectedStake = 0;
@@ -753,8 +792,10 @@ function launchBlitzDots(stake, rival, botTierRaw) {
 
     if (myScore + botScore >= n * n && !over) {
       over = true;
-      const res = settleArenaMatchOutcome(myScore > botScore ? 'win' : (myScore === botScore ? 'tie' : 'lose'), stake, 45, 30, 12);
-      m.setStatus('Finished', myScore > botScore ? 'ok' : 'bot');
+      const outcome = myScore > botScore ? 'win' : (myScore === botScore ? 'tie' : 'lose');
+      const res = settleArenaMatchOutcome(outcome, stake, 45, 30, 12);
+      if (outcome === 'win') spawnArenaSparks($('#bdBoard', m), '#ffd36b', 16);
+      m.setStatus('Finished', outcome === 'win' ? 'ok' : 'bot');
       $('#bdFoot', m).innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="bdAgain" style="margin-top:8px">Play Again</button></div>`;
       $('#bdAgain', m).onclick = () => openArenaGame('blitz_dots', rival?.uid);
     }
@@ -803,6 +844,9 @@ function launchBlitzDots(stake, rival, botTierRaw) {
 
 /* 2. 8-BALL POOL 1v1 */
 function launchPool8Ball(stake, rival, botTierRaw) {
+  if (typeof launchPool8BallPro === 'function') {
+    return launchPool8BallPro({ modeType: 'bot', stake, rival, botTier: botTierRaw });
+  }
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const oppName = rival?.name || (botTier === 'pro' ? 'Pool Pro Bot' : 'Pool Bot');
   const pay = calcArenaStakePayout(stake);
@@ -882,6 +926,7 @@ function launchPool8Ball(stake, rival, botTierRaw) {
     over = true;
     const outcome = myScore > botScore ? 'win' : (myScore === botScore ? 'tie' : 'lose');
     const res = settleArenaMatchOutcome(outcome, stake, 50, 35, 14);
+    if (outcome === 'win') spawnArenaSparks($('#poolStage', m), '#fde047', 16);
     syncHud();
     if ($('#pFoot', m)) {
       $('#pFoot', m).innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="pAgain" style="margin-top:8px">Rematch</button></div>`;
@@ -1068,6 +1113,7 @@ function launchPool8Ball(stake, rival, botTierRaw) {
     }
     if (pockets.some(([px, py]) => Math.hypot(cue.x - px, cue.y - py) < 15)) {
       cue.x = 94; cue.y = H / 2; cue.vx = 0; cue.vy = 0;
+      if (typeof playSfx === 'function') playSfx('duelWrong');
     }
 
     if (moving && !isMoving()) {
@@ -1326,6 +1372,7 @@ function launchSquadTrivia(stake, rival, botTierRaw) {
       over = true;
       const outcome = myScore > botScore ? 'win' : (myScore === botScore ? 'tie' : 'lose');
       const res = settleArenaMatchOutcome(outcome, stake, 42, 28, 10);
+      if (outcome === 'win') spawnArenaSparks($('#sqStage', m), '#ffd36b', 16);
       m.setStatus('Finished', outcome === 'win' ? 'ok' : 'bot');
       body.innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>Score ${myScore} – ${botScore} · ${esc(res.detail)}</small><button type="button" class="btn gold sm" id="sqAgain" style="margin-top:8px">Rematch</button></div>`;
       $('#sqAgain', m).onclick = () => openArenaGame('squad_arena', rival?.uid);
@@ -1482,10 +1529,11 @@ function launchLudoExpress(stake, rival, botTierRaw) {
             spawnArenaSparks($('#ldStage', m), '#fde047', 10);
           }
           logTxt = `You rolled 🎲 ${roll}${roll === 6 ? ' (Bonus!)' : ''}${extra}`;
+          if (typeof playSfx === 'function') playSfx(extra ? 'rowClear' : 'pawnStep');
           if (myPos >= goal) {
             over = true;
             const res = settleArenaMatchOutcome('win', stake, 40, 26, 10);
-            spawnArenaSparks($('#ldStage', m), '#38bdf8', 14);
+            spawnArenaSparks($('#ldStage', m), '#38bdf8', 16);
             render();
             $('#ldAct', m).innerHTML = `<div class="arena-result-card" style="width:100%"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="ldAgain" style="margin-top:8px">Rematch</button></div>`;
             $('#ldAgain', m).onclick = () => openArenaGame('ludo_snakes', rival?.uid);
@@ -1496,27 +1544,36 @@ function launchLudoExpress(stake, rival, botTierRaw) {
           if (turn === 'bot') {
             setTimeout(() => {
               if (over) return;
-              const br = botTier === 'pro'
-                ? (botPos < myPos ? (2 + Math.floor(Math.random() * 5)) : (1 + Math.floor(Math.random() * 6)))
-                : (1 + Math.floor(Math.random() * 6));
-              lastDie = br;
-              botPos = Math.min(goal, botPos + br);
-              let bExtra = '';
-              if (BOOST_TILES[botPos]) { botPos = BOOST_TILES[botPos]; bExtra = ' · ⚡ Boost!'; }
-              logTxt = `${oppName} rolled 🎲 ${br}${bExtra}`;
-              if (botPos >= goal) {
-                over = true;
-                const res = settleArenaMatchOutcome('lose', stake, 40, 26, 10);
-                render();
-                $('#ldAct', m).innerHTML = `<div class="arena-result-card" style="width:100%"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="ldAgain" style="margin-top:8px">Rematch</button></div>`;
-                $('#ldAgain', m).onclick = () => openArenaGame('ludo_snakes', rival?.uid);
-                return;
-              }
-              turn = 'me';
+              rolling = true;
+              logTxt = `${oppName} rolling dice…`;
+              if (typeof playSfx === 'function') playSfx('diceRoll');
               render();
-            }, 520);
+              setTimeout(() => {
+                if (over) return;
+                rolling = false;
+                const br = botTier === 'pro'
+                  ? (botPos < myPos ? (2 + Math.floor(Math.random() * 5)) : (1 + Math.floor(Math.random() * 6)))
+                  : (1 + Math.floor(Math.random() * 6));
+                lastDie = br;
+                botPos = Math.min(goal, botPos + br);
+                let bExtra = '';
+                if (BOOST_TILES[botPos]) { botPos = BOOST_TILES[botPos]; bExtra = ' · ⚡ Boost!'; }
+                if (typeof playSfx === 'function') playSfx(bExtra ? 'capture' : 'pawnStep');
+                logTxt = `${oppName} rolled 🎲 ${br}${bExtra}`;
+                if (botPos >= goal) {
+                  over = true;
+                  const res = settleArenaMatchOutcome('lose', stake, 40, 26, 10);
+                  render();
+                  $('#ldAct', m).innerHTML = `<div class="arena-result-card" style="width:100%"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="ldAgain" style="margin-top:8px">Rematch</button></div>`;
+                  $('#ldAgain', m).onclick = () => openArenaGame('ludo_snakes', rival?.uid);
+                  return;
+                }
+                turn = 'me';
+                render();
+              }, 380);
+            }, 420);
           }
-        }, 240);
+        }, 280);
       };
     }
   };

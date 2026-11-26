@@ -29,7 +29,10 @@ function gkPlaySfx(kind){
     }catch{}
   };
   if(kind==='coin'){tone(988,0,0.08,'triangle',0.08);tone(1318.5,0.06,0.16,'sine',0.09)}
-  else if(kind==='win'){[587.3,740,880,1174.7].forEach((f,i)=>tone(f,i*0.065,0.2,'triangle',0.085))}
+  else if(kind==='win'){
+    [523.25,659.25,783.99,1046.5,1318.51,1567.98].forEach((f,i)=>tone(f,i*0.062,0.22,i%2?'sine':'triangle',0.1));
+    [523.25,659.25,783.99,1046.5].forEach(f=>tone(f,0.4,0.38,'triangle',0.07));
+  }
   else if(kind==='good'){tone(660,0,0.07,'triangle',0.07);tone(990,0.05,0.11,'sine',0.08)}
   else if(kind==='bad'){tone(250,0,0.1,'sawtooth',0.045)}
   else tone(740,0,0.04,'sine',0.045);
@@ -124,8 +127,7 @@ async function award(gameId,wantCoins,wantExp){
   const coins=isGuest?0:Math.max(0,Math.min(wantCoins,DAILY_CAP-got));
   localStorage.setItem(k,String(got+coins));
   addReward(coins,Math.max(0,Math.min(40,wantExp)));
-  if(coins>0)gkPlaySfx('coin');
-  else gkPlaySfx('win');
+  gkPlaySfx('win');
   return {coins,capped:!isGuest&&wantCoins>coins,guest:isGuest&&wantCoins>0};
 }
 function result(o){

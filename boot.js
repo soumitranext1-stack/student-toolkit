@@ -13,10 +13,13 @@ function seedV13GuestShowcaseIfNeeded(){
     if(me.done.v13_showcase_seeded)return;
     const now=Date.now();
     const demoPlayers=[
-      {uid:'demo_aria',name:'Aria Nova',avatar:'av_g2',frame:'fx_gold',banner:'bn-royal',gender:'female',country:'IN',bio:'Arena Queen & Trivia Ace',coins:18400,charm:14200,exp:860,vipTier:'gold',vipUntil:now+86400000*14,tags:['Aurora Prodigy','Diamond Ranker'],bonds:[],pendingProposals:[],lastSeen:now-120000},
-      {uid:'demo_rohan',name:'Rohan Ace',avatar:'av_b3',frame:'fx_neon',banner:'bn-cyber',gender:'male',country:'IN',bio:'Jackaroo & 8-Ball Captain',coins:12900,charm:9800,exp:640,vipTier:'silver',vipUntil:now+86400000*10,tags:['Cyber Genius'],bonds:[{type:'bro',partnerUid:uid,partnerName:me.name||'Player',partnerAvatar:me.avatar||'av_b1',giftId:'g_bond_bro',level:2,since:now-4*86400000}],pendingProposals:[],lastSeen:now-90000}
+      {uid:'demo_aria',name:'Aria Nova',accountType:'account',online:true,avatar:'av_g2',frame:'fx_gold',banner:'bn-royal',gender:'female',country:'IN',bio:'Arena Queen & Ludo Royal Ace',coins:18400,charm:14200,exp:860,vipTier:'gold',vipUntil:now+86400000*14,tags:['Aurora Prodigy','Diamond Ranker'],bonds:[],pendingProposals:[],activity:{type:'playing',gameId:'ludo',gameName:'Ludo',roomCode:'LU4821',mode:'4p',updatedAt:now},lastSeen:now-30000},
+      {uid:'demo_rohan',name:'Rohan Ace',accountType:'account',online:true,avatar:'av_b3',frame:'fx_neon',banner:'bn-cyber',gender:'male',country:'IN',bio:'Jackaroo & 8-Ball Captain',coins:12900,charm:9800,exp:640,vipTier:'silver',vipUntil:now+86400000*10,tags:['Cyber Genius'],bonds:[{type:'bro',partnerUid:uid,partnerName:me.name||'Player',partnerAvatar:me.avatar||'av_b1',giftId:'g_bond_bro',level:2,since:now-4*86400000}],pendingProposals:[],activity:{type:'playing',gameId:'jackaroo',gameName:'Jackaroo',roomCode:'JK7290',mode:'2v2',updatedAt:now},lastSeen:now-20000}
     ];
     demoPlayers.forEach(p=>{if(typeof patchUser==='function')patchUser(p.uid,p)});
+    if(!Array.isArray(me.friends)||!me.friends.length){
+      me.friends=['demo_aria','demo_rohan','bot_zara'];
+    }
 
     /* Active 1-to-1 Bro Tag with Rohan Ace (Couple & Bestie open) */
     const curBonds=typeof normalizeExclusiveUserBonds==='function'?normalizeExclusiveUserBonds(me.bonds):(Array.isArray(me.bonds)?me.bonds:[]);
@@ -95,6 +98,20 @@ try{
   if(openGift){
     sessionStorage.removeItem('sg_open_gift');
     setTimeout(()=>{if(typeof openGiftSendModal==='function')openGiftSendModal(null,{allowPickPlayer:true})},450);
+  }
+  const sp=new URLSearchParams(location.search);
+  const urlRoom=sp.get('room')||sp.get('jkRoom')||'';
+  const urlParty=sp.get('party')||'';
+  const urlGame=sp.get('game')||(sp.get('jkRoom')?'jackaroo':'');
+  const urlMode=sp.get('mode')||'';
+  if(urlRoom||urlParty){
+    const inv=typeof parseRoomInviteFromText==='function'
+      ? parseRoomInviteFromText(location.search,{roomCode:urlRoom,roomId:urlParty,gameId:urlGame,mode:urlMode})
+      : null;
+    try{history.replaceState(null,'',location.pathname);}catch{}
+    if(inv&&typeof joinFromInvitePayload==='function'){
+      setTimeout(()=>joinFromInvitePayload(inv),520);
+    }
   }
 }catch{}
 setInterval(sweepDuels,30000);

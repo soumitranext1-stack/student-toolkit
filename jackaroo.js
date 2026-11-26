@@ -54,11 +54,11 @@ function openJackarooRulesModal(initialPage) {
         <div class="jkr-list">
           <div class="jkr-row"><span class="jkr-mini blk"><b>8</b><i>♣</i></span><p>Move your stone forward by <b>8 steps</b></p></div>
           <div class="jkr-row"><span class="jkr-mini blk"><b>9</b><i>♣</i></span><p>Move your stone forward by <b>9 steps</b></p></div>
-          <div class="jkr-row"><span class="jkr-mini blk"><b>10</b><i>♣</i></span><p>Move forward <b>10 steps</b> OR force rival to <b>discard a card</b> (<b>+ Bonus Turn!</b>)</p></div>
+          <div class="jkr-row"><span class="jkr-mini blk"><b>10</b><i>♣</i></span><p>Move forward <b>10 steps</b> OR force rival to <b>discard a card</b> (turn passes to next player)</p></div>
           <div class="jkr-row"><span class="jkr-mini blk"><b>J</b><i>♣</i></span><p><b>Black J (♣/♠):</b> Swap your stone with another player's stone</p></div>
           <div class="jkr-row"><span class="jkr-mini red"><b>J</b><i>♦</i></span><p><b>Red J (♦/♥):</b> Move your stone forward by <b>11 steps</b></p></div>
           <div class="jkr-row"><span class="jkr-mini blk"><b>Q</b><i>♣</i></span><p><b>Black Q (♣/♠):</b> Move your stone forward by <b>12 steps</b></p></div>
-          <div class="jkr-row"><span class="jkr-mini red"><b>Q</b><i>♦</i></span><p><b>Red Q (1v1 Only):</b> Pick 1 of rival's <b>hidden cards</b> to reveal &amp; destroy (<b>+ Bonus Turn!</b>)</p></div>
+          <div class="jkr-row"><span class="jkr-mini red"><b>Q</b><i>♦</i></span><p><b>Red Q (1v1 Only):</b> Pick 1 of rival's <b>hidden cards</b> to reveal &amp; discard (turn passes to rival)</p></div>
           <div class="jkr-row"><span class="jkr-mini blk"><b>K</b><i>♣</i></span><p><b>King (1v1 Only):</b> Open a stone OR move <b>13 steps, capturing all passed stones</b></p></div>
         </div>
       `
@@ -70,7 +70,7 @@ function openJackarooRulesModal(initialPage) {
           <h4>Combo &amp; Bonus Turn Rules</h4>
           <div class="jkr-combo-box">
             <div class="jkr-plus1-badge"><span>+1</span><small>TURN</small></div>
-            <p><b>Hit (capture) a rival stone</b> or enter your <b>Win Box (Home)</b> to draw <b>+1 card</b> AND get an immediate <b>Bonus Turn</b>! Forcing a rival to <b>discard</b> (10 / Red Q) also gives you a <b>Bonus Turn</b>!</p>
+            <p><b>Hit (capture) a rival stone</b> or enter your <b>Win Box (Home)</b> to draw <b>+1 card</b> AND get an immediate <b>Bonus Turn</b>! Discarding a card (dead hand or 10 / Red Q burn) puts the card in the discard pile and passes the turn to the next seat in order.</p>
           </div>
         </div>
         <div class="jkr-sec" style="margin-top:14px">
@@ -146,21 +146,26 @@ window.openJackarooRulesModal = openJackarooRulesModal;
 function jkSendDmRoomInvite(friend, roomCode, mode, stake, tierLabel) {
   if (!friend || !friend.uid) return;
   try {
+    const cleanCode = String(roomCode || '').trim().toUpperCase();
+    const url = typeof buildRoomInviteUrl === 'function'
+      ? buildRoomInviteUrl({ gameId: 'jackaroo', roomCode: cleanCode, mode })
+      : `?room=${encodeURIComponent(cleanCode)}&game=jackaroo&mode=${encodeURIComponent(mode)}`;
+    const txt = `🃏 Join my Jackaroo Royal (${tierLabel || (mode === '1v1' ? '1v1' : '2v2')}${Number(stake || 0) > 0 ? ' · ' + stake + ' 🪙' : ' · Free'})! Room Code: ${cleanCode} ${url}`;
+    if (typeof sendUniversalRoomInviteToDm === 'function') {
+      sendUniversalRoomInviteToDm(friend, {
+        gameId: 'jackaroo',
+        gameName: 'Jackaroo Royal',
+        roomCode: cleanCode,
+        mode,
+        stake: Number(stake || 0),
+        text: txt
+      });
+      return;
+    }
     const myUid = typeof uid !== 'undefined' ? uid : 'local';
     const myName = (typeof me !== 'undefined' && me?.name) || 'Player';
     const msgId = 'dm_jki_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-    const txt = `🎲 Join my Jackaroo ${tierLabel || (mode === '1v1' ? '1v1' : '2v2')} table (${Number(stake || 0) > 0 ? stake + ' 🪙' : 'Free'})! Room Code: ${roomCode}`;
-    const docData = {
-      id: msgId,
-      from: myUid,
-      to: String(friend.uid),
-      fromName: myName,
-      type: 'text',
-      text: txt,
-      roomCode,
-      gameId: 'jackaroo',
-      ts: Date.now()
-    };
+    const docData = { id: msgId, from: myUid, to: String(friend.uid), fromName: myName, type: 'game_invite', text: txt, roomCode: cleanCode, gameId: 'jackaroo', mode, stake: Number(stake || 0), url, ts: Date.now() };
     if (typeof dbOp === 'function' && typeof F !== 'undefined' && F && typeof db !== 'undefined' && db) {
       dbOp(() => F.setDoc(F.doc(db, 'dm_messages', msgId), docData));
     }
@@ -173,43 +178,32 @@ function openJackarooInviteModal(opts) {
   const stake = Math.max(0, Number(o.stake || 0));
   const tierLabel = o.tierLabel || (mode === '1v1' ? '1v1 Junior' : 'Basic | Junior');
   const roomCode = String(o.roomCode || ('JK' + Math.random().toString(36).slice(2, 6))).toUpperCase();
-  const myUid = typeof uid !== 'undefined' ? uid : '';
   const friendIds = new Set((typeof me !== 'undefined' && Array.isArray(me?.friends)) ? me.friends : []);
 
-  const allRoster = (typeof allUsers === 'function' ? allUsers() : [])
-    .filter(u => u && u.uid && u.uid !== myUid);
+  // Only genuine active online non-guest players (filter out guest IDs)
+  const baseContacts = typeof getRealOnlineUsers === 'function'
+    ? getRealOnlineUsers()
+    : (typeof allUsers === 'function' ? allUsers() : []).filter(u => u && u.uid && u.uid !== (typeof uid !== 'undefined' ? uid : '') && u.accountType !== 'guest');
 
-  // Fallback friendly contacts only when local cache has zero other users
-  const baseContacts = allRoster.length ? allRoster : [
-    { uid: 'f_aria', name: 'Aria Nova', avatar: '🦊', level: 12, online: true },
-    { uid: 'f_rivara', name: 'Rivara', avatar: '🌟', level: 9, online: true },
-    { uid: 'f_jason', name: 'Jason K.', avatar: '🦁', level: 14, online: true },
-    { uid: 'f_mery', name: 'Mery Star', avatar: '👑', level: 11, online: true },
-    { uid: 'f_kabir', name: 'Kabir Raj', avatar: '⚡', level: 8, online: true }
-  ];
-
-  // Prioritize real friends first, then recent/online players
   const contacts = baseContacts
-    .map(u => ({
-      uid: String(u.uid),
-      name: String(u.name || 'Player'),
-      avatar: u.avatar || 'av_b1',
-      level: Number(u.level || (typeof calcLevel === 'function' ? calcLevel(u.exp || 0) : 1)),
-      isFriend: friendIds.has(u.uid)
-    }))
+    .map(u => {
+      const act = typeof getUserLiveActivity === 'function' ? getUserLiveActivity(u) : { isOnline: true, label: 'Online' };
+      return {
+        uid: String(u.uid),
+        name: String(u.name || 'Player'),
+        avatar: u.avatar || 'av_b1',
+        level: Number(u.level || (typeof calcLevel === 'function' ? calcLevel(u.exp || 0) : 1)),
+        isFriend: friendIds.has(u.uid),
+        actLabel: act.label || 'Online'
+      };
+    })
     .sort((a, b) => (b.isFriend ? 1 : 0) - (a.isFriend ? 1 : 0));
 
   const invitedSet = new Set(Array.isArray(o.alreadyInRoomUids) ? o.alreadyInRoomUids.map(String) : []);
-  const shareUrl = (() => {
-    try {
-      const u = new URL(window.location.href);
-      u.searchParams.set('jkRoom', roomCode);
-      return u.toString();
-    } catch {
-      return `https://study-game.app/?jkRoom=${roomCode}`;
-    }
-  })();
-  const shareText = `Join my Jackaroo Royal (${tierLabel}${stake > 0 ? ' · ' + stake + ' Coins' : ' · Free'}) table! Room Code: ${roomCode} ${shareUrl}`;
+  const shareUrl = typeof buildRoomInviteUrl === 'function'
+    ? buildRoomInviteUrl({ gameId: 'jackaroo', roomCode, mode })
+    : `?room=${encodeURIComponent(roomCode)}&game=jackaroo&mode=${encodeURIComponent(mode)}`;
+  const shareText = `🃏 Join my Jackaroo Royal (${tierLabel}${stake > 0 ? ' · ' + stake + ' Coins' : ' · Free'}) table! Room Code: ${roomCode} ${shareUrl}`;
 
   const m = modal(`Share & Invite · ${tierLabel}`, `
     <div class="jki-shell" data-testid="jackaroo-invite-sheet">
@@ -298,10 +292,10 @@ function openJackarooInviteModal(opts) {
       return `
         <div class="jki-friend-row">
           <div class="jki-f-left">
-            <span class="jki-f-av">${jkAvatarHtml(u.avatar)}</span>
+            <span class="jki-f-av sg-av-presence-wrap">${jkAvatarHtml(u.avatar)}<span class="sg-online-dot sm"></span></span>
             <div class="jki-f-info">
               <b>${esc(u.name)}${u.isFriend ? ' <span class="jki-fr-tag">Friend</span>' : ''}</b>
-              <small>Lv.${u.level} · Recent Contact</small>
+              <small>Lv.${u.level} · ${esc(u.actLabel || 'Online')}</small>
             </div>
           </div>
           <button type="button" class="btn sm ${isInv ? 'ghost' : 'ok'}" data-jki-uid="${esc(u.uid)}" data-jki-name="${esc(u.name)}" data-jki-av="${esc(u.avatar)}" ${isInv ? 'disabled' : ''}>${isInv ? 'Invited ✓' : 'Invite'}</button>
@@ -1189,18 +1183,25 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     lOpts.seatRoster.forEach(s => { if (s) rosterBySeat.set(Number(s.seat), s); });
   }
 
+  const isSpectating = Boolean(lOpts.spectate);
+  const spectateHost = lOpts.spectateHost || rival || null;
+  if (!isSpectating && typeof setMyLiveActivity === 'function') {
+    setMyLiveActivity({ type: 'playing', gameId: 'jackaroo', gameName: 'Jackaroo Royal', roomCode, mode });
+  }
+
   const players = cfg.activeSeats.map(seat => {
     const rs = rosterBySeat.get(seat);
     const meta = seatMeta[seat];
     const isRealJoined = Boolean(rs && (rs.kind === 'joined' || rs.kind === 'invited'));
+    const useSpectateHost = isSpectating && seat === 0 && spectateHost;
     return {
       seat,
       team: mode === '1v1' ? (seat === 0 ? 0 : 1) : (seat % 2),
-      uid: rs?.uid || (seat === 0 ? (typeof uid !== 'undefined' ? uid : 'local') : `bot_${seat}`),
-      name: (rs && rs.name) ? rs.name : meta.name,
-      avatar: (rs && rs.avatar) ? rs.avatar : meta.avatar,
+      uid: useSpectateHost ? (spectateHost.uid || 'host_0') : (rs?.uid || (seat === 0 ? (typeof uid !== 'undefined' ? uid : 'local') : `bot_${seat}`)),
+      name: useSpectateHost ? (spectateHost.name || 'Player') : ((rs && rs.name) ? rs.name : meta.name),
+      avatar: useSpectateHost ? (spectateHost.avatar || 'av_b1') : ((rs && rs.avatar) ? rs.avatar : meta.avatar),
       gender: meta.gender,
-      isBot: seat !== 0,
+      isBot: isSpectating ? true : seat !== 0,
       isInvitedFriend: isRealJoined || meta.isFriend,
       startPos: cfg.startPositions[seat],
       hand: drawCards(4),
@@ -2237,6 +2238,9 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
       if (typeof saveMe === 'function') saveMe();
     }
     const res = settleArenaMatchOutcome(outcome, stake, 55, 38, 14);
+    if (outcome === 'win' && typeof spawnArenaSparks === 'function') {
+      spawnArenaSparks(m, '#fde047', 18);
+    }
     render();
     renderGameOverOverlay(winTeam, res);
   };
@@ -2433,7 +2437,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
         if (extraCard.length) curP.hand.push(extraCard[0]);
       }
       if (curP.hand.length > 0) {
-        if (turnIdx === 0) {
+        if (turnIdx === 0 && !isSpectating) {
           const st = getStateObj();
           const anyPlayable = players[0].hand.some(c => Rules.isCardPlayable(c, 0, st));
           const controlSeat = Rules.getControlSeat(0, st);
@@ -2453,12 +2457,11 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     }
 
     refillHandsIfEmpty();
-    for (let guard = 0; guard < players.length; guard++) {
-      turnIdx = (turnIdx + 1) % players.length;
-      if (players[turnIdx].hand.length > 0) break;
-    }
+    turnIdx = typeof Rules.getNextTurnIndex === 'function'
+      ? Rules.getNextTurnIndex(turnIdx, players, false)
+      : (turnIdx + 1) % players.length;
 
-    if (!over && turnIdx === 0) {
+    if (!over && turnIdx === 0 && !isSpectating) {
       const st = getStateObj();
       const anyPlayable = players[0].hand.some(c => Rules.isCardPlayable(c, 0, st));
       const controlSeat = Rules.getControlSeat(0, st);
@@ -2503,7 +2506,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
       const comboGot = Rules.shouldGrantComboDraw({ capturedCount, enteredHome: false }) && grantComboDraw(moverPlayer);
       if (cap) triggerComboPopup('CAPTURE · +1 TURN!');
       lastActionText = `${moverPlayer.color.emoji} ${moverPlayer.seat === 0 ? 'Stone entered start square' : moverPlayer.name + ' opened a stone'} (${card.rank}${card.suit})${comboGot ? ' · +1 Card & Bonus Turn!' : ''}`;
-      if (typeof playSfx === 'function') playSfx(cap ? 'duelCorrect' : 'turnStart');
+      if (typeof playSfx === 'function') playSfx(cap ? 'capture' : 'cardPlay');
       if (typeof onComplete === 'function') onComplete(extraTurn);
     });
   };
@@ -2522,6 +2525,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
 
     clearSelectionState();
     consumeCard(moverPlayer, card.id);
+    if (typeof playSfx === 'function') playSfx('cardPlay');
     justDroppedCard = true;
     lastActionText = `${labelPrefix}…`;
     render();
@@ -2552,7 +2556,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
       }
 
       lastActionText = `${labelPrefix}${capturedCount > 0 ? ` 💥 Captured ${capturedCount}!` : ''}${d.teleported ? ' 🌀 Teleported!' : ''}${enteredHome ? ' ⭐ Win Box!' : ''}${comboGot ? ' +1 Card & Bonus Turn!' : (extraTurn ? ' + Bonus Turn!' : '')}`;
-      if (typeof playSfx === 'function') playSfx(capturedCount > 0 || enteredHome ? 'duelCorrect' : 'tap');
+      if (typeof playSfx === 'function') playSfx(capturedCount > 0 ? 'capture' : (enteredHome ? 'rowClear' : 'pawnStep'));
       if (typeof onComplete === 'function') onComplete(extraTurn);
     });
   };
@@ -2601,15 +2605,16 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     const burned = enemy.hand.splice(idx, 1)[0];
     if (burned) discard.push(burned);
     const burnedTxt = burned ? ` (${burned.rank}${burned.suit})` : '';
-    triggerComboPopup('DISCARD · +1 TURN!');
-    lastActionText = `🔥 ${moverPlayer.seat === 0 ? 'Forced' : moverPlayer.name + ' forced'} ${enemy.name} to discard${burnedTxt} · Bonus Turn!`;
+    const extraTurn = Rules.shouldGrantExtraTurn({ capturedCount: 0, enteredHome: false, discardedEnemy: true });
+    triggerComboPopup('CARD DISCARDED!');
+    lastActionText = `🔥 ${moverPlayer.seat === 0 ? 'Forced' : moverPlayer.name + ' forced'} ${enemy.name} to discard${burnedTxt} · Turn passed`;
     if (typeof playSfx === 'function') playSfx(moverPlayer.seat === 0 ? 'duelCorrect' : 'duelWrong');
-    if (typeof onComplete === 'function') onComplete(true);
+    if (typeof onComplete === 'function') onComplete(extraTurn);
   };
 
   /**
    * Red Queen (1v1) Power: lets the human player choose ONE of the opponent's
-   * hidden (face-down) cards to reveal & destroy, then awards a Bonus Turn!
+   * hidden (face-down) cards to reveal & discard, then passes turn to opponent.
    */
   const openHiddenDiscardPicker = (moverPlayer, targetSeat, card, onComplete) => {
     const enemy = targetSeat !== null ? findPlayer(targetSeat) : null;
@@ -2647,7 +2652,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
       }
       const subEl = $('#jkHPickSub', host);
       if (subEl && pickedCard) {
-        subEl.textContent = `🔥 Destroyed ${enemy.name}'s ${pickedCard.rank}${pickedCard.suit}! +1 Bonus Turn!`;
+        subEl.textContent = `🔥 Discarded ${enemy.name}'s ${pickedCard.rank}${pickedCard.suit}! Turn passing…`;
       }
       if (typeof playSfx === 'function') playSfx('duelCorrect');
 
@@ -2658,9 +2663,10 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
         justDroppedCard = true;
         const removed = enemy.hand.splice(safeIdx, 1)[0];
         if (removed) discard.push(removed);
-        triggerComboPopup('SNIPED · +1 TURN!');
-        lastActionText = `🔥 Sniped ${enemy.name}'s hidden ${removed ? removed.rank + removed.suit : 'card'} · Bonus Turn!`;
-        if (typeof onComplete === 'function') onComplete(true);
+        const extraTurn = Rules.shouldGrantExtraTurn({ capturedCount: 0, enteredHome: false, discardedEnemy: true });
+        triggerComboPopup('CARD BURNED!');
+        lastActionText = `🔥 Sniped ${enemy.name}'s hidden ${removed ? removed.rank + removed.suit : 'card'} · Turn passed`;
+        if (typeof onComplete === 'function') onComplete(extraTurn);
       }, 680);
     };
 
@@ -2932,7 +2938,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
   };
 
   const handleCardSelect = (cardId) => {
-    if (over || isAnimating || turnIdx !== 0 || pendingHiddenDiscard) return;
+    if (isSpectating || over || isAnimating || turnIdx !== 0 || pendingHiddenDiscard) return;
     const meP = players[0];
     const card = meP.hand.find(c => c.id === cardId);
     if (!card) return;
@@ -2941,13 +2947,13 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     const legal = Rules.getLegalActionsForCard(card, 0, st);
     const anyHandPlayable = meP.hand.some(c => Rules.isCardPlayable(c, 0, st));
 
-    // Dead hand (no playable card at all): 1-tap discard cleanly
+    // Dead hand (no playable card at all): 1-tap discard cleanly & pass turn to next player
     if (!anyHandPlayable) {
       if (typeof playSfx === 'function') playSfx('tap');
       consumeCard(meP, card.id);
       justDroppedCard = true;
       lastActionText = `Discarded ${card.rank}${card.suit} · Turn passed`;
-      advanceTurn();
+      advanceTurn(false);
       return;
     }
 
@@ -3794,11 +3800,38 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     };
   }
 
-  // Any tap anywhere in the Jackaroo stage immediately resumes manual control if AFK Auto-Play is on
   const shellEl = $('#jkShell', m);
+  if (isSpectating && shellEl) {
+    shellEl.insertAdjacentHTML('afterbegin', `
+      <div class="sg-spectate-banner" data-testid="jk-spectate-banner">
+        <span>👁️ Spectating <b>${esc(spectateHost?.name || players[0].name)}</b> · Room ${esc(roomCode)}</span>
+        <button type="button" class="btn sm ghost" id="jkSpecLeaveBtn">Exit View</button>
+      </div>
+    `);
+    const specExit = $('#jkSpecLeaveBtn', m);
+    if (specExit) specExit.onclick = () => m.close();
+  }
+
+  let jkChatWidget = null;
+  if (shellEl && typeof createInGameChatWidget === 'function') {
+    const chatHost = document.createElement('div');
+    chatHost.className = 'jk-live-chat-host';
+    shellEl.appendChild(chatHost);
+    jkChatWidget = createInGameChatWidget({
+      roomCode,
+      gameId: 'jackaroo',
+      spectate: isSpectating,
+      quickLines: ['Nice move! 🔥', 'Swap now! 🔀', 'Block them! 🛡️', 'GG! 👏', 'Watch out! 😎'],
+      onMessage: (item) => {
+        if (!item.system) showAvatarBubble(0, item.text);
+      }
+    });
+    jkChatWidget.mount(chatHost);
+  }
+
   if (shellEl) {
     shellEl.addEventListener('pointerdown', () => {
-      if (playerAfk && !over) resumeFromAfk();
+      if (!isSpectating && playerAfk && !over) resumeFromAfk();
     }, true);
   }
 
@@ -3812,6 +3845,8 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     clearTimeout(comboTimer);
     clearInterval(rematchTimer);
     stopMicStream();
+    if (jkChatWidget) jkChatWidget.destroy();
+    if (!isSpectating && typeof setMyLiveActivity === 'function') setMyLiveActivity({ type: 'online' });
     if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel();
   };
 

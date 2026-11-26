@@ -457,6 +457,9 @@ function buildProfile(){
       <button type="button" class="btn crimson full" id="devOpenModCenterBtn" style="margin-top:8px">
         🛡️ Reports &amp; Moderation <span id="devReportBadge" class="mod-badge">${pendingReportsCount}</span>
       </button>
+      <button type="button" class="btn red full" id="devClearFakeVoiceBtn" style="margin-top:8px">
+        🧹 Clear Fake / Stale Voice Rooms
+      </button>
       <div class="row" style="margin-top:8px">
         <input id="devSelfCoin" type="number" placeholder="± my coins" style="flex:1">
         <button type="button" class="btn sm gold" id="devSelfApply">Apply</button>
@@ -682,6 +685,9 @@ function buildProfile(){
   if((typeof isDevSession==='function'?isDevSession():devMode)&&$('#devSelfApply')){
     if($('#devOpenModCenterBtn'))$('#devOpenModCenterBtn').onclick=()=>{
       if(typeof openDevModerationCenter==='function')openDevModerationCenter();
+    };
+    if($('#devClearFakeVoiceBtn'))$('#devClearFakeVoiceBtn').onclick=()=>{
+      if(typeof clearFakeVoiceRooms==='function')clearFakeVoiceRooms();
     };
     $('#devSelfApply').onclick=()=>{
       const delta=Math.trunc(+$('#devSelfCoin').value);

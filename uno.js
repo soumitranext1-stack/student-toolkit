@@ -422,12 +422,18 @@ function openUnoInviteModal(opts) {
   const curMode = o.mode || 'classic';
   const stake = Number(o.stake) || 0;
 
-  const roster = (typeof allUsers === 'function' ? allUsers() : [])
-    .filter(u => u && u.uid !== (typeof me !== 'undefined' ? me.uid : ''))
-    .slice(0, 8);
-  const friends = roster.length ? roster : UNO_BOT_ROSTER;
+  const roster = typeof getRealOnlineUsers === 'function'
+    ? getRealOnlineUsers().slice(0, 12)
+    : (typeof allUsers === 'function' ? allUsers() : [])
+        .filter(u => u && u.uid !== (typeof me !== 'undefined' ? me.uid : '') && !(typeof isGuestUser === 'function' && isGuestUser(u)))
+        .slice(0, 12);
+  const friends = roster.length ? roster : [];
 
   const modeLabel = curMode === 'fun' ? 'Fun Play (2 Decks + Stack)' : (curMode === '1v1' ? '1v1 Duel' : 'Classic (4 Players)');
+  const invUrl = typeof buildRoomInviteUrl === 'function'
+    ? buildRoomInviteUrl({ type: 'game', gameId: 'uno', roomCode, mode: curMode, stake })
+    : `?room=${encodeURIComponent(roomCode)}&game=uno&mode=${encodeURIComponent(curMode)}`;
+  const shareText = `🃏 Join my UNO Garden (${modeLabel}) table! Room Code: ${roomCode} ${invUrl}`;
 
   const m = modal('👥 Invite Friends · UNO Garden', `
     <div class="uno-inv-shell">
@@ -451,18 +457,20 @@ function openUnoInviteModal(opts) {
         </div>
       ` : ''}
 
-      <div class="uno-inv-lbl">Online Friends — Tap to Seat at Table</div>
+      <div class="uno-inv-lbl">Online Players (${friends.length}) — Tap to Invite</div>
       <div class="uno-inv-list">
-        ${friends.map(f => `
+        ${friends.length ? friends.map(f => {
+          const act = typeof getUserLiveActivity === 'function' ? getUserLiveActivity(f) : { label: 'Online' };
+          return `
           <div class="uno-inv-row">
-            <div class="uno-inv-av">${unoAvatarHtml(f.avatar || 'av_b1')}</div>
+            <div class="uno-inv-av"><span class="sg-av-presence-wrap">${unoAvatarHtml(f.avatar || 'av_b1')}<span class="sg-online-dot sm"></span></span></div>
             <div class="uno-inv-info">
               <b>${esc(f.name || 'Friend')}</b>
-              <small>Online · Ready for UNO</small>
+              <small>${esc(act.label || 'Online · Ready for UNO')}</small>
             </div>
             <button type="button" class="btn sm uno-inv-seat-btn" data-inv-uid="${esc(f.uid)}">Invite</button>
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('') : '<div class="jki-empty">No active online friends right now. Post clickable invite to World Chat!</div>'}
       </div>
     </div>
   `, 'uno-invite-modal');
@@ -471,18 +479,28 @@ function openUnoInviteModal(opts) {
   if (copyBtn) {
     copyBtn.onclick = () => {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(roomCode).catch(() => {});
+        navigator.clipboard.writeText(shareText).catch(() => {});
       }
-      toast(`Room code ${roomCode} copied!`);
+      toast(`UNO invite (${roomCode}) copied!`);
     };
   }
   const shareBtn = $('#unoShareChatBtn', m);
   if (shareBtn) {
     shareBtn.onclick = () => {
       if (typeof sendWorldMsg === 'function') {
-        try { sendWorldMsg(`🃏 Join my UNO Garden table (${modeLabel})! Code: ${roomCode}`); } catch {}
+        try {
+          sendWorldMsg(shareText, {
+            type: 'game_invite',
+            gameId: 'uno',
+            gameName: 'UNO Garden',
+            roomCode,
+            mode: curMode,
+            stake,
+            url: invUrl
+          });
+        } catch {}
       }
-      toast(`Shared invite ${roomCode} to World Chat!`);
+      toast(`Posted clickable UNO invite (${roomCode}) to World Chat!`);
     };
   }
   $$('[data-umode]', m).forEach(btn => {
@@ -494,11 +512,23 @@ function openUnoInviteModal(opts) {
   });
   $$('[data-inv-uid]', m).forEach(btn => {
     btn.onclick = () => {
-      const uid = btn.dataset.invUid;
-      const friend = friends.find(x => x.uid === uid) || friends[0];
-      btn.textContent = 'Seated ✓';
+      const targetUid = btn.dataset.invUid;
+      const friend = friends.find(x => x.uid === targetUid);
+      if (!friend) return;
+      btn.textContent = 'Invited ✓';
       btn.disabled = true;
-      toast(`Invited ${friend.name} to your UNO table!`);
+      if (typeof sendUniversalRoomInviteToDm === 'function') {
+        sendUniversalRoomInviteToDm(friend, {
+          type: 'game',
+          gameId: 'uno',
+          gameName: 'UNO Garden',
+          roomCode,
+          mode: curMode,
+          stake,
+          text: shareText
+        });
+      }
+      toast(`Sent clickable UNO invite to ${friend.name}!`);
       if (typeof o.onInviteFriend === 'function') {
         o.onInviteFriend(friend);
       }
@@ -511,14 +541,16 @@ window.openUnoInviteModal = openUnoInviteModal;
 /* =====================================================================
    MAIN UNO / OH MY CARD FULL-SCREEN GARDEN TABLE LAUNCHER
    ===================================================================== */
-function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
+function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launchOpts) {
   const Rules = window.UnoRules;
   if (!Rules) {
     toast('UNO rules module failed to load');
     return;
   }
 
-  const stake = Math.max(0, Math.floor(Number(stakeRaw) || 0));
+  const lOpts = launchOpts || {};
+  const isSpectating = Boolean(lOpts.spectate);
+  const stake = isSpectating ? 0 : Math.max(0, Math.floor(Number(stakeRaw) || 0));
   const mode = (modeRaw === 'fun' || modeRaw === '1v1') ? modeRaw : 'classic';
   const funStacking = mode === 'fun';
   const playerCount = mode === '1v1' ? 2 : 4;
@@ -526,10 +558,10 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
   const roomCode = roomCodeRaw || ('UN' + Math.floor(1000 + Math.random() * 9000));
   const modeTitle = mode === 'fun' ? 'Fun Play' : (mode === '1v1' ? '1v1 Duel' : 'Classic Free');
 
-  // Build players array: Seat 0 = Me, Seat 1..N-1 = Rivals/Bots
+  // Build players array: Seat 0 = Me (or spectated friend), Seat 1..N-1 = Rivals/Bots
   const pool = UNO_BOT_ROSTER.slice();
   const pickBot = (idx) => {
-    if (idx === 0 && rival && rival.name) {
+    if (idx === 0 && rival && rival.name && !isSpectating) {
       return {
         id: rival.uid || 'rival_1',
         name: rival.name,
@@ -542,11 +574,16 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
     return { id: b.uid, name: b.name, avatar: b.avatar, gender: b.gender, isBot: true };
   };
 
-  const myName = (typeof me !== 'undefined' && me && me.name) ? me.name : 'You';
-  const myAv = (typeof me !== 'undefined' && me && me.avatar) ? me.avatar : 'av_b1';
+  const spectatedUser = lOpts.spectatedUser || (isSpectating ? rival : null);
+  const myName = isSpectating
+    ? ((spectatedUser && spectatedUser.name) || 'Player')
+    : ((typeof me !== 'undefined' && me && me.name) ? me.name : 'You');
+  const myAv = isSpectating
+    ? ((spectatedUser && spectatedUser.avatar) || 'av_b1')
+    : ((typeof me !== 'undefined' && me && me.avatar) ? me.avatar : 'av_b1');
 
   const players = [
-    { id: 'me', name: myName, avatar: myAv, gender: '♂', isBot: false, hand: [], saidUno: false, micOn: false }
+    { id: isSpectating ? (spectatedUser?.uid || 'spec_0') : 'me', name: myName, avatar: myAv, gender: '♂', isBot: isSpectating, hand: [], saidUno: false, micOn: false }
   ];
   for (let i = 1; i < playerCount; i++) {
     const b = pickBot(i - 1);
@@ -651,18 +688,41 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
 
   const view = openFullScreenGameView({
     gameId: 'uno',
-    title: 'Oh My Card · UNO',
+    title: isSpectating ? `Spectating ${myName} · UNO` : 'Oh My Card · UNO',
     subMeta: modeTitle,
-    statusText: modeTitle,
+    statusText: isSpectating ? 'Spectating' : modeTitle,
     statusTone: 'turn',
     themeClass: 'gfs-theme-uno',
-    html: `<div class="uno-garden-root" id="unoGardenRoot" data-testid="uno-garden-root"></div>`
+    html: `<div class="uno-garden-root" id="unoGardenRoot" data-testid="uno-garden-root"></div><div id="unoTableChatHost" class="uno-tchat-host"></div>`
   });
+
+  if (!isSpectating && typeof setMyLiveActivity === 'function') {
+    setMyLiveActivity({ type: 'game', gameId: 'uno', gameName: 'UNO Garden', roomCode, mode });
+  }
+
+  let tableChatWidget = null;
+  if (typeof createInGameChatWidget === 'function') {
+    tableChatWidget = createInGameChatWidget({
+      roomCode,
+      gameName: 'UNO Garden',
+      spectate: isSpectating,
+      quickMessages: ['Nice play! 🃏', 'Watch out +4! 🔥', 'ONE! 🔔', 'Good game! 🤝'],
+      onSend: (txt) => {
+        if (!isSpectating) showBubble(0, txt);
+      }
+    });
+    const chatHost = $('#unoTableChatHost', view);
+    if (chatHost) tableChatWidget.mount(chatHost);
+  }
 
   view.onclose = () => {
     finished = true;
     clearAllTimers();
     stopMicStream();
+    if (tableChatWidget && typeof tableChatWidget.destroy === 'function') tableChatWidget.destroy();
+    if (!isSpectating && typeof setMyLiveActivity === 'function') {
+      setMyLiveActivity({ type: 'online' });
+    }
   };
 
   const rootEl = $('#unoGardenRoot', view);
@@ -696,12 +756,19 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
     const ranked = Rules.rankPlayers(players);
     const myRank = ranked.findIndex(r => r.id === 'me');
     const won = myRank === 0;
-    let outcomeInfo = { headline: won ? '🏆 Victory!' : 'Match Complete', detail: reasonText || '' };
-    if (!settled) {
+    let outcomeInfo = { headline: isSpectating ? `🏆 ${ranked[0].name} Won!` : (won ? '🏆 Victory!' : 'Match Complete'), detail: reasonText || '' };
+    if (!settled && !isSpectating) {
       settled = true;
       if (typeof settleArenaMatchOutcome === 'function') {
         outcomeInfo = settleArenaMatchOutcome(won ? 'win' : 'lose', stake, 38, 65, 22);
+      } else if (typeof playSfx === 'function') {
+        playSfx(won ? 'duelWin' : 'matchLose');
       }
+    } else if (typeof playSfx === 'function') {
+      playSfx('duelWin');
+    }
+    if (won && typeof spawnArenaSparks === 'function') {
+      spawnArenaSparks(rootEl, '#fde047', 16);
     }
     statusBanner = reasonText || outcomeInfo.headline;
     renderGameOver(ranked, outcomeInfo);
@@ -863,7 +930,10 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
     }
 
     lastPopCardId = card.id;
-    if (typeof playSfx === 'function') playSfx('tap');
+    if (typeof playSfx === 'function') {
+      const isSpecial = ['reverse', 'skip', 'draw2', 'wild', 'wild4', 'discardAll'].includes(card.value);
+      playSfx(isSpecial ? 'capture' : 'cardPlay');
+    }
 
     // Reset ONE flag if player has > 1 card
     if (p.hand.length > 1) p.saidUno = false;
@@ -1033,6 +1103,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
       players[0].saidUno = false;
       statusBanner = `Challenge failed — ${offender.name} had no ${UNO_COLOR_META[ch.prevActiveColor].label}! You draw 6.`;
       showBubble(0, 'Ouch +6! 😱');
+      if (typeof playSfx === 'function') playSfx('duelWrong');
       advanceTurn(1);
     }
   };
@@ -1048,7 +1119,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
       p.saidUno = false;
       statusBanner = `${p.name} drew stacked +${amt} cards!`;
       showBubble(pIdx, `Drew +${amt} 😵`);
-      if (typeof playSfx === 'function') playSfx('tap');
+      if (typeof playSfx === 'function') playSfx('duelWrong');
       advanceTurn(1);
       return;
     }
@@ -1056,7 +1127,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
     const drawn = drawOne();
     p.hand.push(drawn);
     p.saidUno = false;
-    if (typeof playSfx === 'function') playSfx('tap');
+    if (typeof playSfx === 'function') playSfx('cardDraw');
     statusBanner = `${p.name} drew a card from the visor shooter.`;
     showBubble(pIdx, 'Draw 🃏');
     advanceTurn(1);
@@ -1293,7 +1364,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
   const render = () => {
     if (!rootEl) return;
     const top = topCard();
-    const isMyTurn = phase === 'playing' && turnIdx === 0 && !finished && !pendingWild4Challenge;
+    const isMyTurn = !isSpectating && phase === 'playing' && turnIdx === 0 && !finished && !pendingWild4Challenge;
     const sfxMuted = typeof SFX !== 'undefined' && typeof SFX.isMuted === 'function' ? SFX.isMuted() : false;
 
     const myHand = players[0].hand;
@@ -1308,10 +1379,10 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
       const ty = (Math.abs(off) * (totalCards > 8 ? 1.5 : 2.1)).toFixed(1);
       const ml = idx === 0 ? 0 : overlapPx;
       return renderUnoCardHtml(card, {
-        interactive: true,
+        interactive: !isSpectating,
         index: idx,
         playable,
-        dimmed: !playable,
+        dimmed: !isSpectating && !playable,
         style: `margin-left:${ml}px;transform:translateY(${ty}px) rotate(${rot}deg);z-index:${idx + 1}`
       });
     }).join('');
@@ -1345,7 +1416,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
       </div>`;
     }).join('');
 
-    const oneBtnActive = players[0].hand.length <= 2 && !players[0].saidUno;
+    const oneBtnActive = !isSpectating && players[0].hand.length <= 2 && !players[0].saidUno;
     const myBubble = seatBubbles[0] ? `<div class="uno-seat-bubble me">${esc(seatBubbles[0])}</div>` : '';
 
     const wildPickerHtml = pendingWildCardIdx !== null ? `
@@ -1376,12 +1447,13 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
       </div>
     ` : '';
 
-    const catchHtml = (catchTargetIdx !== null && players[catchTargetIdx] && players[catchTargetIdx].hand.length === 1 && !players[catchTargetIdx].saidUno)
+    const catchHtml = (!isSpectating && catchTargetIdx !== null && players[catchTargetIdx] && players[catchTargetIdx].hand.length === 1 && !players[catchTargetIdx].saidUno)
       ? `<button type="button" class="uno-catch-pill" id="unoCatchBtn">🔔 Catch ${esc(unoShortName(players[catchTargetIdx].name, 7))} +2!</button>`
       : '';
 
     rootEl.innerHTML = `
       ${renderGardenScenerySvg()}
+      ${isSpectating ? `<div class="sg-spectate-banner">👁️ Spectating <b>${esc(myName)}</b>'s UNO match · Room ${esc(roomCode)}</div>` : ''}
 
       <!-- Top Garden HUD Bar -->
       <div class="uno-top-hud">
@@ -1389,7 +1461,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
           <button type="button" class="uno-blue-menu-btn" id="unoMenuBtn" aria-label="Open UNO Menu" data-testid="uno-menu-btn">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
           </button>
-          <span class="uno-mode-chip ${mode === 'fun' ? 'is-fun' : ''}">${mode === 'fun' ? '⚡ Fun +Stack' : (mode === '1v1' ? '⚔️ 1v1' : '🌿 Classic')}</span>
+          <span class="uno-mode-chip ${mode === 'fun' ? 'is-fun' : ''}">${isSpectating ? '👁️ Live View' : (mode === 'fun' ? '⚡ Fun +Stack' : (mode === '1v1' ? '⚔️ 1v1' : '🌿 Classic'))}</span>
         </div>
 
         <div class="uno-clock-pill" aria-label="Match countdown timer">
@@ -1605,6 +1677,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
         const card = players[0].hand[idx];
         if (!card) return;
         if (!Rules.canPlayCard(card, topCard(), activeColor, pendingDraw, funStacking)) {
+          if (typeof playSfx === 'function') playSfx('duelWrong');
           toast(pendingDraw > 0 ? 'Stack a +2/+4 or tap the visor shooter to draw!' : 'Match active color or symbol, or draw!');
           return;
         }
@@ -1661,7 +1734,10 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
         const txt = inp ? inp.value.trim() : '';
         if (!txt) return;
         inp.value = '';
-        showBubble(0, txt);
+        if (!isSpectating) showBubble(0, txt);
+        if (tableChatWidget && typeof tableChatWidget.pushMessage === 'function') {
+          tableChatWidget.pushMessage(isSpectating ? `${(me && me.name) || 'Spectator'} 👁️` : ((me && me.name) || 'You'), txt, true);
+        }
       };
     }
 
@@ -1681,10 +1757,18 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
     });
 
     rootEl.querySelectorAll('[data-uno-em]').forEach(b => {
-      b.onclick = () => { activePopover = null; showBubble(0, b.dataset.unoEm); };
+      b.onclick = () => {
+        activePopover = null;
+        if (!isSpectating) showBubble(0, b.dataset.unoEm);
+        if (tableChatWidget && typeof tableChatWidget.pushMessage === 'function') tableChatWidget.pushMessage((me && me.name) || 'You', b.dataset.unoEm, true);
+      };
     });
     rootEl.querySelectorAll('[data-uno-qc]').forEach(b => {
-      b.onclick = () => { activePopover = null; showBubble(0, b.dataset.unoQc); };
+      b.onclick = () => {
+        activePopover = null;
+        if (!isSpectating) showBubble(0, b.dataset.unoQc);
+        if (tableChatWidget && typeof tableChatWidget.pushMessage === 'function') tableChatWidget.pushMessage((me && me.name) || 'You', b.dataset.unoQc, true);
+      };
     });
 
     const mRules = rootEl.querySelector('#unoMenuRules');
@@ -1718,18 +1802,22 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw) {
     }, true);
   }
 
-  // Render initial matching screen, then transition smoothly to Match Succeeded -> Active Table
-  render();
-  addTimer(() => {
-    if (phase === 'matching' && !finished) {
-      phase = 'matched';
-      render();
-    }
-  }, 550);
-  addTimer(() => {
-    if ((phase === 'matching' || phase === 'matched') && !finished) {
-      startPlayingPhase();
-    }
-  }, 1150);
+  // Render initial matching screen (skip straight to playing when spectating!)
+  if (isSpectating) {
+    startPlayingPhase();
+  } else {
+    render();
+    addTimer(() => {
+      if (phase === 'matching' && !finished) {
+        phase = 'matched';
+        render();
+      }
+    }, 550);
+    addTimer(() => {
+      if ((phase === 'matching' || phase === 'matched') && !finished) {
+        startPlayingPhase();
+      }
+    }, 1150);
+  }
 }
 window.launchUnoGame = launchUnoGame;

@@ -64,7 +64,6 @@ const GAME_SVG={
 };
 
 const HUB_GAMES=[
-  ['Chess Blitz','chess','1v1 · Bot','chess-blitz.html','mg-chess','GOLD'],
   ['Speed Math','math','Sprint','speedmath.html','mg-math','FAST'],
   ['Brain Puzzle','puzzle','Logic','brain-puzzle.html','mg-puzzle','IQ'],
   ['Word Duel','word','Vocab','word-duel.html','mg-word','CLASH'],
@@ -72,6 +71,15 @@ const HUB_GAMES=[
 ];
 
 const DUEL_GAMES=[
+  {
+    id:'number_match',name:'Number Match Room',icon:'puzzle',
+    questions:[
+      {q:'Which two digits can be matched in Number Match?',o:['Same digits or Sum 10','Only even digits','Only prime digits','Sum 12'],a:0},
+      {q:'In Number Match, 3 can pair with which two numbers?',o:['3 or 7','3 or 6','2 or 8','4 or 6'],a:0},
+      {q:'What happens when every number in a row is cleared?',o:['Row collapses + Bonus','Game ends','Nothing','Tiles shuffle'],a:0},
+      {q:'Which directions can a Number Match pair connect across empty tiles?',o:['Horizontal, Vertical, Diagonal & Wrap','Horizontal only','Vertical only','Diagonal only'],a:0}
+    ]
+  },
   {
     id:'jackaroo',name:'Jackaroo Royal Room',icon:'custom',
     questions:[
@@ -269,13 +277,17 @@ function renderMultiplayerRooms(){
           const mode=mpModeById(r.mode);
           const inRoom=pList.some(p=>p.uid===uid);
           const statusLabel=r.status==='playing'?'In Match':(r.status==='finished'?'Finished':'Lobby');
+          const canSpec=r.status==='playing'&&!inRoom;
           return `<div class="mp-room-row">
             <div class="mp-room-ico">${GAME_SVG[mode.icon]||GAME_SVG.duel}</div>
             <div class="mid">
               <b>${esc(mode.name)} <span class="mp-code-pill">${esc(r.code)}</span></b>
               <small>${esc(r.hostName||'Host')} · ${pList.length}/${clampSafeInt(r.maxPlayers||4,2,6)} players · ${r.entryCoins>0?`${fmtNum(r.entryCoins)} 🪙 Match`:'Free Friendly'} · ${statusLabel}</small>
             </div>
-            <button type="button" class="btn sm ${inRoom?'gold':''}" data-joinroom="${esc(r.id)}">${inRoom?'Open':'Join'}</button>
+            <div class="row" style="gap:5px">
+              ${canSpec?`<button type="button" class="btn sm ghost" data-specroom="${esc(r.id)}" title="Spectate live match">👁️ View</button>`:''}
+              <button type="button" class="btn sm ${inRoom?'gold':''}" data-joinroom="${esc(r.id)}">${inRoom?'Open':'Join'}</button>
+            </div>
           </div>`;
         }).join(''):`<div class="mp-empty">No active rooms right now. Tap <b>+ Live Room</b> to start a match and invite World Chat!</div>`}
       </div>
@@ -288,6 +300,22 @@ function renderMultiplayerRooms(){
     joinMultiplayerRoomByCode(code);
   };
   host.onclick=e=>{
+    const sb=e.target.closest('[data-specroom]');
+    if(sb&&sb.dataset.specroom){
+      const rm=mpRooms.find(x=>x.id===sb.dataset.specroom);
+      if(rm){
+        if(rm.mode==='ludo'&&typeof launchLudoGame==='function'){
+          launchLudoGame({roomCode:rm.code,mode:rm.subMode==='1v1'?'1v1':'4p',spectate:true,spectateHost:{uid:rm.hostUid,name:rm.hostName}});
+        }else if(rm.mode==='number_match'&&typeof launchNumberMatch==='function'){
+          launchNumberMatch({roomCode:rm.code,mode:rm.subMode==='duel'?'duel':'classic',spectate:true,spectateHost:{uid:rm.hostUid,name:rm.hostName}});
+        }else if(rm.mode==='jackaroo'&&typeof launchJackaroo==='function'){
+          launchJackaroo(0,{uid:rm.hostUid,name:rm.hostName},rm.subMode==='1v1'?'1v1':'2v2','standard',rm.code,{spectate:true,spectateHost:{uid:rm.hostUid,name:rm.hostName}});
+        }else{
+          openMultiplayerRoom(rm.id);
+        }
+      }
+      return;
+    }
     const jb=e.target.closest('[data-joinroom]');
     if(jb&&jb.dataset.joinroom)joinMultiplayerRoom(jb.dataset.joinroom);
   };
@@ -296,19 +324,28 @@ function renderMultiplayerRooms(){
 function shareRoomToWorldChat(room){
   if(!room)return;
   const mode=mpModeById(room.mode);
+  const gId=room.mode||'room';
+  const url=typeof buildRoomInviteUrl==='function'
+    ? buildRoomInviteUrl({gameId:gId,roomCode:room.code,mode:room.subMode||''})
+    : `?room=${encodeURIComponent(room.code)}&game=${encodeURIComponent(gId)}`;
+  const txt=`🎮 Live ${room.tierLabel||mode.name} room open! (${room.entryCoins>0?room.entryCoins+' 🪙 match':'Free Friendly'}) — Room Code: ${room.code} ${url}`;
+  if(typeof sendWorldMsg==='function'){
+    sendWorldMsg(txt,{type:'game_invite',gameId:gId,gameName:room.tierLabel||mode.name,roomCode:room.code,mode:room.subMode||'',stake:Number(room.entryCoins||0),url});
+    toast('Clickable room invite posted to World Chat!');
+    return;
+  }
   const id='rmw_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   const item={
-    id,type:'text',uid,name:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
+    id,type:'game_invite',uid,name:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
     textStyle:me.textStyle||'',msgStyle:me.msgStyle||'',tags:me.tags||[],exp:me.exp||0,
-    isDev:devMode,
-    text:`🎮 Live ${mode.name} room open! (${room.entryCoins>0?room.entryCoins+' coins match':'Free Friendly'}) — Room Code: ${room.code}`,
-    ts:Date.now()
+    isDev:devMode,gameId:gId,gameName:room.tierLabel||mode.name,roomCode:room.code,mode:room.subMode||'',stake:Number(room.entryCoins||0),url,
+    text:txt,ts:Date.now()
   };
   worldMsgs=[...(worldMsgs||[]),item].slice(-150);
   ls.set('sg_world_msgs',worldMsgs);
   dbOp(()=>F.setDoc(F.doc(db,'world_chat',id),item));
   if(typeof playSfx==='function')playSfx('chatSend');
-  toast('Room invite posted to World Chat!');
+  toast('Clickable room invite posted to World Chat!');
 }
 
 function openCreateRoomModal(){
@@ -518,7 +555,9 @@ function refreshActiveRoomModal(){
       ? `<button type="button" class="btn gold sm" id="mpLaunchJackarooBtn">Launch Jackaroo Board</button>`
       : ((room.mode==='uno'&&typeof launchUnoGame==='function')
         ? `<button type="button" class="btn gold sm" id="mpLaunchUnoBtn">Launch UNO Table</button>`
-        : '');
+        : ((room.mode==='number_match'&&typeof launchNumberMatch==='function')
+          ? `<button type="button" class="btn gold sm" id="mpLaunchNmBtn">Launch Number Match</button>`
+          : ''));
     stageHtml=`
       <div class="mp-stage">
         <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
@@ -637,6 +676,12 @@ function refreshActiveRoomModal(){
       launchUnoGame(room.entryCoins||0,null,'4p',room.entryCoins>0?'pro':'standard',room.code);
     };
   }
+  if($('#mpLaunchNmBtn',body)){
+    $('#mpLaunchNmBtn',body).onclick=()=>{
+      if(activeRoomModal)activeRoomModal.close();
+      launchNumberMatch({mode:'duel',stake:room.entryCoins||0,roomCode:room.code});
+    };
+  }
   if($('#mpShareWorldBtn',body))$('#mpShareWorldBtn',body).onclick=()=>shareRoomToWorldChat(room);
   if($('#mpStartBtn',body))$('#mpStartBtn',body).onclick=()=>{
     const liveRoom=mpRooms.find(r=>r.id===room.id)||room;
@@ -697,40 +742,32 @@ function renderGameSlots(){
     const ag=$('#arenaGamesGrid');
     if(ag)renderArenaPostersGrid(ag);
   }
-  const baseCards=HUB_GAMES.map((g,i)=>`<button type="button" class="mini-game-3d-card glossy-card ${esc(g[4]||'mg-math')}" data-hubgame="${i}">
-    <span class="mg-3d-badge">${esc(g[5]||'PLAY')}</span>
+  const baseCards=HUB_GAMES.map((g,i)=>`<button type="button" class="mini-game-3d-card glossy-card clean-mg-card ${esc(g[4]||'mg-math')}" data-hubgame="${i}">
     <div class="mg-3d-art">${GAME_SVG[g[1]]||GAME_SVG.custom}</div>
     <div class="mg-3d-foot">
       <b>${esc(g[0])}</b>
-      <span>${esc(g[2])}</span>
     </div>
   </button>`).join('');
 
-  const extraCards=(Array.isArray(customGameSlots)?customGameSlots:[]).map((sg,idx)=>`<div class="mini-game-3d-card glossy-card mg-custom" data-customgame="${idx}" role="button" tabindex="0">
-    <span class="mg-3d-badge">NEW</span>
+  const extraCards=(Array.isArray(customGameSlots)?customGameSlots:[]).map((sg,idx)=>`<div class="mini-game-3d-card glossy-card clean-mg-card mg-custom" data-customgame="${idx}" role="button" tabindex="0">
     <div class="mg-3d-art">${GAME_SVG.custom}</div>
     <div class="mg-3d-foot">
       <b>${esc(sg.name||'Game')}</b>
-      <span>${esc((sg.desc||'Play').slice(0,18))}</span>
     </div>
     ${devMode?`<button type="button" class="btn red sm mg-del-btn" data-delgameslot="${idx}">✕</button>`:''}
   </div>`).join('');
 
-  const duelCard=`<button type="button" class="mini-game-3d-card glossy-card mg-duel" data-hubduel="1">
-    <span class="mg-3d-badge">20 🪙</span>
+  const duelCard=`<button type="button" class="mini-game-3d-card glossy-card clean-mg-card mg-duel" data-hubduel="1">
     <div class="mg-3d-art">${GAME_SVG.duel}</div>
     <div class="mg-3d-foot">
       <b>60s MCQ Duel</b>
-      <span>1v1 Chat</span>
     </div>
   </button>`;
 
-  const devSlotCard=devMode?`<button type="button" class="mini-game-3d-card glossy-card mg-dev-slot" data-addgameslot="1">
-    <span class="mg-3d-badge">DEV</span>
+  const devSlotCard=devMode?`<button type="button" class="mini-game-3d-card glossy-card clean-mg-card mg-dev-slot" data-addgameslot="1">
     <div class="mg-3d-art">${GAME_SVG.plus}</div>
     <div class="mg-3d-foot">
       <b>+ New Slot</b>
-      <span>Add Game</span>
     </div>
   </button>`:'';
 

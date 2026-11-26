@@ -172,12 +172,90 @@ function buildSeedPartyRooms() {
 }
 
 let partyRooms = ls.get('sg_party_rooms', null);
-if (!Array.isArray(partyRooms) || !partyRooms.length) {
-  partyRooms = buildSeedPartyRooms();
+const partySeedsCleared = () => ls.get('sg_party_seeds_cleared', '') === '1';
+if (!Array.isArray(partyRooms)) {
+  partyRooms = partySeedsCleared() ? [] : buildSeedPartyRooms();
   ls.set('sg_party_rooms', partyRooms);
 } else {
   partyRooms = partyRooms.map(normalizePartyRoom).filter(Boolean);
+  if (!partyRooms.length && !partySeedsCleared()) {
+    partyRooms = buildSeedPartyRooms();
+    ls.set('sg_party_rooms', partyRooms);
+  }
 }
+
+function isFakeOrStalePartyRoom(rm) {
+  if (!rm || !rm.id) return true;
+  const id = String(rm.id);
+  const now = Date.now();
+  if (id.startsWith('pr_seed_') || /^(seed_|fake_|test_)/i.test(id)) return true;
+  if (rm.isSeed || rm.isFake || rm.isDemo) return true;
+  if (rm.expiresAt && Number(rm.expiresAt) <= now) return true;
+  const hostUid = String(rm.hostUid || '');
+  const isBotHost = /^(bot_|demo_|fake_)/i.test(hostUid);
+  const seats = Object.values(normalizePartySeats(rm.seats)).filter(Boolean);
+  const realSeated = seats.filter(s => s && s.uid && !/^(bot_|demo_|fake_)/i.test(String(s.uid)));
+  if (isBotHost && realSeated.length === 0) return true;
+  if (seats.length === 0) return true;
+  const ageMs = now - Number(rm.updatedAt || rm.createdAt || 0);
+  if (ageMs > 2 * 60 * 60 * 1000 && realSeated.length === 0) return true;
+  return false;
+}
+window.isFakeOrStalePartyRoom = isFakeOrStalePartyRoom;
+
+async function clearFakeVoiceRooms() {
+  const isDev = typeof isDevSession === 'function' ? isDevSession() : (typeof devMode !== 'undefined' && devMode);
+  if (!isDev) {
+    if (typeof toast === 'function') toast('Developer only tool');
+    return 0;
+  }
+  ls.set('sg_party_seeds_cleared', '1');
+  const toDeleteIds = new Set();
+  const kept = [];
+
+  (partyRooms || []).forEach(rm => {
+    if (isFakeOrStalePartyRoom(rm)) {
+      if (rm && rm.id) toDeleteIds.add(String(rm.id));
+    } else {
+      kept.push(rm);
+    }
+  });
+
+  // Also scan Firestore party_rooms for any stale/seed/fake rooms
+  if (typeof online !== 'undefined' && online && typeof db !== 'undefined' && db && typeof F !== 'undefined' && F && typeof F.getDocs === 'function') {
+    try {
+      const snap = await F.getDocs(F.collection(db, 'party_rooms'));
+      snap.forEach(docSnap => {
+        const data = { id: docSnap.id, ...(docSnap.data() || {}) };
+        if (isFakeOrStalePartyRoom(data)) {
+          toDeleteIds.add(String(docSnap.id));
+        }
+      });
+    } catch (err) {
+      console.warn('clearFakeVoiceRooms scan skipped:', err?.message || err);
+    }
+  }
+
+  for (const rid of toDeleteIds) {
+    if (activePartyRoomId === rid || minimizedPartyRoomId === rid) {
+      if (typeof closePartyRoom === 'function') closePartyRoom();
+    }
+    if (typeof dbOp === 'function' && typeof db !== 'undefined' && db && typeof F !== 'undefined' && F) {
+      dbOp(() => F.deleteDoc(F.doc(db, 'party_rooms', rid)));
+    }
+  }
+
+  partyRooms = kept;
+  savePartyRoomsLocal();
+  renderPartyHub();
+  if (typeof toast === 'function') {
+    toast(toDeleteIds.size
+      ? `🧹 Cleared ${toDeleteIds.size} fake/stale voice room${toDeleteIds.size > 1 ? 's' : ''}!`
+      : '✓ No fake or stale voice rooms found');
+  }
+  return toDeleteIds.size;
+}
+window.clearFakeVoiceRooms = clearFakeVoiceRooms;
 
 let activePartyRoomId = null;
 let minimizedPartyRoomId = null;
@@ -444,10 +522,13 @@ function ingestPartyRooms(list) {
   const live = (Array.isArray(list) ? list : [])
     .filter(r => r && r.id && (!r.expiresAt || Number(r.expiresAt) > now))
     .map(normalizePartyRoom)
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter(r => !(partySeedsCleared() && isFakeOrStalePartyRoom(r)));
   if (live.length) {
-    const seeds = buildSeedPartyRooms().filter(s => !live.some(l => l.id === s.id));
+    const seeds = partySeedsCleared() ? [] : buildSeedPartyRooms().filter(s => !live.some(l => l.id === s.id));
     partyRooms = [...live, ...seeds].slice(0, 24);
+  } else if (partySeedsCleared()) {
+    partyRooms = (partyRooms || []).filter(r => !isFakeOrStalePartyRoom(r));
   }
   savePartyRoomsLocal();
   const curRoom = partyRooms.find(r => r.id === (activePartyRoomId || minimizedPartyRoomId));
@@ -475,12 +556,16 @@ function renderPartyHub() {
   const host = $('#homePartyRooms') || $('#partyRoomsHost');
   if (!host) return;
   const rooms = (partyRooms || []).slice(0, 8);
+  const isDev = typeof isDevSession === 'function' ? isDevSession() : (typeof devMode !== 'undefined' && devMode);
   host.innerHTML = `
     <div class="wp-sec-bar">
       <b>Voice &amp; Party</b>
-      <button type="button" class="wp-pill-btn gold" id="partyHostBtn">+ Host Room</button>
+      <div class="row" style="gap:6px">
+        ${isDev ? '<button type="button" class="wp-pill-btn red" id="partyClearFakeBtn" title="Clear fake, seed, empty or stale voice rooms">🧹 Clear Fake</button>' : ''}
+        <button type="button" class="wp-pill-btn gold" id="partyHostBtn">+ Host Room</button>
+      </div>
     </div>
-    <div class="party-grid">${rooms.map(rm => {
+    ${rooms.length ? `<div class="party-grid">${rooms.map(rm => {
       const bgMeta = PARTY_BG_META[rm.background] || PARTY_BG_META.club;
       const modeMeta = PARTY_MODES_META[rm.mode] || PARTY_MODES_META.normal;
       const seated = Object.values(normalizePartySeats(rm.seats)).filter(Boolean);
@@ -495,12 +580,16 @@ function renderPartyHub() {
           <span class="prc-join">Enter →</span>
         </div>
       </button>`;
-    }).join('')}</div>`;
+    }).join('')}</div>` : `<div class="mp-empty" style="margin-top:6px">No live voice rooms right now. Tap <b>+ Host Room</b> to start a real room!</div>`}`;
 
   if ($('#partyHostBtn', host)) {
     $('#partyHostBtn', host).onclick = () => openCreatePartyRoomModal();
   }
+  if ($('#partyClearFakeBtn', host)) {
+    $('#partyClearFakeBtn', host).onclick = () => clearFakeVoiceRooms();
+  }
   host.onclick = e => {
+    if (e.target.closest('#partyHostBtn') || e.target.closest('#partyClearFakeBtn')) return;
     const btn = e.target.closest('[data-openparty]');
     if (btn && btn.dataset.openparty) openPartyRoom(btn.dataset.openparty);
   };
@@ -565,6 +654,9 @@ function closePartyRoom() {
     root.innerHTML = '';
   }
   document.body.classList.remove('party-fs-lock');
+  if (typeof setMyLiveActivity === 'function') {
+    setMyLiveActivity({ type: 'online' });
+  }
 }
 
 function openPartyRoom(roomId) {
@@ -583,8 +675,12 @@ function openPartyRoom(roomId) {
   requestAnimationFrame(() => root.classList.add('open'));
   PartyWebRtcMesh.syncMicPeers(room);
   if (room.musicUrl) PartyAudioPlayer.playUrl(room.musicUrl, room.musicTitle);
+  if (typeof setMyLiveActivity === 'function') {
+    setMyLiveActivity({ type: 'party', roomId: room.id, roomCode: room.shortId || room.id, gameName: room.title || 'Voice Room' });
+  }
   renderFullScreenPartyRoom();
 }
+window.openPartyRoomModal = openPartyRoom;
 
 function renderSeatTile(rm, idx) {
   const seats = rm.seats || {};
@@ -652,6 +748,7 @@ function renderFullScreenPartyRoom() {
           </div>
         </div>
         <div class="pfs-hdr-right">
+          <button type="button" class="pfs-hdr-btn" data-pfs-act="open-invite" title="Invite Friends to Voice Room" aria-label="Invite to Room">👥</button>
           <button type="button" class="pfs-hdr-btn" data-pfs-act="minimize" title="Minimize">−</button>
           <button type="button" class="pfs-hdr-btn" data-pfs-act="open-music" title="Music">♪</button>
           <button type="button" class="pfs-hdr-btn" data-pfs-act="open-modes" title="Modes">⊞</button>
@@ -962,6 +1059,8 @@ function bindPartyRootDelegation(root) {
       root.hidden = true;
       document.body.classList.remove('party-fs-lock');
       toast('Room minimized');
+    } else if (act === 'open-invite') {
+      openPartyInviteModal(rm);
     } else if (act === 'open-music') {
       openPartyMusicModal(rm);
     } else if (act === 'open-modes') {
@@ -1019,3 +1118,75 @@ function bindPartyRootDelegation(root) {
     persistPartyRoom(rm);
   });
 }
+
+function openPartyInviteModal(rm) {
+  if (!rm) return;
+  const code = String(rm.shortId || rm.id).toUpperCase();
+  const url = typeof buildRoomInviteUrl === 'function'
+    ? buildRoomInviteUrl({ type: 'party', roomId: rm.id, roomCode: code })
+    : `?party=${encodeURIComponent(rm.id)}&room=${encodeURIComponent(code)}`;
+  const shareTxt = `🎙️ Join my Voice Room "${rm.title || 'Voice Lounge'}"! Room Code: ${code} ${url}`;
+  const onlineFriends = typeof getRealOnlineUsers === 'function' ? getRealOnlineUsers() : [];
+
+  const m = modal('👥 Invite to Voice Room', `
+    <div class="jki-shell">
+      <div class="jki-code-card">
+        <div class="jki-code-meta">
+          <small class="jki-lbl">VOICE ROOM CODE</small>
+          <b class="jki-code">${esc(code)}</b>
+        </div>
+        <div class="jki-code-actions">
+          <button type="button" class="btn sm gold" id="prInvCopy">Copy</button>
+          <button type="button" class="btn sm ok" id="prInvWorld">World Chat</button>
+        </div>
+      </div>
+      <div class="jki-sec-row">
+        <span class="jki-sec-title">Online Friends</span>
+        <small class="jki-sec-cnt">${onlineFriends.length} online</small>
+      </div>
+      <div class="jki-friend-list" id="prInvList">
+        ${onlineFriends.length ? onlineFriends.slice(0, 14).map(u => {
+          const act = typeof getUserLiveActivity === 'function' ? getUserLiveActivity(u) : { label: 'Online' };
+          return `<div class="jki-friend-row">
+            <div class="jki-f-left">
+              <span class="sg-av-presence-wrap">${av(u, 36)}<span class="sg-online-dot sm"></span></span>
+              <div class="jki-f-info"><b>${esc(u.name)}</b><small>${esc(act.label)}</small></div>
+            </div>
+            <button type="button" class="btn sm ok" data-pr-inv="${esc(u.uid)}">Invite</button>
+          </div>`;
+        }).join('') : '<div class="jki-empty">No online friends available. Share to World Chat!</div>'}
+      </div>
+    </div>
+  `, 'jki-modal');
+
+  if ($('#prInvCopy', m)) {
+    $('#prInvCopy', m).onclick = () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(shareTxt).catch(() => {});
+      toast(`Voice Room invite (${code}) copied!`);
+    };
+  }
+  if ($('#prInvWorld', m)) {
+    $('#prInvWorld', m).onclick = () => {
+      if (typeof sendWorldMsg === 'function') {
+        sendWorldMsg(shareTxt, { type: 'party_invite', gameId: 'party', gameName: rm.title || 'Voice Room', roomId: rm.id, roomCode: code, url });
+      }
+      toast('Posted clickable Voice Room invite to World Chat!');
+    };
+  }
+  const list = $('#prInvList', m);
+  if (list) {
+    list.onclick = (e) => {
+      const b = e.target.closest('[data-pr-inv]');
+      if (!b || b.disabled) return;
+      const fr = onlineFriends.find(x => x.uid === b.dataset.prInv);
+      if (!fr) return;
+      b.disabled = true;
+      b.textContent = 'Invited ✓';
+      if (typeof sendUniversalRoomInviteToDm === 'function') {
+        sendUniversalRoomInviteToDm(fr, { type: 'party', gameId: 'party', gameName: rm.title || 'Voice Room', roomId: rm.id, roomCode: code, text: shareTxt });
+      }
+      toast(`Invited ${fr.name} to "${rm.title}"!`);
+    };
+  }
+}
+window.openPartyInviteModal = openPartyInviteModal;

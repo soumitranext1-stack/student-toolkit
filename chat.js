@@ -83,15 +83,21 @@ function ingestRemoteDmDocs(dmDocs){
     const m={
       id:docItem.id,
       from:isMe?'me':'them',
-      type:['duel','red_packet','gift','party_invite'].includes(type)?type:'text',
+      type:['duel','red_packet','gift','party_invite','game_invite'].includes(type)?type:'text',
       text:docItem.text||'',
       msgStyle:docItem.msgStyle||'',
       ts
     };
     if(m.type==='duel'){m.gi=Number(docItem.gi)||0;m.accepted=false}
-    if(m.type==='party_invite'){
+    if(m.type==='party_invite'||m.type==='game_invite'){
       m.roomId=docItem.roomId||'';
-      m.roomTitle=docItem.roomTitle||'Party Lounge';
+      m.roomCode=docItem.roomCode||'';
+      m.roomTitle=docItem.roomTitle||docItem.gameName||'Room';
+      m.gameId=docItem.gameId||(m.type==='party_invite'?'party':'');
+      m.gameName=docItem.gameName||docItem.roomTitle||'Game Room';
+      m.mode=docItem.mode||'';
+      m.stake=Number(docItem.stake)||0;
+      m.url=docItem.url||'';
     }
     if(m.type==='gift'){
       m.fromUid=docItem.from||'';
@@ -268,19 +274,38 @@ function renderChats(){
     return bt-at;
   });
 
-  const dmHtml=dmThreads.map(t=>{
+  // Also surface real online friends from me.friends who do not have a DM thread yet
+  const existingPeerUids=new Set(dmThreads.map(t=>t.uid||t.id));
+  const extraFriends=(Array.isArray(me.friends)?me.friends:[])
+    .filter(fUid=>fUid&&fUid!==uid&&!existingPeerUids.has(fUid))
+    .map(fUid=>allUsers().find(u=>u.uid===fUid))
+    .filter(u=>u&&!(typeof isGuestUser==='function'&&isGuestUser(u)))
+    .map(u=>({id:u.uid,uid:u.uid,name:u.name||u.uid,messages:[]}));
+
+  const combinedDmList=[...dmThreads,...extraFriends];
+
+  const dmHtml=combinedDmList.map(t=>{
     const peerUid=t.uid||t.id;
     const peerUser=allUsers().find(u=>u.uid===peerUid)||{uid:peerUid,name:t.name||peerUid,avatar:'av_b1',frame:'none'};
     const hasUnread=Boolean(me.unreadFrom&&me.unreadFrom[peerUid]);
     const last=t.messages&&t.messages.length?t.messages[t.messages.length-1]:null;
-    const preview=last?(last.type==='red_packet'?'🧧 Lifafa':(last.type==='gift'?'🎁 Gift':(last.type==='party_invite'?'🎭 Room Invite':(last.type==='duel'?'⚔️ Duel':last.text)))):'Say hi';
+    const preview=last?(last.type==='red_packet'?'🧧 Lifafa':(last.type==='gift'?'🎁 Gift':(last.type==='party_invite'?'🎙️ Voice Invite':(last.type==='game_invite'?'🎮 Game Invite':(last.type==='duel'?'⚔️ Duel':last.text))))):'Tap to message';
+    const peerOn=typeof isUserOnline==='function'&&isUserOnline(peerUser);
+    const peerAct=typeof getUserLiveActivity==='function'?getUserLiveActivity(peerUser):{online:peerOn,canSpectate:false,label:peerOn?'Online':'Offline'};
+    const actBadge=typeof renderOnlineActivityBadge==='function'?renderOnlineActivityBadge(peerUser,{compact:true}):'';
     return `<div class="wp-chat-row" data-th="${esc(t.id)}">
-      <button type="button" class="th-av-btn wp-cr-av" data-chatprof="${esc(peerUid)}" title="Player Profile" aria-label="Player Profile">${av(peerUser,46)}${hasUnread?'<span class="wp-unread-badge">1</span>':''}</button>
+      <button type="button" class="th-av-btn wp-cr-av" data-chatprof="${esc(peerUid)}" title="Player Profile" aria-label="Player Profile">
+        <span class="sg-av-presence-wrap">${av(peerUser,46)}${peerOn?'<span class="sg-online-dot" title="Online"></span>':''}</span>
+        ${hasUnread?'<span class="wp-unread-badge">1</span>':''}
+      </button>
       <div class="wp-cr-mid">
-        <div class="wp-cr-top"><b>${styledName(peerUser)}</b>${peerUser.clanTag?`<span class="wp-tag-pill violet">[${esc(peerUser.clanTag)}]</span>`:''}</div>
+        <div class="wp-cr-top"><b>${styledName(peerUser)}</b>${peerUser.clanTag?`<span class="wp-tag-pill violet">[${esc(peerUser.clanTag)}]</span>`:''}${actBadge}</div>
         <small>${esc(preview)}</small>
       </div>
-      <span class="wp-cr-time">${esc(fmtChatShortTime(last?.ts))}</span>
+      <div class="wp-cr-right">
+        ${peerAct.canSpectate?`<button type="button" class="btn sm gold sg-row-spec-btn" data-spectate-uid="${esc(peerUid)}" title="Watch live match">👁️ View</button>`:''}
+        <span class="wp-cr-time">${esc(fmtChatShortTime(last?.ts))}</span>
+      </div>
     </div>`;
   }).join('');
 
@@ -325,6 +350,12 @@ $('#clearDevInboxBtn').onclick=()=>{
   devInbox={};ls.set('sg_dev_inbox',devInbox);renderChats();toast('Inbox cleared');
 };
 $('#chatList').onclick=e=>{
+  const specBtn=e.target.closest('[data-spectate-uid]');
+  if(specBtn&&specBtn.dataset.spectateUid){
+    e.stopPropagation();
+    if(typeof spectateUserMatch==='function')spectateUserMatch(specBtn.dataset.spectateUid);
+    return;
+  }
   const accBtn=e.target.closest('[data-accept-bond]');
   if(accBtn){
     e.stopPropagation();
@@ -344,7 +375,15 @@ $('#chatList').onclick=e=>{
     return;
   }
   const c=e.target.closest('[data-th]');
-  if(c)openThread(c.dataset.th);
+  if(c){
+    const tid=c.dataset.th;
+    if(tid!=='world'&&tid!=='developer'&&!tid.startsWith('inbox:')&&!chats[tid]){
+      const u=allUsers().find(x=>x.uid===tid);
+      chats[tid]={id:tid,uid:tid,name:u?.name||tid,messages:[]};
+      saveChats();
+    }
+    openThread(tid);
+  }
 };
 
 function openThread(id){
@@ -373,12 +412,14 @@ function renderThread(){
       const rb=getActiveRankBadge(s);
       const dec=typeof renderNameDecorations==='function'?renderNameDecorations(s,{compact:true}):'';
       const tagsHtml=`<div class="wc-tags">${rb?`<span class="lb-badge ${esc(rb.badgeClass)}">${esc(rb.badge)}</span>`:''}${(s.tags||[]).slice(0,3).map(tg=>`<span class="p-tag ${tagClassFor(tg)}">${esc(tg)}</span>`).join('')}</div>`;
-      const roomMatch=typeof m.text==='string'?m.text.match(/Room Code:\s*(SG-[A-Z0-9]{4})/i):null;
+      const parsedInv=typeof parseRoomInviteFromText==='function'?parseRoomInviteFromText(m.text,m):null;
       let bodyHtml='';
       if(m.type==='red_packet')bodyHtml=renderRedPacketCard(m,'world');
       else if(m.type==='flash_drop')bodyHtml=renderFlashDropCard(m);
       else if(m.type==='gift'&&typeof renderWorldGiftCard==='function')bodyHtml=renderWorldGiftCard(m);
-      else bodyHtml=`<div class="bub ${esc(s.msgStyle||'')}">${linkify(esc(m.text))}${roomMatch?`<div style="margin-top:8px"><button type="button" class="btn sm ok" data-joinroomcode="${esc(roomMatch[1].toUpperCase())}">Join Live Room (${esc(roomMatch[1].toUpperCase())})</button></div>`:''}</div>`;
+      else if(parsedInv&&typeof renderClickableInviteCard==='function'){
+        bodyHtml=`<div class="bub ${esc(s.msgStyle||'')}">${renderClickableInviteCard(parsedInv,{senderName:s.name})}</div>`;
+      }else bodyHtml=`<div class="bub ${esc(s.msgStyle||'')}">${linkify(esc(m.text))}</div>`;
 
       return `<div class="m wc-m ${isOut?'out':'in'}">
         <div class="wc-card">
@@ -405,12 +446,19 @@ function renderThread(){
   const realDevUser=allUsers().find(u=>isDevAccount(u))||{uid:DEV_UID,name:'Developer',avatar:'av_b1',frame:'none'};
   const peerUid=t.dev?realDevUser.uid:(t.uid||(isInbox?cur.slice(6):cur));
   const peerUser=t.dev?realDevUser:(allUsers().find(u=>u.uid===peerUid)||{uid:peerUid,name:t.name||peerUid,avatar:'av_b1',frame:'none'});
-  const invitePartyBtn=!t.dev&&!isInbox?`<button type="button" class="btn ghost sm" id="dmPartyInviteBtn" title="Invite to Party Room">🎭 Invite</button>`:'';
+  const peerOn=typeof isUserOnline==='function'&&isUserOnline(peerUser);
+  const peerAct=typeof getUserLiveActivity==='function'?getUserLiveActivity(peerUser):{online:peerOn,canSpectate:false,label:peerOn?'Online':'Offline'};
+  const spectateHeadBtn=!t.dev&&!isInbox&&peerAct.canSpectate?`<button type="button" class="btn gold sm" id="dmSpectateBtn" title="Watch friend's live match">👁️ View</button>`:'';
+  const invitePartyBtn=!t.dev&&!isInbox?`<button type="button" class="btn ghost sm" id="dmPartyInviteBtn" title="Invite to Voice Room">🎙️ Invite</button>`:'';
   $('#thHead').className='thh'+(t.dev?' dv':'');
-  $('#thHead').innerHTML=`<button class="x" id="thBack" aria-label="Back">←</button><button type="button" class="th-prof-trigger" data-headprof="${esc(peerUid)}" title="Tap to view player profile">${av(peerUser,36)}<div class="mid"><b>${t.dev?'<span class="anim-firetxt">Developer</span>':styledName(peerUser)}</b><small>Tap for profile · ${esc(t.uid||'7-day chat history')}</small></div></button>${invitePartyBtn}${devMode&&isInbox?`<button class="btn red sm" id="clrSingle">Clear</button>`:''}`;
+  $('#thHead').innerHTML=`<button class="x" id="thBack" aria-label="Back">←</button><button type="button" class="th-prof-trigger" data-headprof="${esc(peerUid)}" title="Tap to view player profile"><span class="sg-av-presence-wrap">${av(peerUser,36)}${peerOn?'<span class="sg-online-dot sm"></span>':''}</span><div class="mid"><b>${t.dev?'<span class="anim-firetxt">Developer</span>':styledName(peerUser)}</b><small>${esc(peerAct.label)} · Tap for profile</small></div></button>${spectateHeadBtn}${invitePartyBtn}${devMode&&isInbox?`<button class="btn red sm" id="clrSingle">Clear</button>`:''}`;
   $('#thBack').onclick=()=>{$('#thread').hidden=true;cur=null;renderChats()};
   const headProfBtn=$('#thHead').querySelector('[data-headprof]');
   if(headProfBtn)headProfBtn.onclick=()=>openPublicProfile(headProfBtn.dataset.headprof);
+  if($('#dmSpectateBtn'))$('#dmSpectateBtn').onclick=()=>{
+    $('#thread').hidden=true;cur=null;
+    if(typeof spectateUserMatch==='function')spectateUserMatch(peerUid);
+  };
   if($('#dmPartyInviteBtn'))$('#dmPartyInviteBtn').onclick=()=>sendDmPartyInvite(peerUid,t);
   if($('#clrSingle'))$('#clrSingle').onclick=()=>{
     if(!devMode)return;
@@ -425,8 +473,14 @@ function renderThread(){
     if(m.type==='red_packet'){
       return `<div class="m ${out?'out':'in'}">${renderRedPacketCard(m,isInbox?'inbox':'dm')}<time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
     }
-    if(m.type==='party_invite'){
-      return `<div class="m ${out?'out':'in'}"><div class="chal"><b>🎭 Party Room Invite</b><p>${esc(m.text||('Join '+esc(m.roomTitle||'Party Room')))}</p><button type="button" class="btn ok sm" data-joinparty="${esc(m.roomId)}">Join Party Room</button></div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
+    if(m.type==='party_invite'||m.type==='game_invite'){
+      const inv=typeof parseRoomInviteFromText==='function'
+        ?(parseRoomInviteFromText(m.text,m)||{type:m.type==='party_invite'?'party':'game',gameId:m.gameId||(m.type==='party_invite'?'party':'ludo'),gameName:m.gameName||m.roomTitle||'Game Room',roomCode:m.roomCode||m.roomId||'',roomId:m.roomId||'',mode:m.mode||'',stake:Number(m.stake)||0,url:m.url||''})
+        :null;
+      if(inv&&typeof renderClickableInviteCard==='function'){
+        return `<div class="m ${out?'out':'in'}"><div class="bub">${renderClickableInviteCard(inv)}</div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
+      }
+      return `<div class="m ${out?'out':'in'}"><div class="chal"><b>🎭 Room Invite</b><p>${esc(m.text||('Join '+(m.roomTitle||'Room')))}</p><button type="button" class="btn ok sm" data-joinparty="${esc(m.roomId)}">Join Room</button></div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
     }
     if(m.type==='gift'&&typeof renderWorldGiftCard==='function'){
       return `<div class="m ${out?'out':'in'}">${renderWorldGiftCard(m)}<time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
@@ -443,8 +497,12 @@ function renderThread(){
       else act=`<button class="btn sm" data-startduel="${m.id}">Start 60s Match (20 🪙)</button>`;
       return `<div class="m ${out?'out':'in'}"><div class="chal"><b>${esc(g.name)}</b><p>Bet 20+20 = 40 🪙 · Winner <span class="rw">36 🪙</span> (4 🪙 fee) · +4 right / −2 wrong</p>${act}</div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
     }
+    const textInv=typeof parseRoomInviteFromText==='function'?parseRoomInviteFromText(m.text,m):null;
     const styleCls=m.msgStyle||(out&&me.msgStyle?me.msgStyle:'');
     const cls=(t.dev&&(out||devMode)||isInbox)?' fire-border':(styleCls?' '+esc(styleCls):'');
+    if(textInv&&typeof renderClickableInviteCard==='function'){
+      return `<div class="m ${out?'out':'in'}"><div class="bub${cls}">${renderClickableInviteCard(textInv)}</div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
+    }
     return `<div class="m ${out?'out':'in'}"><div class="bub${cls}">${linkify(esc(m.text))}</div><time>${new Date(m.ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</time></div>`;
   }).join('')||'<div class="empty">Start the conversation! Messages stay for 7 days.</div>';
   $('#msgs').scrollTop=$('#msgs').scrollHeight;
@@ -459,15 +517,20 @@ function sendDmPartyInvite(peerUid, threadObj){
     if(typeof openCreatePartyRoomModal==='function')openCreatePartyRoomModal();
     return;
   }
+  const code=String(targetRoom.shortId||targetRoom.id).toUpperCase();
+  const url=typeof buildRoomInviteUrl==='function'
+    ?buildRoomInviteUrl({type:'party',roomId:targetRoom.id,roomCode:code})
+    :`?party=${encodeURIComponent(targetRoom.id)}&room=${encodeURIComponent(code)}`;
   const id='pi_'+mid(), nowTs=Date.now();
-  const msgObj={id,from:'me',type:'party_invite',roomId:targetRoom.id,roomTitle:targetRoom.title||'Party Room',text:`Come hang out in "${targetRoom.title||'Party Room'}"!`,ts:nowTs};
+  const text=`🎙️ Join my Voice Room "${targetRoom.title||'Party Room'}"! Room Code: ${code} ${url}`;
+  const msgObj={id,from:'me',type:'party_invite',gameId:'party',gameName:targetRoom.title||'Voice Room',roomId:targetRoom.id,roomCode:code,roomTitle:targetRoom.title||'Party Room',url,text,ts:nowTs};
   threadObj.messages=threadObj.messages||[];
   threadObj.messages.push(msgObj);
   saveChats();
-  dbOp(()=>F.setDoc(F.doc(db,'dm_messages',id),{id,from:uid,fromName:me.name,to:peerUid,type:'party_invite',roomId:targetRoom.id,roomTitle:targetRoom.title||'Party Room',text:msgObj.text,ts:nowTs}));
+  dbOp(()=>F.setDoc(F.doc(db,'dm_messages',id),{id,from:uid,fromName:me.name,to:peerUid,type:'party_invite',gameId:'party',gameName:targetRoom.title||'Voice Room',roomId:targetRoom.id,roomCode:code,roomTitle:targetRoom.title||'Party Room',url,text,ts:nowTs}));
   if(typeof playSfx==='function')playSfx('chatSend');
   renderThread();
-  toast('Party Room invite sent!');
+  toast('Clickable Voice Room invite sent!');
 }
 
 async function claimRedPacket(packetId, scope){
@@ -669,6 +732,13 @@ if($('#rpBtn'))$('#rpBtn').onclick=openRedPacketDropModal;
 if($('#flashDropBtn'))$('#flashDropBtn').onclick=launchChatFlashDrop;
 
 $('#msgs').onclick=e=>{
+  const joinInvBtn=e.target.closest('[data-sg-join-invite]');
+  if(joinInvBtn&&joinInvBtn.dataset.sgJoinInvite){
+    e.stopPropagation();
+    $('#thread').hidden=true;cur=null;
+    if(typeof joinFromInvitePayload==='function')joinFromInvitePayload(joinInvBtn.dataset.sgJoinInvite);
+    return;
+  }
   const repBtn=e.target.closest('[data-repuser]');
   if(repBtn){
     e.stopPropagation();
@@ -839,17 +909,65 @@ if($('#giftBtn'))$('#giftBtn').onclick=()=>{
   openGiftSendModal(targetUid,{inDm:!cur.startsWith('inbox:'),targetName:peerUser?.name||chats[cur]?.name||'Player'});
 };
 
+function sendWorldMsg(text, meta){
+  const clean=String(text||'').trim();
+  if(!clean)return null;
+  if(typeof isMutedNow==='function'&&isMutedNow()){
+    toast(`You are muted for ${muteRemainingText()}`);
+    return null;
+  }
+  if(hasBadWord(clean)){
+    toast('Error: Bad language is not allowed');
+    return null;
+  }
+  const now=Date.now();
+  const id='wm_'+mid();
+  const extra=meta&&typeof meta==='object'?meta:{};
+  const item={
+    id,type:extra.type||'text',uid,name:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
+    textStyle:me.textStyle||'',msgStyle:me.msgStyle||'',tags:me.tags||[],exp:me.exp||0,
+    vipTier:me.vipTier||'',vipUntil:me.vipUntil||0,clanTag:me.clanTag||'',title:me.title||'',
+    isDev:devMode,text:clean,ts:now,
+    gameId:extra.gameId||'',gameName:extra.gameName||'',
+    roomCode:extra.roomCode||'',roomId:extra.roomId||'',
+    mode:extra.mode||'',stake:Number(extra.stake)||0,url:extra.url||''
+  };
+  worldMsgs=[...(worldMsgs||[]),item].slice(-150);
+  ls.set('sg_world_msgs',worldMsgs);
+  dbOp(()=>F.setDoc(F.doc(db,'world_chat',id),item));
+  if(typeof playSfx==='function')playSfx('chatSend');
+  if(cur==='world')renderThread();
+  else renderChats();
+  return item;
+}
+window.sendWorldMsg=sendWorldMsg;
+
 $('#findBtn').onclick=()=>{
-  const others=allUsers().filter(u=>u.uid!==uid);
+  const others=allUsers().filter(u=>u&&u.uid!==uid&&!(typeof isGuestUser==='function'&&isGuestUser(u)));
   const m=modal('Message or Add Player',`
-    <label>Search by Name or Player UID</label>
+    <label>Search Online Players by Name or UID (Guests filtered out)</label>
     <div class="row"><input id="fUid" placeholder="Enter Name or UID" autocomplete="off" style="flex:1"><button class="btn sm" id="fAdd">Chat</button></div>
     <div class="list" id="fResList" style="margin-top:12px"></div>
   `);
   const renderList=(q='')=>{
     const term=q.trim().toLowerCase();
-    const filtered=others.filter(u=>!term||String(u.name||'').toLowerCase().includes(term)||String(u.uid||'').toLowerCase().includes(term)).slice(0,30);
-    $('#fResList',m).innerHTML=filtered.map(u=>`<div class="th" data-prof="${esc(u.uid)}">${av(u,38)}<div class="mid"><b>${styledName(u)}</b><small>${esc(u.uid)}</small></div><button class="btn sm" data-add="${esc(u.uid)}" data-nm="${esc(u.name)}">Chat</button></div>`).join('')||'<div class="empty">No players matched.</div>';
+    const filtered=others
+      .filter(u=>!term||String(u.name||'').toLowerCase().includes(term)||String(u.uid||'').toLowerCase().includes(term))
+      .sort((a,b)=>((typeof isUserOnline==='function'&&isUserOnline(b))?1:0)-((typeof isUserOnline==='function'&&isUserOnline(a))?1:0))
+      .slice(0,30);
+    $('#fResList',m).innerHTML=filtered.map(u=>{
+      const on=typeof isUserOnline==='function'&&isUserOnline(u);
+      const act=typeof getUserLiveActivity==='function'?getUserLiveActivity(u):{canSpectate:false,label:on?'Online':'Offline'};
+      const actBadge=typeof renderOnlineActivityBadge==='function'?renderOnlineActivityBadge(u,{compact:true}):'';
+      return `<div class="th" data-prof="${esc(u.uid)}">
+        <span class="sg-av-presence-wrap">${av(u,38)}${on?'<span class="sg-online-dot sm"></span>':''}</span>
+        <div class="mid"><b>${styledName(u)}</b><small>${actBadge||esc(u.uid)}</small></div>
+        <div class="row" style="gap:5px">
+          ${act.canSpectate?`<button type="button" class="btn sm gold" data-fspec="${esc(u.uid)}">👁️ View</button>`:''}
+          <button type="button" class="btn sm" data-add="${esc(u.uid)}" data-nm="${esc(u.name)}">Chat</button>
+        </div>
+      </div>`;
+    }).join('')||'<div class="empty">No active non-guest players matched.</div>';
   };
   renderList();
   $('#fUid',m).oninput=e=>renderList(e.target.value);
@@ -865,6 +983,7 @@ $('#findBtn').onclick=()=>{
   };
   $('#fAdd',m).onclick=()=>openF($('#fUid',m).value,'');
   m.onclick=e=>{
+    const sp=e.target.closest('[data-fspec]');if(sp){m.close();if(typeof spectateUserMatch==='function')spectateUserMatch(sp.dataset.fspec);return}
     const ad=e.target.closest('[data-add]');if(ad){openF(ad.dataset.add,ad.dataset.nm);return}
     const pr=e.target.closest('[data-prof]');if(pr){m.close();openPublicProfile(pr.dataset.prof)}
   };

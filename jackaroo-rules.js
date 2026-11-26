@@ -124,7 +124,68 @@
 
   function shouldGrantExtraTurn(ev) {
     if (!ev) return false;
-    return Boolean((ev.capturedCount || 0) > 0 || ev.enteredHome || ev.discardedEnemy);
+    // Discarding a card (dead-hand or burning a rival card) MUST pass the turn to the next player,
+    // never bounce back to self. Only stone capture or entering Home grants an extra turn.
+    return Boolean((ev.capturedCount || 0) > 0 || ev.enteredHome);
+  }
+
+  function getNextTurnIndex(currentIdx, players, extraTurn) {
+    if (!Array.isArray(players) || !players.length) return 0;
+    const len = players.length;
+    const safeCur = ((Number(currentIdx) || 0) % len + len) % len;
+    if (extraTurn && players[safeCur] && Array.isArray(players[safeCur].hand) && players[safeCur].hand.length > 0) {
+      return safeCur;
+    }
+    for (let step = 1; step <= len; step++) {
+      const next = (safeCur + step) % len;
+      if (players[next] && Array.isArray(players[next].hand) && players[next].hand.length > 0) {
+        return next;
+      }
+    }
+    return (safeCur + 1) % len;
+  }
+
+  function applyDiscardTurn(state, moverSeat, cardId, targetSeat, chosenIdx) {
+    const players = state && Array.isArray(state.players) ? state.players : [];
+    const discard = state && Array.isArray(state.discard) ? state.discard : [];
+    const moverIdx = players.findIndex(p => p && p.seat === moverSeat);
+    if (moverIdx < 0) return { ok: false, nextTurnIdx: state?.turnIdx || 0, discardedCards: [] };
+
+    const mover = players[moverIdx];
+    const cardPos = mover.hand.findIndex(c => c && c.id === cardId);
+    if (cardPos < 0) return { ok: false, nextTurnIdx: moverIdx, discardedCards: [] };
+
+    const playedCard = mover.hand.splice(cardPos, 1)[0];
+    const discardedCards = [];
+    if (playedCard) {
+      discard.push(playedCard);
+      discardedCards.push(playedCard);
+    }
+
+    if (targetSeat !== null && targetSeat !== undefined) {
+      const enemy = players.find(p => p && p.seat === targetSeat);
+      if (enemy && Array.isArray(enemy.hand) && enemy.hand.length > 0) {
+        const idx = typeof chosenIdx === 'number' && chosenIdx >= 0 && chosenIdx < enemy.hand.length
+          ? chosenIdx
+          : 0;
+        const burned = enemy.hand.splice(idx, 1)[0];
+        if (burned) {
+          discard.push(burned);
+          discardedCards.push(burned);
+        }
+      }
+    }
+
+    const extraTurn = shouldGrantExtraTurn({ capturedCount: 0, enteredHome: false, discardedEnemy: targetSeat !== null && targetSeat !== undefined });
+    const nextTurnIdx = getNextTurnIndex(moverIdx, players, extraTurn);
+    if (state) state.turnIdx = nextTurnIdx;
+    return {
+      ok: true,
+      extraTurn,
+      nextTurnIdx,
+      nextSeat: players[nextTurnIdx]?.seat ?? null,
+      discardedCards
+    };
   }
 
   function shouldGrantComboDraw(ev) {
@@ -800,6 +861,8 @@
     getCardRole,
     getControlSeat,
     shouldGrantExtraTurn,
+    getNextTurnIndex,
+    applyDiscardTurn,
     shouldGrantComboDraw,
     isSafeStartMarble,
     canCard5MoveMarble,
@@ -823,4 +886,7 @@
   };
 
   root.JackarooRules = api;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = api;
+  }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
