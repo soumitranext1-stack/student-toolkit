@@ -101,6 +101,8 @@
 .fx-top2{--g:conic-gradient(#ffffff,#b8d0f5,#7b8fa8,#e8f3ff,#536682,#ffffff);--glow:#9ec5fe;--dot:#e8f3ff;--ray:#cbd5e150;--spk:#ffffff;--bd1:#e5efff;--bd2:#1e293b;--sp:6.8s;--osp:4s}
 .fx-top3{--g:conic-gradient(#ffdab9,#e08b49,#8b4316,#f4b27a,#a3531d,#ffdab9);--glow:#e3904f;--dot:#ffe2c6;--ray:#f0a36648;--spk:#ffe2c6;--bd1:#f2ae72;--bd2:#3b1804;--sp:7.4s}
 .fx-vip{--g:conic-gradient(#d9a8ff,#7a2cff,#ffe27a,#7a2cff,#d9a8ff);--glow:#a65bff;--spk:#ffeaa0;--bd1:#ffe27a;--bd2:#3b0a7a;--sp:6s}
+.fx-golden-vault{--g:conic-gradient(#fffbeb,#facc15,#d97706,#fef08a,#92400e,#f59e0b,#fffbeb);--glow:#fbbf24;--dot:#fef08a;--ray:#fbbf2466;--spk:#fff7c2;--bd1:#fde047;--bd2:#78350f;--sp:5.2s;--osp:3.2s}
+.fx-neon-heart{--g:conic-gradient(#ffd6ee,#ff4fd8,#fbbf24,#f43f5e,#ff85e2,#ffd6ee);--glow:#ff4fd8;--dot:#ffe4f4;--ray:#ff4fd855;--spk:#fde047;--bd1:#ff6bd6;--bd2:#fde047;--sp:5.4s;--osp:3.6s}
 
 /* =====================================================================
    NAME GLOW
@@ -221,6 +223,18 @@
   background:rgba(15,23,42,.82);
   color:#e2e8f0;border:1px solid rgba(148,163,184,.45);
   box-shadow:0 0 8px rgba(124,140,255,.32);
+}
+.p-tag.tag-fx-tycoon{
+  background:linear-gradient(105deg,#3b1d00 0%,#b45309 35%,#fde047 55%,#92400e 80%,#3b1d00 100%);
+  background-size:220% 100%;animation:fxtagshine 3.6s linear infinite;
+  color:#fffbeb;border:1.2px solid #fde047;font-weight:900;
+  box-shadow:0 0 14px rgba(250,204,21,.75),inset 0 0 8px rgba(255,251,235,.28);
+}
+.p-tag.tag-fx-couple{
+  background:linear-gradient(105deg,#4c0519 0%,#db2777 35%,#fbbf24 65%,#be185d 85%,#4c0519 100%);
+  background-size:220% 100%;animation:fxtagshine 3.8s linear infinite;
+  color:#fff1f2;border:1.2px solid #f472b6;font-weight:900;
+  box-shadow:0 0 14px rgba(244,114,182,.78),0 0 22px rgba(251,191,36,.35);
 }
 
 /* Signature Extra-Bright Developer & LVL 99 Tags */

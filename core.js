@@ -1,5 +1,7 @@
 "use strict";
 const DEV_LOGIN_ID = "soumitranext1@gmail.com";
+const DEV_OWNER_EMAILS = ["soumitranext1@gmail.com", "soumitranext@gmail.com"];
+const DAILY_FREE_COIN_CAP = 120;
 const DEV_UID = "DEV_SUDIPTA_99";
 const MAX_COINS = 999999999;
 const MAX_EXP = 99999900;
@@ -61,7 +63,8 @@ const TAG_STYLE_MAP={
   'Grand Champion':'tag-fx-royal','Royal Mentor':'tag-fx-royal','Diamond Ranker':'tag-fx-ice','Frost Prodigy':'tag-fx-ice',
   'Emerald Brain':'tag-fx-emerald','Crimson Striker':'tag-fx-crimson',
   'School Topper':'tag-fx-royal','Top Challenger':'tag-fx-solar','Quiz Master':'tag-fx-neon',
-  'Night Owl':'tag-fx-prism','Early Bird':'tag-fx-emerald','Study Boy':'tag-fx-classic','Study Girl':'tag-fx-classic'
+  'Night Owl':'tag-fx-prism','Early Bird':'tag-fx-emerald','Study Boy':'tag-fx-classic','Study Girl':'tag-fx-classic',
+  'Tycoon Crown':'tag-fx-tycoon','Soulmate':'tag-fx-couple','Partner in Crime':'tag-fx-couple'
 };
 
 function tagClassFor(tagName){
@@ -177,7 +180,8 @@ function isDevAccount(u){
   if(u.uid===DEV_UID)return true;
   const prov=String(u.authProvider||'');
   const provOk=!prov||prov==='google.com';
-  return u.accountType==='account' && provOk && String(u.accountId||'').trim().toLowerCase()===DEV_LOGIN_ID;
+  const em=String(u.accountId||'').trim().toLowerCase();
+  return u.accountType==='account' && provOk && DEV_OWNER_EMAILS.includes(em);
 }
 
 const REGION_OPTIONS=[
@@ -213,7 +217,7 @@ function freshDefaultProfile(targetUid, isGuest){
     warnings:[],mutedUntil:0,banReason:'',banUntil:0,
     streakClaimDay:'',streakDayIndex:0,dailyChestClaimedDay:'',
     spinFreeDay:'',spinTickets:0,activitySec:0,claimedChestsDay:{},
-    dailyCoinsByDay:{},claimedByDay:{},friends:[],tempUnlocks:{},rankVerified:{},devGrants:{},done:{},bioStyle:'',
+    dailyCoinsByDay:{},dailyFreeCoinsByDay:{},claimedByDay:{},friends:[],tempUnlocks:{},rankVerified:{},devGrants:{},done:{},bioStyle:'',
     unreadFrom:{},activeDays:[today()],referredBy:'',referralRewardClaimed:false,
     lastLoginBonusDay:'',poemReqDay:'',usageSec:0,banned:false,resetAt:0,devStatsUpdatedAt:0,giftResetAt:0,lastRewardedLevel:1,
     activity:{type:'online',label:'Online',updatedAt:Date.now()},lastSeen:Date.now()
@@ -243,7 +247,7 @@ function sanitizeDailyMap(rawMap){
 function normalizeProfile(p,targetUid){
   const isGuest=targetUid===guestUid && (!p || p.accountType!=='account');
   const o={...freshDefaultProfile(targetUid,isGuest),...JSON.parse(JSON.stringify(p||{})),uid:targetUid};
-  ['dailyCoinsByDay','claimedByDay','tempUnlocks','rankVerified','devGrants','unreadFrom','done','giftWallet','claimedChestsDay'].forEach(k=>{if(!o[k]||typeof o[k]!=='object'||Array.isArray(o[k]))o[k]={}});
+  ['dailyCoinsByDay','dailyFreeCoinsByDay','claimedByDay','tempUnlocks','rankVerified','devGrants','unreadFrom','done','giftWallet','claimedChestsDay'].forEach(k=>{if(!o[k]||typeof o[k]!=='object'||Array.isArray(o[k]))o[k]={}});
   o.friends=Array.isArray(o.friends)?o.friends:[];
   o.activeDays=Array.isArray(o.activeDays)?o.activeDays:[];
   o.likedBy=Array.isArray(o.likedBy)?o.likedBy.slice(-200):[];
@@ -337,7 +341,7 @@ function isDevSession(){
   try{
     if(typeof auth!=='undefined'&&auth&&auth.currentUser&&!auth.currentUser.isAnonymous){
       const em=String(auth.currentUser.email||'').trim().toLowerCase();
-      if(em===DEV_LOGIN_ID){devMode=true;return true}
+      if(DEV_OWNER_EMAILS.includes(em)){devMode=true;return true}
     }
   }catch{}
   return false;
@@ -654,11 +658,32 @@ function updateHud(){
   $$('.lvlval').forEach(e=>e.textContent=fmtNum(calcLevel(me.exp),MAX_LEVEL));
 }
 
+function getFreeCoinsUsedToday(){
+  const d=today();
+  const map=me.dailyFreeCoinsByDay&&typeof me.dailyFreeCoinsByDay==='object'?me.dailyFreeCoinsByDay:{};
+  return clampSafeInt(map[d]||0,0,DAILY_FREE_COIN_CAP);
+}
+
+function grantCappedFreeCoins(requestedCoins, expDelta, taskId, noLb, opts){
+  const req=Math.max(0,Math.floor(Number(requestedCoins)||0));
+  const used=getFreeCoinsUsedToday();
+  const calc=(typeof ShowGamesRules!=='undefined'&&typeof ShowGamesRules.calcDailyFreeCoinGrant==='function')
+    ? ShowGamesRules.calcDailyFreeCoinGrant(req,used,DAILY_FREE_COIN_CAP)
+    : { requested:req, granted:Math.min(req,Math.max(0,DAILY_FREE_COIN_CAP-used)), usedAfter:Math.min(DAILY_FREE_COIN_CAP,used+req), remaining:Math.max(0,DAILY_FREE_COIN_CAP-used-req), cap:DAILY_FREE_COIN_CAP, capped:req>Math.max(0,DAILY_FREE_COIN_CAP-used) };
+  const d=today();
+  me.dailyFreeCoinsByDay={...(me.dailyFreeCoinsByDay||{}),[d]:calc.usedAfter};
+  addReward(calc.granted, expDelta, taskId, noLb, opts);
+  return calc;
+}
+window.grantCappedFreeCoins=grantCappedFreeCoins;
+window.getFreeCoinsUsedToday=getFreeCoinsUsedToday;
+
 function checkDailyLoginBonus(){
   const d=today();
   if(me.lastLoginBonusDay===d)return;
   me.lastLoginBonusDay=d;saveMe();
-  addReward(15,10,null,false,{skipLevelUp:false});toast('Daily login bonus: +15 coins!');
+  const res=grantCappedFreeCoins(15,10,null,false,{skipLevelUp:false});
+  toast(res.granted>0?`Daily login bonus: +${res.granted} 🪙 (Free cap ${res.usedAfter}/${res.cap})`:'Daily login bonus: +10 EXP (Daily free coin cap reached)');
 }
 
 /* Random Level-Up Reward Roller & Celebratory Modal */
@@ -729,7 +754,9 @@ function triggerLevelUp(prevLevel,newLevel){
   me.lastRewardedLevel=newLevel;
   const rw=rollLevelUpReward(newLevel);
   if(rw.kind==='coins'){
-    me.coins=clampCoins(me.coins+rw.amount);
+    const capRes=grantCappedFreeCoins(rw.amount,0,null,true,{skipLevelUp:true,silentSfx:true});
+    rw.amount=capRes.granted;
+    rw.label=capRes.granted>0?`+${capRes.granted} Bonus Coins`:`Daily Free Coin Cap (${capRes.cap} 🪙) Reached`;
   }else if(rw.kind==='exp'){
     me.exp=clampExp(me.exp+rw.amount);
     me.lastRewardedLevel=Math.max(newLevel,calcLevel(me.exp));
@@ -771,6 +798,26 @@ function addReward(coinsDelta, expDelta, taskId, noLb, opts){
     setTimeout(()=>triggerLevelUp(prevLevel,newLevel),180);
   }
 }
+
+/* Developer-only Permanent User ID Deletion (protects owner/dev accounts) */
+async function devDeleteUserRecord(targetUid){
+  if(!isDevSession()){toast('Developer only');return false;}
+  const tid=String(targetUid||'').trim();
+  if(!tid||tid===uid){toast('Cannot delete your active developer account');return false;}
+  const target=allUsers().find(x=>x&&x.uid===tid);
+  if(target&&isDevAccount(target)){toast('Cannot delete a protected developer account');return false;}
+  let cloudOk=true;
+  if(online&&db&&F&&!tid.startsWith('bot_')&&!tid.startsWith('demo_')){
+    cloudOk=await dbOp(()=>F.deleteDoc(userRef(tid)));
+  }
+  users=(users||[]).filter(x=>x&&x.uid!==tid);
+  ls.set('sg_users_cache',users);
+  if(typeof buildProfile==='function')buildProfile();
+  if(typeof renderAll==='function')renderAll();
+  toast(cloudOk?`🗑️ Deleted user ID ${tid.slice(-8)}`:`Removed locally (check Firestore rules for ${tid.slice(-8)})`);
+  return true;
+}
+window.devDeleteUserRecord=devDeleteUserRecord;
 
 /* Developer-only Reset Coins & EXP to 0 (also cleans today's leaderboard points) */
 function devResetUserProgress(targetUid){

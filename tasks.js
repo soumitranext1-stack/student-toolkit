@@ -62,10 +62,14 @@ function claimDailyStreak() {
   me.streakDayIndex = (idx + 1) % 7;
   if (rw.ticket) me.spinTickets = clampSafeInt((me.spinTickets || 0) + rw.ticket, 0, 9999);
   saveMe();
-  addReward(coins, rw.exp, null, false, { silentSfx: true });
+  const capRes = typeof grantCappedFreeCoins === 'function'
+    ? grantCappedFreeCoins(coins, rw.exp, null, false, { silentSfx: true })
+    : (addReward(coins, rw.exp, null, false, { silentSfx: true }), { granted: coins, capped: false });
   if (typeof playSfx === 'function') playSfx('chestOpen');
   renderTasks();
-  toast(`Day ${rw.day} Streak Claimed! +${fmtNum(coins)} 🪙 & +${rw.exp} EXP${rw.ticket ? ' + 1 Spin Ticket!' : ''}`);
+  toast(capRes.granted > 0
+    ? `Day ${rw.day} Streak Claimed! +${fmtNum(capRes.granted)} 🪙 & +${rw.exp} EXP${capRes.capped ? ' (Daily cap reached)' : ''}${rw.ticket ? ' + 1 Spin Ticket!' : ''}`
+    : `Day ${rw.day} Streak! +${rw.exp} EXP (Daily free coin cap ${DAILY_FREE_COIN_CAP} 🪙 reached)`);
 }
 
 function handleMissionGo(goKey) {
@@ -183,10 +187,14 @@ $('#taskList').onclick = e => {
     me.dailyChestClaimedDay = d;
     me.spinTickets = clampSafeInt((me.spinTickets || 0) + 1, 0, 9999);
     saveMe();
-    addReward(250, 100, null, false, { silentSfx: true });
+    const capRes = typeof grantCappedFreeCoins === 'function'
+      ? grantCappedFreeCoins(120, 100, null, false, { silentSfx: true })
+      : (addReward(120, 100, null, false, { silentSfx: true }), { granted: 120, capped: false });
     if (typeof playSfx === 'function') playSfx('chestOpen');
     renderTasks();
-    toast('🏆 Daily Completion Chest Opened! +250 🪙, +100 EXP & +1 Spin Ticket!');
+    toast(capRes.granted > 0
+      ? `🏆 Daily Chest Opened! +${capRes.granted} 🪙, +100 EXP & +1 Spin Ticket!`
+      : `🏆 Daily Chest Opened! +100 EXP & +1 Spin Ticket! (Daily free coin cap reached)`);
     return;
   }
   const tabBtn = e.target.closest('[data-ttab]');
@@ -218,16 +226,25 @@ $('#taskList').onclick = e => {
 
   inFlightOps.add('task_' + id);
   try {
+    const reqC = clampSafeInt(t.reward, 0, 5000);
+    const reqE = clampSafeInt(t.exp || (scope === 'weekly' ? 50 : 15), 0, 500);
+    let capRes = { granted: reqC, capped: false };
     if (scope === 'weekly') {
       me.claimedByDay[bucketKey] = [...bucket, id];
       saveMe();
-      addReward(clampSafeInt(t.reward, 0, 5000), clampSafeInt(t.exp || 50, 0, 500), null, false, { silentSfx: true });
+      capRes = typeof grantCappedFreeCoins === 'function'
+        ? grantCappedFreeCoins(reqC, reqE, null, false, { silentSfx: true })
+        : (addReward(reqC, reqE, null, false, { silentSfx: true }), { granted: reqC, capped: false });
     } else {
-      addReward(clampSafeInt(t.reward, 0, 5000), clampSafeInt(t.exp || 15, 0, 500), id, false, { silentSfx: true });
+      capRes = typeof grantCappedFreeCoins === 'function'
+        ? grantCappedFreeCoins(reqC, reqE, id, false, { silentSfx: true })
+        : (addReward(reqC, reqE, id, false, { silentSfx: true }), { granted: reqC, capped: false });
     }
-    if (typeof playSfx === 'function') playSfx('taskClaim', { amount: t.reward });
+    if (typeof playSfx === 'function') playSfx('taskClaim', { amount: capRes.granted });
     renderTasks();
-    toast(`+${fmtNum(t.reward)} coins & +${fmtNum(t.exp || 15)} EXP`);
+    toast(capRes.granted > 0
+      ? `+${fmtNum(capRes.granted)} 🪙 & +${fmtNum(reqE)} EXP${capRes.capped ? ' (Daily free cap reached)' : ''}`
+      : `+${fmtNum(reqE)} EXP (Daily free coin cap ${DAILY_FREE_COIN_CAP} 🪙 reached)`);
   } finally {
     setTimeout(() => inFlightOps.delete('task_' + id), 500);
   }

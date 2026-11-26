@@ -504,20 +504,20 @@
 
   /* ---------- 5. Mind Clash 1v1 Generator & Scoring ---------- */
   const MIND_CLASH_BANK = [
-    { kind: 'Pattern', q: 'Next in sequence: 2, 6, 12, 20, ?', o: ['28', '30', '32', '26'], a: 1 },
-    { kind: 'Logic', q: 'Which shape completes: ▲ ● ■ ▲ ● ?', o: ['▲', '●', '■', '◆'], a: 2 },
-    { kind: 'Speed Math', q: '17 × 6 − 12 = ?', o: ['86', '90', '94', '88'], a: 1 },
-    { kind: 'Odd One', q: 'Odd one out: 16, 25, 36, 48, 64', o: ['25', '36', '48', '64'], a: 2 },
-    { kind: 'Pattern', q: 'Next letter: B, E, H, K, ?', o: ['M', 'N', 'O', 'L'], a: 1 },
-    { kind: 'Logic', q: 'If 3 cats catch 3 mice in 3 min, 1 cat catches 1 mouse in?', o: ['1 min', '3 min', '6 min', '9 min'], a: 1 },
-    { kind: 'Pattern', q: 'Next number: 3, 9, 27, 81, ?', o: ['162', '243', '216', '270'], a: 1 },
-    { kind: 'Speed Math', q: '(144 ÷ 12) + (9 × 4) = ?', o: ['44', '46', '48', '52'], a: 2 },
-    { kind: 'Visual', q: 'Mirror symmetry: ◆ ◇ ◆ ◇ ◆ ?', o: ['◆', '◇', '★', '●'], a: 1 },
-    { kind: 'Logic', q: 'Half of 2 + 2 equals?', o: ['2', '3', '4', '1'], a: 1 },
-    { kind: 'Pattern', q: 'Fibonacci: 5, 8, 13, 21, ?', o: ['32', '34', '35', '29'], a: 1 },
-    { kind: 'Odd One', q: 'Odd one out: Mercury, Mars, Moon, Venus', o: ['Mercury', 'Mars', 'Moon', 'Venus'], a: 2 },
-    { kind: 'Speed Math', q: '25% of 160 + 15 = ?', o: ['50', '55', '60', '45'], a: 1 },
-    { kind: 'Pattern', q: '100, 91, 82, 73, ?', o: ['64', '65', '63', '66'], a: 0 }
+    { kind: 'Pattern', q: 'Next in sequence: 2, 6, 12, 20, ?', o: ['28', '30', '32', '26'], a: 1, hiSpoken: 'Agla number batayiye: 2, 6, 12, 20 ke baad kya aayega?', bnSpoken: 'Poroborti shongkha ki hobe: 2, 6, 12, 20 er por?' },
+    { kind: 'Logic', q: 'Which shape completes: ▲ ● ■ ▲ ● ?', o: ['▲', '●', '■', '◆'], a: 2, hiSpoken: 'Pattern pura karne ke liye agla shape kaunsa hoga?', bnSpoken: 'Pattern ti shompurno korte porer shape konti hobe?' },
+    { kind: 'Speed Math', q: '17 × 6 − 12 = ?', o: ['86', '90', '94', '88'], a: 1, hiSpoken: '17 guna 6 minus 12 kitna hota hai?', bnSpoken: '17 gun 6 biyog 12 koto hoy?' },
+    { kind: 'Odd One', q: 'Odd one out: 16, 25, 36, 48, 64', o: ['25', '36', '48', '64'], a: 2, hiSpoken: 'Inme se alag number kaunsa hai: 16, 25, 36, 48 ya 64?', bnSpoken: 'Er modhye alada shongkha konti: 16, 25, 36, 48 naki 64?' },
+    { kind: 'Pattern', q: 'Next letter: B, E, H, K, ?', o: ['M', 'N', 'O', 'L'], a: 1, hiSpoken: 'Agla letter kaunsa hoga: B, E, H, K ke baad?', bnSpoken: 'Porer okkhor konti hobe: B, E, H, K er por?' },
+    { kind: 'Logic', q: 'If 3 cats catch 3 mice in 3 min, 1 cat catches 1 mouse in?', o: ['1 min', '3 min', '6 min', '9 min'], a: 1, hiSpoken: 'Agar 3 billiyan 3 chuhe 3 minute mein pakadti hain, toh 1 billi 1 chuha kitne minute mein pakdegi?', bnSpoken: 'Jodi 3 ti biral 3 minute e 3 ti idur dhore, tobe 1 ti biral 1 ti idur koto minute e dhorbe?' },
+    { kind: 'Pattern', q: 'Next number: 3, 9, 27, 81, ?', o: ['162', '243', '216', '270'], a: 1, hiSpoken: 'Agla number batayiye: 3, 9, 27, 81 ke baad kya aayega?', bnSpoken: 'Porer shongkha konti: 3, 9, 27, 81 er por?' },
+    { kind: 'Speed Math', q: '(144 ÷ 12) + (9 × 4) = ?', o: ['44', '46', '48', '52'], a: 2, hiSpoken: '144 divided by 12 plus 9 guna 4 kitna hoga?', bnSpoken: '144 bhag 12 jog 9 gun 4 koto hobe?' },
+    { kind: 'Visual', q: 'Mirror symmetry: ◆ ◇ ◆ ◇ ◆ ?', o: ['◆', '◇', '★', '●'], a: 1, hiSpoken: 'Is pattern ka agla symbol kaunsa hoga?', bnSpoken: 'Ei pattern er poroborti chihno konti hobe?' },
+    { kind: 'Logic', q: 'Half of 2 + 2 equals?', o: ['2', '3', '4', '1'], a: 1, hiSpoken: '2 ka aadha plus 2 kitna hota hai?', bnSpoken: '2 er ordhek jog 2 koto hoy?' },
+    { kind: 'Pattern', q: 'Fibonacci: 5, 8, 13, 21, ?', o: ['32', '34', '35', '29'], a: 1, hiSpoken: 'Fibonacci series mein 5, 8, 13, 21 ke baad agla number kya hai?', bnSpoken: 'Fibonacci series e 5, 8, 13, 21 er porer shongkha koto?' },
+    { kind: 'Odd One', q: 'Odd one out: Mercury, Mars, Moon, Venus', o: ['Mercury', 'Mars', 'Moon', 'Venus'], a: 2, hiSpoken: 'Inme se alag kaunsa hai: Mercury, Mars, Moon ya Venus?', bnSpoken: 'Er modhye alada konti: Mercury, Mars, Moon naki Venus?' },
+    { kind: 'Speed Math', q: '25% of 160 + 15 = ?', o: ['50', '55', '60', '45'], a: 1, hiSpoken: '160 ka 25 percent plus 15 kitna hota hai?', bnSpoken: '160 er 25 shotangsho jog 15 koto hoy?' },
+    { kind: 'Pattern', q: '100, 91, 82, 73, ?', o: ['64', '65', '63', '66'], a: 0, hiSpoken: 'Agla number batayiye: 100, 91, 82, 73 ke baad kya aayega?', bnSpoken: 'Porer shongkha konti: 100, 91, 82, 73 er por?' }
   ];
 
   function createMindClashDeck(count = 7) {

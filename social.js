@@ -506,19 +506,28 @@ function claimActivityChest(chestId) {
   me.claimedChestsDay[d] = [...claimed, ch.id];
   if (ch.ticket) me.spinTickets = clampSafeInt((me.spinTickets || 0) + ch.ticket, 0, 9999);
   saveMe();
-  addReward(ch.coins, ch.exp, null, false, { silentSfx: true });
+  const capRes = typeof grantCappedFreeCoins === 'function'
+    ? grantCappedFreeCoins(ch.coins, ch.exp, null, false, { silentSfx: true })
+    : (addReward(ch.coins, ch.exp, null, false, { silentSfx: true }), { granted: ch.coins, capped: false });
   if (typeof playSfx === 'function') playSfx('chestOpen');
   if (typeof renderHomeHub === 'function') renderHomeHub();
-  toast(`${ch.icon} ${ch.name} Opened! +${ch.coins} 🪙 & +${ch.exp} EXP${ch.ticket ? ' + 1 Spin Ticket!' : ''}`);
+  toast(capRes.granted > 0
+    ? `${ch.icon} ${ch.name} Opened! +${capRes.granted} 🪙 & +${ch.exp} EXP${ch.ticket ? ' + 1 Spin Ticket!' : ''}`
+    : `${ch.icon} ${ch.name} Opened! +${ch.exp} EXP (Daily free coin cap reached)`);
 }
 
-function openMysteryBoxReward() {
+function openMysteryBoxReward(isPaidSpin = false) {
   const r = Math.random();
   let msg = '';
   if (r < 0.45) {
-    const c = 250 + Math.floor(Math.random() * 450);
-    addReward(c, 35, null, true, { silentSfx: true });
-    msg = `+${fmtNum(c)} Gold Coins & +35 EXP!`;
+    const c = 120 + Math.floor(Math.random() * 200);
+    if (isPaidSpin) {
+      addReward(c, 35, null, true, { silentSfx: true });
+      msg = `+${fmtNum(c)} Gold Coins & +35 EXP!`;
+    } else {
+      const capRes = typeof grantCappedFreeCoins === 'function' ? grantCappedFreeCoins(c, 35, null, true, { silentSfx: true }) : { granted: c };
+      msg = capRes.granted > 0 ? `+${fmtNum(capRes.granted)} Gold Coins & +35 EXP!` : `+35 EXP (Daily free coin cap reached)`;
+    }
   } else if (r < 0.72) {
     const frames = ['fx_gold', 'fx_phoenix', 'fx_galaxy', 'fx_aurora'];
     const fr = frames[Math.floor(Math.random() * frames.length)];
@@ -536,8 +545,13 @@ function openMysteryBoxReward() {
     dbOp(() => F.setDoc(userRef(uid), { vipTier: me.vipTier, vipUntil: me.vipUntil }, { merge: true }));
     msg = `👑 2-Day Silver VIP Trial Activated!`;
   } else {
-    addReward(1500, 80, null, true, { silentSfx: true });
-    msg = `💎 JACKPOT! +1,500 Gold Coins & +80 EXP!`;
+    if (isPaidSpin) {
+      addReward(1000, 80, null, true, { silentSfx: true });
+      msg = `💎 JACKPOT! +1,000 Gold Coins & +80 EXP!`;
+    } else {
+      const capRes = typeof grantCappedFreeCoins === 'function' ? grantCappedFreeCoins(120, 80, null, true, { silentSfx: true }) : { granted: 120 };
+      msg = capRes.granted > 0 ? `💎 JACKPOT! +${fmtNum(capRes.granted)} Gold Coins & +80 EXP!` : `+80 EXP (Daily free coin cap reached)`;
+    }
   }
   if (typeof playSfx === 'function') playSfx('wheelWin');
   const m = modal('Royal Mystery Box Opened!', `
@@ -668,7 +682,14 @@ function openLuckySpinModal() {
       const prize = WHEEL_PRIZES[winIdx];
       bumpStat('wheel_spin');
       if (prize.kind === 'coins') {
-        addReward(prize.val, 25, null, false, { silentSfx: true });
+        if (mode === 'coin') {
+          addReward(prize.val, 25, null, false, { silentSfx: true });
+        } else if (typeof grantCappedFreeCoins === 'function') {
+          const cr = grantCappedFreeCoins(prize.val, 25, null, false, { silentSfx: true });
+          if (cr.capped) toast(`Free spin capped at +${cr.granted} 🪙 (Daily free cap ${cr.cap} 🪙)`);
+        } else {
+          addReward(prize.val, 25, null, false, { silentSfx: true });
+        }
       } else if (prize.kind === 'frame') {
         me.tempUnlocks['frame:' + prize.val] = Math.max(Date.now(), Number(me.tempUnlocks['frame:' + prize.val] || 0)) + 3 * 86400000;
         me.frame = prize.val;
@@ -682,7 +703,7 @@ function openLuckySpinModal() {
         patchUser(uid, { vipTier: me.vipTier, vipUntil: me.vipUntil });
         dbOp(() => F.setDoc(userRef(uid), { vipTier: me.vipTier, vipUntil: me.vipUntil }, { merge: true }));
       } else if (prize.kind === 'mystery') {
-        openMysteryBoxReward();
+        openMysteryBoxReward(mode === 'coin');
       }
       if (typeof playSfx === 'function') playSfx('wheelWin');
       $('#wheelStatus', m).innerHTML = `<b style="color:var(--gold)">🎉 You Won: ${esc(prize.label)}!</b>`;
@@ -1056,6 +1077,217 @@ function openDevModerationCenter() {
     if (rb) { markResolved(rb.dataset.repResolve); }
   };
 }
+
+/* ===== Developer Admin Cleanup Center (Useless User IDs & Unwanted/Stale Rooms) ===== */
+function openDevAdminCleanupModal() {
+  if (!isDevSession()) return toast('Developer only tool');
+  let activeTab = 'users'; // 'users' | 'rooms'
+  let userFilter = 'useless'; // 'useless' | 'all' | 'guests'
+  let armedConfirmKey = '';
+
+  const SR = typeof ShowGamesRules !== 'undefined' ? ShowGamesRules : null;
+  const classifyUser = (u) => {
+    if (SR && typeof SR.classifyCleanupUser === 'function') return SR.classifyCleanupUser(u, Date.now());
+    const id = String(u?.uid || '');
+    if (isDevAccount(u) || id === uid) return { useless: false, reason: 'Protected' };
+    if (/^(bot_|demo_|fake_|test_)/i.test(id)) return { useless: true, reason: 'Test / Bot ID' };
+    const ageD = Math.floor((Date.now() - Number(u?.lastSeen || 0)) / 86400000);
+    if (u?.accountType !== 'account' && ageD >= 3) return { useless: true, reason: `Inactive Guest (${ageD}d)` };
+    return { useless: false, reason: 'Active' };
+  };
+
+  const m = modal('🛠️ Developer Admin Cleanup Center', `
+    <div class="dev-adm-tabs" role="tablist">
+      <button type="button" class="btn sm gold" data-admtab="users" data-testid="dev-adm-tab-users">👤 User IDs</button>
+      <button type="button" class="btn sm ghost" data-admtab="rooms" data-testid="dev-adm-tab-rooms">🎙️ Voice &amp; Game Rooms</button>
+    </div>
+    <div id="devAdmBody" style="margin-top:10px"></div>
+  `, 'dev-mod-sheet');
+
+  const deleteAnyPartyRoom = async (rid) => {
+    if (!rid) return;
+    if (typeof activePartyRoomId !== 'undefined' && (activePartyRoomId === rid || minimizedPartyRoomId === rid)) {
+      if (typeof closePartyRoom === 'function') closePartyRoom();
+    }
+    if (online && db && F) {
+      await dbOp(() => F.deleteDoc(F.doc(db, 'party_rooms', rid)));
+    }
+    if (typeof partyRooms !== 'undefined' && Array.isArray(partyRooms)) {
+      partyRooms = partyRooms.filter(r => r && r.id !== rid);
+      if (typeof savePartyRoomsLocal === 'function') savePartyRoomsLocal();
+      if (typeof renderPartyHub === 'function') renderPartyHub();
+    }
+  };
+
+  const deleteAnyGameRoom = async (rid) => {
+    if (!rid) return;
+    if (online && db && F) {
+      await dbOp(() => F.deleteDoc(F.doc(db, 'game_rooms', rid)));
+    }
+    if (typeof mpRooms !== 'undefined' && Array.isArray(mpRooms)) {
+      mpRooms = mpRooms.filter(r => r && r.id !== rid);
+      ls.set('sg_mp_rooms', mpRooms);
+      if (typeof renderMultiplayerRooms === 'function') renderMultiplayerRooms();
+    }
+  };
+
+  const renderBody = () => {
+    $$('[data-admtab]', m).forEach(b => {
+      b.className = b.dataset.admtab === activeTab ? 'btn sm gold' : 'btn sm ghost';
+    });
+    const body = $('#devAdmBody', m);
+    if (!body) return;
+
+    if (activeTab === 'users') {
+      const all = allUsers().filter(u => u && u.uid && u.uid !== uid && !isDevAccount(u));
+      const rows = all.map(u => ({ u, cls: classifyUser(u) }));
+      const uselessRows = rows.filter(x => x.cls.useless);
+      const shown = userFilter === 'useless'
+        ? uselessRows
+        : (userFilter === 'guests' ? rows.filter(x => x.u.accountType !== 'account') : rows);
+
+      body.innerHTML = `
+        <div class="row wrap" style="justify-content:space-between;gap:6px;margin-bottom:8px">
+          <div class="row" style="gap:5px">
+            <button type="button" class="chipbtn ${userFilter === 'useless' ? 'on' : ''}" data-ufilt="useless">Useless/Test (${uselessRows.length})</button>
+            <button type="button" class="chipbtn ${userFilter === 'guests' ? 'on' : ''}" data-ufilt="guests">Guests</button>
+            <button type="button" class="chipbtn ${userFilter === 'all' ? 'on' : ''}" data-ufilt="all">All (${rows.length})</button>
+          </div>
+          <button type="button" class="btn red sm" id="devBulkDelUsers" ${!uselessRows.length ? 'disabled' : ''}>🧹 Purge ${uselessRows.length} Useless IDs</button>
+        </div>
+        <div class="dev-adm-list">
+          ${shown.length ? shown.slice(0, 40).map(({ u, cls }) => {
+            const armed = armedConfirmKey === 'u:' + u.uid;
+            return `<div class="dev-adm-row">
+              ${av(u, 34)}
+              <div class="mid">
+                <b>${esc(u.name || 'Unnamed')} <small style="color:var(--mu)">(${u.accountType === 'account' ? 'Google' : 'Guest'})</small></b>
+                <small style="display:block;color:var(--mu)">ID: ${esc(String(u.uid).slice(-10))} · 🪙 ${fmtNum(u.coins)} · Lv.${calcLevel(u.exp)} · <span style="color:${cls.useless ? '#fda4af' : '#6ee7b7'}">${esc(cls.reason)}</span></small>
+              </div>
+              <button type="button" class="btn ${armed ? 'crimson' : 'red'} sm" data-del-uid="${esc(u.uid)}">${armed ? 'Confirm ✓' : 'Delete'}</button>
+            </div>`;
+          }).join('') : '<div class="mp-empty">No matching user records to clean up.</div>'}
+        </div>
+      `;
+      return;
+    }
+
+    // ROOMS TAB (Voice / Party Rooms + Live Game Rooms)
+    const pList = typeof partyRooms !== 'undefined' && Array.isArray(partyRooms) ? partyRooms : [];
+    const gList = typeof mpRooms !== 'undefined' && Array.isArray(mpRooms) ? mpRooms : [];
+    const staleVoice = pList.filter(r => typeof isFakeOrStalePartyRoom === 'function' ? isFakeOrStalePartyRoom(r) : false);
+    const staleGame = gList.filter(r => {
+      const pCnt = Object.keys(r?.players || {}).length;
+      const age = Date.now() - Number(r?.updatedAt || r?.createdAt || 0);
+      return pCnt === 0 || r?.status === 'finished' || r?.status === 'closed' || age > 3600000;
+    });
+
+    body.innerHTML = `
+      <div class="row wrap" style="justify-content:space-between;gap:6px;margin-bottom:8px">
+        <small style="color:var(--mu)">Voice Rooms: <b>${pList.length}</b> · Game Rooms: <b>${gList.length}</b></small>
+        <button type="button" class="btn red sm" id="devPurgeAllRooms">🧹 Purge ${staleVoice.length + staleGame.length} Empty/Stale Rooms</button>
+      </div>
+      <div class="dev-adm-sec">🎙️ Voice / VR Rooms (${pList.length})</div>
+      <div class="dev-adm-list">
+        ${pList.length ? pList.map(rm => {
+          const seated = Object.keys(rm.seats || {}).length;
+          const stale = typeof isFakeOrStalePartyRoom === 'function' && isFakeOrStalePartyRoom(rm);
+          const armed = armedConfirmKey === 'pr:' + rm.id;
+          return `<div class="dev-adm-row">
+            <div class="mid">
+              <b>${esc(rm.title || 'Voice Room')} <small style="color:var(--gold)">[${esc(rm.mode || 'normal')}]</small></b>
+              <small style="display:block;color:var(--mu)">Host: ${esc(rm.hostName || 'Owner')} · Seated: ${seated} · ${stale ? '<span style="color:#fda4af">Stale / Empty</span>' : '<span style="color:#6ee7b7">Live</span>'}</small>
+            </div>
+            <button type="button" class="btn ${armed ? 'crimson' : 'red'} sm" data-del-pr="${esc(rm.id)}">${armed ? 'Confirm ✓' : 'Delete'}</button>
+          </div>`;
+        }).join('') : '<div class="mp-empty">No Voice Rooms active.</div>'}
+      </div>
+      <div class="dev-adm-sec" style="margin-top:10px">⚔️ Multiplayer Game Rooms (${gList.length})</div>
+      <div class="dev-adm-list">
+        ${gList.length ? gList.map(rm => {
+          const pCnt = Object.keys(rm.players || {}).length;
+          const armed = armedConfirmKey === 'gr:' + rm.id;
+          return `<div class="dev-adm-row">
+            <div class="mid">
+              <b>${esc(rm.tierLabel || rm.mode || 'Game Room')} (${esc(rm.code || rm.id)})</b>
+              <small style="display:block;color:var(--mu)">Players: ${pCnt} · Status: ${esc(rm.status || 'open')}</small>
+            </div>
+            <button type="button" class="btn ${armed ? 'crimson' : 'red'} sm" data-del-gr="${esc(rm.id)}">${armed ? 'Confirm ✓' : 'Delete'}</button>
+          </div>`;
+        }).join('') : '<div class="mp-empty">No Multiplayer Game Rooms active.</div>'}
+      </div>
+    `;
+  };
+
+  renderBody();
+
+  m.onclick = async (e) => {
+    const tb = e.target.closest('[data-admtab]');
+    if (tb) { activeTab = tb.dataset.admtab; armedConfirmKey = ''; renderBody(); return; }
+    const uf = e.target.closest('[data-ufilt]');
+    if (uf) { userFilter = uf.dataset.ufilt; armedConfirmKey = ''; renderBody(); return; }
+
+    if (e.target.closest('#devBulkDelUsers')) {
+      const targets = allUsers().filter(u => u && u.uid && u.uid !== uid && !isDevAccount(u) && classifyUser(u).useless);
+      let count = 0;
+      for (const t of targets) {
+        if (typeof devDeleteUserRecord === 'function' && await devDeleteUserRecord(t.uid)) count++;
+      }
+      toast(count ? `🧹 Deleted ${count} useless/inactive user IDs` : 'Nothing to purge');
+      renderBody();
+      return;
+    }
+
+    if (e.target.closest('#devPurgeAllRooms')) {
+      let n = 0;
+      if (typeof clearFakeVoiceRooms === 'function') n += Number(await clearFakeVoiceRooms() || 0);
+      const gList = typeof mpRooms !== 'undefined' && Array.isArray(mpRooms) ? [...mpRooms] : [];
+      for (const r of gList) {
+        const pCnt = Object.keys(r?.players || {}).length;
+        const age = Date.now() - Number(r?.updatedAt || r?.createdAt || 0);
+        if (pCnt === 0 || r?.status === 'finished' || r?.status === 'closed' || age > 3600000) {
+          await deleteAnyGameRoom(r.id);
+          n++;
+        }
+      }
+      toast(n ? `🧹 Purged ${n} empty/stale rooms!` : 'All rooms are currently active');
+      renderBody();
+      return;
+    }
+
+    const du = e.target.closest('[data-del-uid]');
+    if (du) {
+      const tid = du.dataset.delUid;
+      if (armedConfirmKey !== 'u:' + tid) { armedConfirmKey = 'u:' + tid; renderBody(); return; }
+      armedConfirmKey = '';
+      if (typeof devDeleteUserRecord === 'function') await devDeleteUserRecord(tid);
+      renderBody();
+      return;
+    }
+
+    const dp = e.target.closest('[data-del-pr]');
+    if (dp) {
+      const rid = dp.dataset.delPr;
+      if (armedConfirmKey !== 'pr:' + rid) { armedConfirmKey = 'pr:' + rid; renderBody(); return; }
+      armedConfirmKey = '';
+      await deleteAnyPartyRoom(rid);
+      toast('🗑️ Voice room deleted');
+      renderBody();
+      return;
+    }
+
+    const dg = e.target.closest('[data-del-gr]');
+    if (dg) {
+      const rid = dg.dataset.delGr;
+      if (armedConfirmKey !== 'gr:' + rid) { armedConfirmKey = 'gr:' + rid; renderBody(); return; }
+      armedConfirmKey = '';
+      await deleteAnyGameRoom(rid);
+      toast('🗑️ Game room deleted');
+      renderBody();
+    }
+  };
+}
+window.openDevAdminCleanupModal = openDevAdminCleanupModal;
 
 /* Online Activity Chest Timer (ticks every 10 seconds while active) */
 setInterval(() => {

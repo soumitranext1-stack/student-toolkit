@@ -459,11 +459,14 @@ function launchMindClash(opts) {
           </div>
         </div>
 
+        <div id="mcVoiceHost">${window.VoiceNarrator ? window.VoiceNarrator.renderBar('mc') : ''}</div>
         <div id="mcBody"></div>
         <div id="mcChatHost"></div>
       </div>
     `
   });
+
+  if (window.VoiceNarrator) window.VoiceNarrator.bindBar($('#mcVoiceHost', view), 'mc');
 
   if (typeof createInGameChatWidget === 'function' && $('#mcChatHost', view)) {
     chatWidget = createInGameChatWidget({
@@ -528,6 +531,10 @@ function launchMindClash(opts) {
       </div>
     `;
 
+    if (window.VoiceNarrator) {
+      window.VoiceNarrator.speak({ enText: q.q, hiSpoken: q.hiSpoken || q.q, bnSpoken: q.bnSpoken || q.q });
+    }
+
     const submitChoice = (pick) => {
       if (over || locked) return;
       locked = true;
@@ -567,6 +574,7 @@ function launchMindClash(opts) {
     over = true;
     clearInterval(tickId);
     clearTimeout(nextId);
+    if (window.VoiceNarrator) window.VoiceNarrator.stop();
     if (chatWidget) chatWidget.destroy();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };

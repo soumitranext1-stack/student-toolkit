@@ -340,6 +340,52 @@ const SFX = (() => {
     tone(360, { delay: 0.17, dur: 0.18, type: 'sawtooth', vol: 0.08, endFreq: 240 });
   }
 
+  function curtainWhoosh() {
+    noiseBurst({ dur: 0.34, freq: 920, filterType: 'bandpass', vol: 0.075 });
+    noiseBurst({ delay: 0.09, dur: 0.28, freq: 1650, filterType: 'bandpass', vol: 0.055 });
+    tone(190, { dur: 0.3, type: 'sine', vol: 0.065, endFreq: 420 });
+  }
+
+  function timerTick(urgent) {
+    const f = urgent ? 1140 : 840;
+    tone(f, { dur: 0.036, type: 'triangle', vol: urgent ? 0.085 : 0.055, endFreq: f * 0.72 });
+  }
+
+  function fanfare() {
+    const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98, 2093.0];
+    notes.forEach((f, i) => {
+      tone(f, { delay: i * 0.06, dur: 0.28, type: i % 2 === 0 ? 'triangle' : 'sine', vol: 0.125 });
+    });
+    [523.25, 783.99, 1046.5, 1567.98].forEach((f) => {
+      tone(f, { delay: 0.44, dur: 0.52, type: 'triangle', vol: 0.08 });
+    });
+    noiseBurst({ delay: 0.36, dur: 0.32, freq: 3900, vol: 0.045 });
+  }
+
+  function funnyBuzzer() {
+    tone(220, { dur: 0.16, type: 'sawtooth', vol: 0.085, endFreq: 165 });
+    tone(155, { delay: 0.15, dur: 0.26, type: 'sawtooth', vol: 0.09, endFreq: 98 });
+    tone(110, { delay: 0.16, dur: 0.24, type: 'triangle', vol: 0.07, endFreq: 82 });
+  }
+
+  function heartPop() {
+    tone(587.33, { dur: 0.08, type: 'sine', vol: 0.09, endFreq: 880 });
+    tone(1046.5, { delay: 0.07, dur: 0.13, type: 'triangle', vol: 0.105, endFreq: 1318.51 });
+    tone(1567.98, { delay: 0.13, dur: 0.16, type: 'sine', vol: 0.08 });
+  }
+
+  function jackpotRoll() {
+    [660, 784, 880, 988, 1175, 1319].forEach((f, i) => {
+      tone(f, { delay: i * 0.042, dur: 0.07, type: 'triangle', vol: 0.085 });
+    });
+  }
+
+  function wheelStop() {
+    tone(659.25, { dur: 0.09, type: 'triangle', vol: 0.1 });
+    tone(987.77, { delay: 0.08, dur: 0.18, type: 'sine', vol: 0.115 });
+    noiseBurst({ delay: 0.06, dur: 0.12, freq: 3200, vol: 0.035 });
+  }
+
   function play(name, opts = {}) {
     if (muted) return false;
     switch (name) {
@@ -396,6 +442,13 @@ const SFX = (() => {
       case 'chestOpen': chestOpen(); break;
       case 'flashDrop': flashDrop(); break;
       case 'warningAlert': warningAlert(); break;
+      case 'curtainWhoosh': curtainWhoosh(); break;
+      case 'timerTick': timerTick(opts.urgent); break;
+      case 'fanfare': fanfare(); break;
+      case 'funnyBuzzer': funnyBuzzer(); break;
+      case 'heartPop': heartPop(); break;
+      case 'jackpotRoll': jackpotRoll(); break;
+      case 'wheelStop': wheelStop(); break;
       default: click();
     }
     return true;

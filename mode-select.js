@@ -7,6 +7,8 @@
    ===================================================================== */
 
 const MODE_CODE_PREFIX = {
+  budget_clash: 'BC',
+  couple_arena: 'CP',
   pool_8ball: 'PL',
   jackaroo: 'JK',
   uno: 'UN',
@@ -52,6 +54,12 @@ function launchStandardizedGame(gameId, cfg) {
   const rival = c.rival || null;
   const modeType = c.modeType || 'bot';
 
+  if (gameId === 'budget_clash' && typeof launchBudgetClash === 'function') {
+    return launchBudgetClash({ modeType, botTier, stake, subMode: subMode || 'ten_vs_cr', roomCode, rival });
+  }
+  if (gameId === 'couple_arena' && typeof launchCoupleArena === 'function') {
+    return launchCoupleArena({ modeType, botTier, stake, subMode: subMode || 'mind_sync', roomCode, rival });
+  }
   if (gameId === 'pool_8ball' && typeof launchPool8BallPro === 'function') {
     return launchPool8BallPro({ modeType, botTier, stake, roomCode, rival });
   }
@@ -116,6 +124,32 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
   const iconPvp = `<svg viewBox="0 0 36 36" width="32" height="32" fill="none" aria-hidden="true"><path d="M8 28l18-18M22 8h6v6" stroke="#fbbf24" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M28 28L10 10M14 8H8v6" stroke="#f43f5e" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="18" r="4.2" fill="#fde047" stroke="#78350f" stroke-width="1.5"/></svg>`;
   const iconInv = `<svg viewBox="0 0 36 36" width="32" height="32" fill="none" aria-hidden="true"><circle cx="14" cy="13" r="4.8" fill="#34d399" stroke="#ecfdf5" stroke-width="1.6"/><path d="M6.5 27c1-4.8 4.4-7.2 7.5-7.2s6.5 2.4 7.5 7.2" fill="#059669" stroke="#a7f3d0" stroke-width="1.6" stroke-linecap="round"/><path d="M27 12v8M23 16h8" stroke="#fde047" stroke-width="2.6" stroke-linecap="round"/></svg>`;
 
+  const exclMap = window.ShowGamesRules && (window.ShowGamesRules.EXCLUSIVE_REWARDS || window.ShowGamesRules.GAME_EXCLUSIVE_REWARDS);
+  const exclRewards = (exclMap && exclMap[g.id]) || [];
+  const exclHtml = exclRewards.length ? `
+    <div class="ms-excl-strip" data-testid="ms-exclusive-rewards">
+      <div class="ms-excl-head">
+        <span>✨ EXCLUSIVE GAME REWARDS</span>
+        <small>Only obtainable here</small>
+      </div>
+      <div class="ms-excl-list">
+        ${exclRewards.map(r => {
+          const unlocked = typeof isUnlocked === 'function' && isUnlocked(`${r.kind}:${r.value}`);
+          return `<div class="ms-excl-item ${unlocked ? 'is-owned' : ''}">
+            <span class="ms-excl-ico">${r.icon}</span>
+            <div class="ms-excl-meta">
+              <b>${esc(r.label || r.name || '')}</b>
+              <small>${esc(r.unlockRule || r.desc || '')}</small>
+            </div>
+            <span class="ms-excl-pill">${unlocked ? 'Owned ✓' : 'Exclusive'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const isShowGame = g.id === 'budget_clash' || g.id === 'couple_arena';
+
   const view = openFullScreenGameView({
     gameId: g.id + '_mode_select',
     title: g.name,
@@ -132,14 +166,16 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
           </div>
         </div>
 
+        ${exclHtml}
+
         <div class="ms-mode-grid" role="tablist" aria-label="Game Mode">
           <button type="button" class="ms-mode-card ${modeType === 'bot' ? 'on' : ''}" data-mstype="bot" data-testid="mode-btn-bot">
             <span class="ms-mode-ico">${iconBot}</span>
-            <b>Bot VS</b>
+            <b>Practice vs Bot</b>
           </button>
           <button type="button" class="ms-mode-card ${modeType === 'pvp' ? 'on' : ''}" data-mstype="pvp" data-testid="mode-btn-pvp">
             <span class="ms-mode-ico">${iconPvp}</span>
-            <b>Player VS</b>
+            <b>Coin Match</b>
           </button>
           <button type="button" class="ms-mode-card ${modeType === 'invite' ? 'on' : ''}" data-mstype="invite" data-testid="mode-btn-invite">
             <span class="ms-mode-ico">${iconInv}</span>
@@ -216,18 +252,18 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
         <div class="ms-diff-grid">
           <button type="button" class="ms-opt-card ${botDiff === 'normal' ? 'on' : ''}" data-msdiff="normal" data-testid="bot-normal-btn">
             <span class="ms-opt-ico">🟢</span>
-            <b>Normal</b>
-            <small class="ms-free-txt">FREE</small>
+            <b>Free Practice</b>
+            <small class="ms-free-txt">XP ONLY · 0 🪙</small>
           </button>
           <button type="button" class="ms-opt-card ${botDiff === 'hard' ? 'on' : ''} ${!canHard ? 'locked' : ''}" data-msdiff="hard" data-testid="bot-hard-btn">
             <span class="ms-opt-ico">🔥</span>
-            <b>Hard</b>
+            <b>Hard Stake</b>
             <small class="ms-coin-txt">🪙 ${hardCost} · Win ${pay.winnerPayout}</small>
           </button>
         </div>
         ${!check.ok ? `<div class="ms-warn-line" data-testid="ms-coin-warn">Not enough coins for Hard Mode (Need ${hardCost} 🪙)</div>` : ''}
         <button type="button" class="btn gold full ms-play-cta" id="msLaunchBtn" data-testid="ms-play-btn" ${!check.ok ? 'disabled' : ''}>
-          ${botDiff === 'hard' ? `Play Hard · ${hardCost} 🪙` : `Play Free`}
+          ${botDiff === 'hard' ? `Play Hard · ${hardCost} 🪙` : `Play Free (XP Only)`}
         </button>
       `;
 
@@ -250,7 +286,7 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
         } else if (typeof playSfx === 'function') {
           playSfx('turnStart');
         }
-        launchStandardizedGame(g.id, { modeType: 'bot', botTier: res.botTier, stake: res.cost, subMode, roomCode });
+        launchStandardizedGame(g.id, { modeType: 'bot', botTier: res.botTier, stake: res.cost, stakeDeducted: res.cost > 0, subMode, roomCode });
       };
       return;
     }
@@ -297,7 +333,7 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
         if (!res.ok) return toast(res.reason);
         addReward(-res.cost, 0, null, true, { silentSfx: true, skipLevelUp: true });
         if (typeof playSfx === 'function') playSfx('stakeLock');
-        launchStandardizedGame(g.id, { modeType: 'pvp', botTier: 'pro', stake: res.cost, subMode, roomCode, rival });
+        launchStandardizedGame(g.id, { modeType: 'pvp', botTier: 'pro', stake: res.cost, stakeDeducted: true, subMode, roomCode, rival });
       };
       return;
     }
@@ -411,7 +447,7 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
         : { ok: me.coins >= inviteBet, cost: inviteBet };
       if (!res.ok) return toast(res.reason);
       ensureInviteRoomPersisted();
-      if (res.cost > 0) {
+      if (res.cost > 0 && !isShowGame) {
         addReward(-res.cost, 0, null, true, { silentSfx: true, skipLevelUp: true });
         if (typeof playSfx === 'function') playSfx('stakeLock');
       } else if (typeof playSfx === 'function') {

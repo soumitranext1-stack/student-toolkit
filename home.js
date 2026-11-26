@@ -125,7 +125,8 @@ function renderHomeHub(){
   if(typeof bindActivityChests==='function')bindActivityChests(host);
 
   if(typeof renderPartyHub==='function')renderPartyHub();
-  if(typeof renderArenaPostersGrid==='function')renderArenaPostersGrid($('#homeArenaPosters'));
+  if(typeof renderHomeFeaturedLauncher==='function')renderHomeFeaturedLauncher($('#homeArenaPosters'));
+  else if(typeof renderArenaPostersGrid==='function')renderArenaPostersGrid($('#homeArenaPosters'));
 }
 
 function renderHome(){

@@ -45,7 +45,10 @@ const FX_FRAMES=[
  /* ---- LEADERBOARD TOP 1-3 EXCLUSIVE FRAMES (NOT IN STORE) ---- */
  {id:'fx_top1',     name:'Top #1 Sovereign Ring', rarity:'rank', price:0, rank:1, mods:'sh ray orb pls spk', badges:['laurel','crown'], tag:'TOP #1', desc:'Exclusive Leaderboard #1 Sovereign gold laurel, rays & crown'},
  {id:'fx_top2',     name:'Top #2 Celestial Ring', rarity:'rank', price:0, rank:2, mods:'sh orb pls spk',     badges:['laurel','crown'], tag:'TOP #2', desc:'Exclusive Leaderboard #2 Silver laurel, orbit & crown'},
- {id:'fx_top3',     name:'Top #3 Ember Ring',     rarity:'rank', price:0, rank:3, mods:'sh pls spk',         badges:['laurel','crown'], tag:'TOP #3', desc:'Exclusive Leaderboard #3 Bronze laurel & crown'}
+ {id:'fx_top3',     name:'Top #3 Ember Ring',     rarity:'rank', price:0, rank:3, mods:'sh pls spk',         badges:['laurel','crown'], tag:'TOP #3', desc:'Exclusive Leaderboard #3 Bronze laurel & crown'},
+ /* ---- GAME-EXCLUSIVE REWARD FRAMES (NOT IN STORE) ---- */
+ {id:'fx_golden_vault', name:'Golden Vault', rarity:'mythic', price:0, exclusive:'budget_clash', mods:'sh ray orb pls spk', badges:['crown'], tag:'TYCOON', desc:'Exclusive Budget Clash vault frame earned from ₹1 Cr Jackpots & streaks'},
+ {id:'fx_neon_heart',   name:'Neon Heart',   rarity:'mythic', price:0, exclusive:'couple_arena', mods:'sh orb pls spk', badges:['diamond'], tag:'SOULMATE', desc:'Exclusive Couple Arena neon heart frame earned from Mind Sync & Vibe Meter'}
 ];
 
 /* Exclusive Top 1-3 Leaderboard Package (Frames, Banners, Avatars, Badges) - NEVER sold in store */
@@ -161,9 +164,9 @@ const FX_MSGS=[
  ['msg-fx-frost','Frost Flow Border',55,'Animated icy border'],['msg-fx-toxic','Toxic Flow Border',55,'Animated lime border']
 ];
 
-/* Strictly excludes rank:1/2/3 exclusive frames & banners from Store */
+/* Strictly excludes rank:1/2/3 & game-exclusive frames from Store */
 const FX_STORE_ROWS={
-  frame:FX_FRAMES.filter(f=>!f.rank).map(f=>[f.id,f.name,f.price,f.desc]),
+  frame:FX_FRAMES.filter(f=>!f.rank&&!f.exclusive).map(f=>[f.id,f.name,f.price,f.desc]),
   text:FX_TEXTS, banner:FX_BANNERS, msg:FX_MSGS
 };
 

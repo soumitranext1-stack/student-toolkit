@@ -241,7 +241,8 @@ function settleRoomRewardForMe(room){
 
   let rewardCoins=0, rewardExp=10;
   if(stake<=0){
-    rewardCoins=iWon?(isTie?8:15):4;
+    // Strict Coin Economy: Free rooms award 0 coins (EXP only)
+    rewardCoins=0;
     rewardExp=iWon?(isTie?15:25):10;
   }else{
     const pot=stake*players.length;
@@ -256,6 +257,9 @@ function settleRoomRewardForMe(room){
 }
 
 function renderMultiplayerRooms(){
+  if(typeof renderGamesLauncher==='function'&&$('#gamesLauncherRoot')){
+    renderGamesLauncher();
+  }
   const host=$('#mpRoomsHost');
   if(!host)return;
   const openRooms=(mpRooms||[]).filter(r=>r&&r.id&&r.status!=='closed').slice(0,6);
@@ -738,6 +742,10 @@ function refreshActiveRoomModal(){
 }
 
 function renderGameSlots(){
+  if(typeof renderGamesLauncher==='function'&&$('#gamesLauncherRoot')){
+    renderGamesLauncher();
+    return;
+  }
   if(typeof renderArenaPostersGrid==='function'){
     const ag=$('#arenaGamesGrid');
     if(ag)renderArenaPostersGrid(ag);
@@ -779,7 +787,7 @@ function renderGameSlots(){
   renderMultiplayerRooms();
 }
 
-$('#gameSlotsGrid').onclick=e=>{
+if($('#gameSlotsGrid'))$('#gameSlotsGrid').onclick=e=>{
   const delSlot=e.target.closest('[data-delgameslot]');
   if(delSlot){
     e.stopPropagation();

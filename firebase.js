@@ -194,7 +194,8 @@ async function signInWithGoogleReliable(btnEl){
 async function adoptAuthUser(u){
   const hasGoogle=Array.isArray(u.providerData)&&u.providerData.some(p=>p&&p.providerId==='google.com');
   const rawEmail=!u.isAnonymous?String(u.email||'').trim().toLowerCase():'';
-  const isAuthDev=!u.isAnonymous&&rawEmail===DEV_LOGIN_ID;
+  const ownerList=typeof DEV_OWNER_EMAILS!=='undefined'&&Array.isArray(DEV_OWNER_EMAILS)?DEV_OWNER_EMAILS:[DEV_LOGIN_ID];
+  const isAuthDev=!u.isAnonymous&&ownerList.includes(rawEmail);
   const anon=u.isAnonymous||(!hasGoogle&&!isAuthDev);
   const email=(hasGoogle||isAuthDev)?rawEmail:'';
   const authProvider=hasGoogle?'google.com':(isAuthDev?'google.com':'anonymous');

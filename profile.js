@@ -457,8 +457,11 @@ function buildProfile(){
       <button type="button" class="btn crimson full" id="devOpenModCenterBtn" style="margin-top:8px">
         🛡️ Reports &amp; Moderation <span id="devReportBadge" class="mod-badge">${pendingReportsCount}</span>
       </button>
+      <button type="button" class="btn gold full" id="devAdminCleanupBtn" data-testid="dev-admin-cleanup-btn" style="margin-top:8px">
+        🛠️ Admin Cleanup (Useless IDs &amp; Rooms)
+      </button>
       <button type="button" class="btn red full" id="devClearFakeVoiceBtn" style="margin-top:8px">
-        🧹 Clear Fake / Stale Voice Rooms
+        🧹 Quick Clear Stale Voice Rooms
       </button>
       <div class="row" style="margin-top:8px">
         <input id="devSelfCoin" type="number" placeholder="± my coins" style="flex:1">
@@ -685,6 +688,9 @@ function buildProfile(){
   if((typeof isDevSession==='function'?isDevSession():devMode)&&$('#devSelfApply')){
     if($('#devOpenModCenterBtn'))$('#devOpenModCenterBtn').onclick=()=>{
       if(typeof openDevModerationCenter==='function')openDevModerationCenter();
+    };
+    if($('#devAdminCleanupBtn'))$('#devAdminCleanupBtn').onclick=()=>{
+      if(typeof openDevAdminCleanupModal==='function')openDevAdminCleanupModal();
     };
     if($('#devClearFakeVoiceBtn'))$('#devClearFakeVoiceBtn').onclick=()=>{
       if(typeof clearFakeVoiceRooms==='function')clearFakeVoiceRooms();

@@ -545,11 +545,117 @@ function ingestPartyRooms(list) {
 }
 
 function parseYouTubeVideoId(input) {
+  if (window.ShowGamesRules && typeof window.ShowGamesRules.parseYouTubeId === 'function') {
+    return window.ShowGamesRules.parseYouTubeId(input);
+  }
   const s = String(input || '').trim();
   if (!s) return '';
   if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return s;
-  const m = s.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+  const m = s.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : '';
+}
+
+let partyMsgUnsub = null;
+let partyMsgRoomId = '';
+let partySubcolMsgs = [];
+const partyDeletedMsgIds = new Set();
+
+function unsubscribeRoomMessages() {
+  if (partyMsgUnsub) {
+    try { partyMsgUnsub(); } catch {}
+    partyMsgUnsub = null;
+  }
+  partyMsgRoomId = '';
+  partySubcolMsgs = [];
+}
+
+function subscribeRoomMessages(roomId) {
+  if (!roomId || String(roomId).startsWith('pr_seed_')) {
+    unsubscribeRoomMessages();
+    return;
+  }
+  if (partyMsgRoomId === roomId && partyMsgUnsub) return;
+  unsubscribeRoomMessages();
+  partyMsgRoomId = roomId;
+  if (!online || !db || !F || typeof F.onSnapshot !== 'function') return;
+  try {
+    const col = F.collection(db, 'party_rooms', roomId, 'messages');
+    const q = (typeof F.query === 'function' && typeof F.orderBy === 'function' && typeof F.limit === 'function')
+      ? F.query(col, F.orderBy('ts', 'asc'), F.limit(60))
+      : col;
+    partyMsgUnsub = F.onSnapshot(q, snap => {
+      const next = [];
+      snap.docs.forEach(d => {
+        const data = d.data() || {};
+        next.push({ ...data, id: data.id || d.id });
+      });
+      partySubcolMsgs = next;
+      if (activePartyRoomId === roomId) renderFullScreenPartyRoom();
+    }, () => {});
+  } catch {}
+}
+
+function getMergedPartyMessages(rm) {
+  const inlineMsgs = Array.isArray(rm?.chat) ? rm.chat : [];
+  const subMsgs = (rm && rm.id === partyMsgRoomId) ? partySubcolMsgs : [];
+  const deletedList = Array.from(partyDeletedMsgIds);
+  if (window.ShowGamesRules && typeof window.ShowGamesRules.mergeRoomMessages === 'function') {
+    return window.ShowGamesRules.mergeRoomMessages(inlineMsgs, subMsgs, deletedList).slice(-35);
+  }
+  const byId = new Map();
+  [...inlineMsgs, ...subMsgs].forEach(m => {
+    if (!m || !m.id || partyDeletedMsgIds.has(m.id)) return;
+    byId.set(m.id, m);
+  });
+  return Array.from(byId.values()).sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0)).slice(-35);
+}
+
+function canDeletePartyMessage(msg) {
+  if (!msg || msg.type === 'sys' || !msg.id) return false;
+  const isDev = typeof isDevSession === 'function' ? isDevSession() : (typeof devMode !== 'undefined' && devMode);
+  if (window.ShowGamesRules && typeof window.ShowGamesRules.canDeleteChatMessage === 'function') {
+    return window.ShowGamesRules.canDeleteChatMessage({ msgUid: msg.uid, currentUid: uid, isDev });
+  }
+  return Boolean(isDev || (msg.uid && uid && msg.uid === uid));
+}
+
+function sendPartyChatMessage(rm, txt) {
+  if (!rm || !txt) return;
+  const msg = {
+    id: 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+    type: 'text',
+    uid,
+    name: me.name || 'Player',
+    text: String(txt).slice(0, 160),
+    ts: Date.now()
+  };
+  rm.chat = [...(rm.chat || []), msg].slice(-45);
+  if (rm.id === partyMsgRoomId) {
+    partySubcolMsgs = [...partySubcolMsgs.filter(m => m.id !== msg.id), msg].slice(-60);
+  }
+  if (!String(rm.id).startsWith('pr_seed_') && online && db && F && typeof F.setDoc === 'function') {
+    dbOp(() => F.setDoc(F.doc(db, 'party_rooms', rm.id, 'messages', msg.id), msg));
+  }
+  persistPartyRoom(rm);
+}
+
+function deletePartyChatMessage(rm, msgId) {
+  if (!rm || !msgId) return;
+  const allMsgs = getMergedPartyMessages(rm);
+  const target = allMsgs.find(m => m && m.id === msgId);
+  if (!target || !canDeletePartyMessage(target)) {
+    return toast('You can only delete your own messages');
+  }
+  partyDeletedMsgIds.add(msgId);
+  rm.chat = (rm.chat || []).filter(m => m && m.id !== msgId);
+  if (rm.id === partyMsgRoomId) {
+    partySubcolMsgs = partySubcolMsgs.filter(m => m && m.id !== msgId);
+  }
+  if (!String(rm.id).startsWith('pr_seed_') && online && db && F && typeof F.deleteDoc === 'function') {
+    dbOp(() => F.deleteDoc(F.doc(db, 'party_rooms', rm.id, 'messages', msgId)));
+  }
+  persistPartyRoom(rm);
+  toast('Message deleted');
 }
 
 function renderPartyHub() {
@@ -645,6 +751,7 @@ function openCreatePartyRoomModal() {
 function closePartyRoom() {
   activePartyRoomId = null;
   minimizedPartyRoomId = null;
+  unsubscribeRoomMessages();
   PartyWebRtcMesh.cleanup();
   PartyAudioPlayer.stop();
   const root = document.getElementById('partyFsRoot');
@@ -673,6 +780,7 @@ function openPartyRoom(roomId) {
   root.hidden = false;
   document.body.classList.add('party-fs-lock');
   requestAnimationFrame(() => root.classList.add('open'));
+  subscribeRoomMessages(roomId);
   PartyWebRtcMesh.syncMicPeers(room);
   if (room.musicUrl) PartyAudioPlayer.playUrl(room.musicUrl, room.musicTitle);
   if (typeof setMyLiveActivity === 'function') {
@@ -802,10 +910,14 @@ function renderFullScreenPartyRoom() {
         </div>
 
         <div class="pfs-chat-feed" id="pfsChatFeed">
-          ${(rm.chat || []).slice(-20).map(c => c.type === 'sys'
-            ? `<div class="pfs-msg sys">${esc(c.text)}</div>`
-            : `<div class="pfs-msg"><b>${esc(c.name)}:</b> <span>${esc(c.text)}</span></div>`
-          ).join('')}
+          ${getMergedPartyMessages(rm).slice(-24).map(c => {
+            if (c.type === 'sys') return `<div class="pfs-msg sys">${esc(c.text)}</div>`;
+            const canDel = canDeletePartyMessage(c);
+            return `<div class="pfs-msg pfs-msg-row" data-pmsg-id="${esc(c.id)}">
+              <div class="pfs-msg-body"><b>${esc(c.name)}:</b> <span>${esc(c.text)}</span></div>
+              ${canDel ? `<button type="button" class="pfs-msg-del" data-del-pmsg="${esc(c.id)}" title="Delete message" aria-label="Delete message">🗑️</button>` : ''}
+            </div>`;
+          }).join('')}
         </div>
       </div>
 
@@ -1046,6 +1158,12 @@ function bindPartyRootDelegation(root) {
       return;
     }
 
+    const delMsgBtn = e.target.closest('[data-del-pmsg]');
+    if (delMsgBtn && delMsgBtn.dataset.delPmsg) {
+      deletePartyChatMessage(rm, delMsgBtn.dataset.delPmsg);
+      return;
+    }
+
     const actBtn = e.target.closest('[data-pfs-act]');
     if (!actBtn) return;
     const act = actBtn.dataset.pfsAct;
@@ -1055,6 +1173,7 @@ function bindPartyRootDelegation(root) {
     } else if (act === 'minimize') {
       minimizedPartyRoomId = rm.id;
       activePartyRoomId = null;
+      unsubscribeRoomMessages();
       root.classList.remove('open');
       root.hidden = true;
       document.body.classList.remove('party-fs-lock');
@@ -1094,8 +1213,7 @@ function bindPartyRootDelegation(root) {
       const txt = (inp?.value || '').trim();
       if (!txt) return;
       inp.value = '';
-      rm.chat = [...(rm.chat || []), { id: 'c_' + Date.now().toString(36), type: 'text', uid, name: me.name || 'Player', text: txt, ts: Date.now() }].slice(-45);
-      persistPartyRoom(rm);
+      sendPartyChatMessage(rm, txt);
     } else if (act === 'open-gift') {
       if (typeof openGiftSendModal === 'function') {
         const other = Object.values(rm.seats || {}).find(x => x && x.uid !== uid);
@@ -1114,8 +1232,7 @@ function bindPartyRootDelegation(root) {
     const txt = (inp.value || '').trim();
     if (!txt) return;
     inp.value = '';
-    rm.chat = [...(rm.chat || []), { id: 'c_' + Date.now().toString(36), type: 'text', uid, name: me.name || 'Player', text: txt, ts: Date.now() }].slice(-45);
-    persistPartyRoom(rm);
+    sendPartyChatMessage(rm, txt);
   });
 }
 

@@ -7,6 +7,30 @@
 
 const ARENA_GAMES = [
   {
+    id: 'budget_clash',
+    name: 'Budget Clash',
+    accent: '#f59e0b',
+    accent2: '#7c2d12',
+    modes: [
+      { id: 'ten_vs_cr', label: '₹10 vs ₹1 Cr' },
+      { id: 'asli_nakli', label: 'Asli vs Nakli' },
+      { id: 'sasta_mehnga', label: 'Sasta ya Mehnga' },
+      { id: 'closest_guess', label: 'Closest Guess' }
+    ]
+  },
+  {
+    id: 'couple_arena',
+    name: 'Couple & Bestie Arena',
+    accent: '#ec4899',
+    accent2: '#4c0519',
+    modes: [
+      { id: 'mind_sync', label: 'Mind Sync' },
+      { id: 'truth_dare', label: 'Truth / Dare Wheel' },
+      { id: 'most_likely', label: 'Most Likely To' },
+      { id: 'love_meter', label: 'Love & Vibe Meter' }
+    ]
+  },
+  {
     id: 'pool_8ball',
     name: '8-Ball Pool',
     accent: '#10b981',
@@ -126,34 +150,10 @@ function previewBotCapStatus() {
 }
 
 function awardFreeBotCoins(baseCoins, expReward) {
-  const st = getBotFarmState();
-  const now = Date.now();
-  const cdMs = st.lastRewardAt > 0 && (now - st.lastRewardAt) < BOT_COOLDOWN_MS
-    ? BOT_COOLDOWN_MS - (now - st.lastRewardAt)
-    : 0;
-  const remWins = Math.max(0, BOT_DAILY_WIN_CAP - st.winsToday);
-  const remCoins = Math.max(0, BOT_DAILY_COIN_CAP - st.coinsToday);
-
-  let grantedCoins = 0;
-  let capNote = '';
-  if (cdMs > 0) {
-    capNote = `Anti-farm cooldown (${Math.ceil(cdMs / 1000)}s) · +${expReward} EXP`;
-  } else if (remWins <= 0 || remCoins <= 0) {
-    capNote = `Daily bot cap (${BOT_DAILY_COIN_CAP} 🪙) reached · +${expReward} EXP`;
-  } else {
-    const mult = st.winsToday < 3 ? 1 : 0.6;
-    grantedCoins = Math.min(remCoins, Math.max(1, Math.round(baseCoins * mult)));
-    me.botFarmCap = {
-      dayKey: st.dayKey,
-      winsToday: st.winsToday + 1,
-      coinsToday: st.coinsToday + grantedCoins,
-      lastRewardAt: now
-    };
-    saveMe();
-    capNote = mult < 1 ? `+${grantedCoins} 🪙 (60% cap rate)` : `+${grantedCoins} 🪙`;
-  }
-  addReward(grantedCoins, expReward, null, false, { silentSfx: true });
-  return { grantedCoins, capNote };
+  // Strict Coin Economy: Free / Bot / Practice rounds award 0 Coins (EXP & Streak only)
+  const xp = Math.max(0, Math.round(Number(expReward) || 0));
+  addReward(0, xp, null, false, { silentSfx: true });
+  return { grantedCoins: 0, capNote: `Free Mode · +${xp} EXP (0 🪙)` };
 }
 
 function settleArenaMatchOutcome(outcome, stake, baseFreeCoins, expWin, expLose) {
@@ -174,24 +174,25 @@ function settleArenaMatchOutcome(outcome, stake, baseFreeCoins, expWin, expLose)
     }
     addReward(0, expLose, null, false, { silentSfx: true });
     if (typeof playSfx === 'function') playSfx('matchLose');
-    return { headline: `Defeat · −${fmtNum(stake)} 🪙`, detail: `Bot claimed pot · +${expLose} EXP` };
+    return { headline: `Defeat · −${fmtNum(stake)} 🪙`, detail: `Stake lost · +${expLose} EXP` };
   }
 
+  // Free / Practice / Bot Mode: strictly 0 Coins (XP / Score / Streak only)
   if (outcome === 'win') {
     if (typeof bumpStat === 'function') bumpStat('duel_win');
-    const res = awardFreeBotCoins(baseFreeCoins, expWin);
+    awardFreeBotCoins(0, expWin);
     if (typeof addClanGlory === 'function') addClanGlory(15);
     if (typeof playSfx === 'function') playSfx('duelWin');
-    return { headline: `🏆 Victory! ${res.capNote}`, detail: `+${expWin} EXP` };
+    return { headline: `🏆 Victory! +${expWin} EXP`, detail: `Free Practice (0 🪙) · Stake coins in Coin Match to win 🪙` };
   }
   if (outcome === 'tie') {
-    const res = awardFreeBotCoins(Math.round(baseFreeCoins * 0.5), Math.round(expWin * 0.6));
+    awardFreeBotCoins(0, Math.round(expWin * 0.6));
     if (typeof playSfx === 'function') playSfx('coin');
-    return { headline: `🤝 Draw! ${res.capNote}`, detail: 'Close match' };
+    return { headline: `🤝 Draw! +${Math.round(expWin * 0.6)} EXP`, detail: `Free Practice (0 🪙)` };
   }
   addReward(0, expLose, null, false, { silentSfx: true });
   if (typeof playSfx === 'function') playSfx('matchLose');
-  return { headline: `Bot Wins`, detail: `+${expLose} EXP · Rematch anytime` };
+  return { headline: `Bot Wins`, detail: `+${expLose} EXP · Free Practice (0 🪙)` };
 }
 
 function spawnArenaSparks(hostEl, color = '#ffd36b', count = 10) {
@@ -211,6 +212,9 @@ function spawnArenaSparks(hostEl, color = '#ffd36b', count = 10) {
 }
 
 function renderArenaBannerArt(g) {
+  if ((g.id === 'budget_clash' || g.id === 'couple_arena') && typeof renderShowGameArtSvg === 'function') {
+    return renderShowGameArtSvg(g.id, g.accent, g.accent2);
+  }
   const id = esc(g.id);
   const icons = {
     pool_8ball: `<g transform="translate(86,16)">

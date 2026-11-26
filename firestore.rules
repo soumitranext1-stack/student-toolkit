@@ -13,7 +13,8 @@ service cloud.firestore {
       return signedIn()
         && request.auth.token.firebase.sign_in_provider == 'google.com'
         && request.auth.token.email != null
-        && request.auth.token.email == 'soumitranext1@gmail.com';
+        && (request.auth.token.email == 'soumitranext1@gmail.com'
+            || request.auth.token.email == 'soumitranext@gmail.com');
     }
 
     function notGuest() {
@@ -123,6 +124,24 @@ service cloud.firestore {
                     || (signedIn()
                         && resource.data.updatedAt is number
                         && (request.time.toMillis() - resource.data.updatedAt) >= 86400000);
+
+      // Dedicated VR Room Chat subcollection: race-free cross-device sync + strict own-message delete
+      match /messages/{msgId} {
+        allow read: if signedIn();
+        allow create: if isDev()
+                      || (signedIn()
+                          && request.resource.data.uid == request.auth.uid
+                          && request.resource.data.text is string
+                          && request.resource.data.text.size() > 0
+                          && request.resource.data.text.size() <= 300);
+        allow delete: if isDev()
+                      || (signedIn() && resource.data.uid == request.auth.uid);
+      }
+
+      // WebRTC audio signaling subcollection for Mic Seats 0..3
+      match /webrtc_signals/{sigId} {
+        allow read, create, delete: if signedIn();
+      }
     }
 
     // Clans & Weekly Clan Wars
