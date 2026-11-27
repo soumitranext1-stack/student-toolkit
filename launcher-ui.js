@@ -442,11 +442,35 @@
       ${renderCompactMpBarHtml()}
 
       <button type="button" class="gl-chronicles-strip" id="glOpenChroniclesBtn" data-testid="games-hub-chronicles-btn">
-        <span class="gl-ch-thumb" style="background-image:url('./cc_velvet_express_cover_1795752308826.jpg'),radial-gradient(circle at 35% 25%,#7f1d3a 0%,#241026 55%,#0c0a14 100%)" aria-hidden="true"></span>
+        <span class="gl-ch-thumb" style="background:linear-gradient(135deg,#0f172a 0%,#1e293b 48%,#4a1632 52%,#7c2d48 100%);display:inline-flex;align-items:center;justify-content:center;overflow:hidden;position:relative" aria-hidden="true">
+          <svg viewBox="0 0 88 88" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="glVrRain" x1="0" y1="0" x2="44" y2="88" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#0d1b2a"/>
+                <stop offset="100%" stop-color="#1b3552"/>
+              </linearGradient>
+              <linearGradient id="glVrVelvet" x1="44" y1="0" x2="88" y2="88" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#3b122b"/>
+                <stop offset="100%" stop-color="#6e2342"/>
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="44" height="88" fill="url(#glVrRain)"/>
+            <rect x="44" y="0" width="44" height="88" fill="url(#glVrVelvet)"/>
+            <line x1="12" y1="10" x2="6" y2="30" stroke="#7dd3fc" stroke-opacity="0.45" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="26" y1="16" x2="20" y2="38" stroke="#7dd3fc" stroke-opacity="0.35" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="34" y1="44" x2="28" y2="66" stroke="#bae6fd" stroke-opacity="0.32" stroke-width="1.3" stroke-linecap="round"/>
+            <circle cx="24" cy="56" r="9" fill="#38bdf8" fill-opacity="0.22"/>
+            <circle cx="24" cy="56" r="4" fill="#fde68a"/>
+            <path d="M52 24h26v40H52z" fill="#230b1a" stroke="#f6c453" stroke-opacity="0.6" stroke-width="1.4"/>
+            <path d="M56 38c0-6 18-6 18 0v18H56V38z" fill="#f59e0b" fill-opacity="0.24" stroke="#fde68a" stroke-opacity="0.7" stroke-width="1.2"/>
+            <line x1="44" y1="6" x2="44" y2="82" stroke="#f6c453" stroke-opacity="0.7" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <path d="M44 48c-3.5-3.4-9-2-9 2.6 0 3.7 4.4 6.5 9 10.2 4.6-3.7 9-6.5 9-10.2 0-4.6-5.5-6-9-2.6z" fill="#fb7185" stroke="#fef08a" stroke-width="1.2"/>
+          </svg>
+        </span>
         <span class="gl-ch-copy">
-          <span class="gl-ch-kicker">COUPLE CHRONICLES · 2-PARTNER STORY MODE</span>
-          <b class="gl-ch-title">The Midnight Express: Velvet &amp; Shadow</b>
-          <span class="gl-ch-sub">Dual choices · Split paths · EN / HI / BN Voice · Custom Story Book PDF</span>
+          <span class="gl-ch-kicker">COUPLE CHRONICLES · RICH GIRL, POOR BOY</span>
+          <b class="gl-ch-title">Velvet &amp; Rain: A Love Divided</b>
+          <span class="gl-ch-sub">Split worlds · Reunion scenes · HI / EN / BN Voice · Story Book PDF</span>
         </span>
         <span class="gl-ch-cta">Open ›</span>
       </button>

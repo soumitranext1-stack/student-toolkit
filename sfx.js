@@ -446,6 +446,31 @@ const SFX = (() => {
     noiseBurst({ delay: 0.3, dur: 0.36, freq: 2800, vol: 0.035 });
   }
 
+  function rainChime() {
+    noiseBurst({ dur: 0.34, freq: 1100, filterType: 'bandpass', vol: 0.032 });
+    [392.0, 493.88, 587.33, 783.99].forEach((f, i) => {
+      tone(f, { delay: i * 0.07, dur: 0.36, type: 'sine', vol: 0.068 });
+    });
+  }
+
+  function phoneBuzz() {
+    tone(195, { dur: 0.16, type: 'triangle', vol: 0.075, endFreq: 210 });
+    tone(245, { delay: 0.02, dur: 0.14, type: 'sine', vol: 0.045 });
+    tone(195, { delay: 0.24, dur: 0.16, type: 'triangle', vol: 0.07, endFreq: 210 });
+  }
+
+  function paperTear() {
+    noiseBurst({ dur: 0.16, freq: 2600, filterType: 'bandpass', vol: 0.085 });
+    noiseBurst({ delay: 0.09, dur: 0.18, freq: 3400, filterType: 'highpass', vol: 0.065 });
+    tone(310, { dur: 0.14, type: 'sawtooth', vol: 0.04, endFreq: 140 });
+  }
+
+  function heartSwell() {
+    [293.66, 369.99, 440.0, 587.33, 739.99].forEach((f, i) => {
+      tone(f, { delay: i * 0.08, dur: 0.52, type: i % 2 === 0 ? 'sine' : 'triangle', vol: 0.078 });
+    });
+  }
+
   function play(name, opts = {}) {
     if (muted) return false;
     switch (name) {
@@ -518,6 +543,10 @@ const SFX = (() => {
       case 'dangerSting': dangerSting(); break;
       case 'clueFound': clueFound(); break;
       case 'endingReveal': endingReveal(); break;
+      case 'rainChime': rainChime(); break;
+      case 'phoneBuzz': phoneBuzz(); break;
+      case 'paperTear': paperTear(); break;
+      case 'heartSwell': heartSwell(); break;
       default: click();
     }
     return true;

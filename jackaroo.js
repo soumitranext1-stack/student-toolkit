@@ -1165,53 +1165,82 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     return out;
   };
 
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
+  const myProfile = {
+    uid: myUid,
+    name: (typeof me !== 'undefined' && me?.name) || 'You',
+    avatar: (typeof me !== 'undefined' && me?.avatar) || '🦊'
+  };
   const oppName = rival?.name || (mode === '1v1' ? (botTier === 'pro' ? 'Rivara Pro' : 'Rivara') : 'Linda');
-  const seatMeta = mode === '1v1'
-    ? {
-        0: { name: me?.name || 'You', avatar: me?.avatar || '🦊', gender: '♂', isFriend: false },
-        2: { name: oppName, avatar: rival?.avatar || '🌟', gender: '♀', isFriend: Boolean(rival) }
-      }
-    : {
-        0: { name: me?.name || 'You', avatar: me?.avatar || '🦊', gender: '♂', isFriend: false },
-        1: { name: oppName, avatar: rival?.avatar || '👩', gender: '♀', isFriend: Boolean(rival) },
-        2: { name: 'Alison', avatar: '🧑‍🎓', gender: '♀', isFriend: false },
-        3: { name: 'Mery', avatar: '👑', gender: '♀', isFriend: false }
-      };
+  const defaultBotPool = mode === '1v1'
+    ? [{ uid: 'jk_bot_2', name: oppName, avatar: '🌟', gender: '♀' }]
+    : [
+        { uid: 'jk_bot_1', name: 'Linda', avatar: '👩', gender: '♀' },
+        { uid: 'jk_bot_2', name: 'Alison', avatar: '🧑‍🎓', gender: '♀' },
+        { uid: 'jk_bot_3', name: 'Mery', avatar: '👑', gender: '♀' }
+      ];
 
-  const rosterBySeat = new Map();
-  if (Array.isArray(lOpts.seatRoster)) {
-    lOpts.seatRoster.forEach(s => { if (s) rosterBySeat.set(Number(s.seat), s); });
-  }
-
+  const jkRoster = window.PvpSyncRules
+    ? window.PvpSyncRules.resolveMultiSeatRoster(lOpts, cfg.activeSeats, myUid, myProfile, defaultBotPool)
+    : null;
+  const isLiveOnline = Boolean(jkRoster && jkRoster.isLiveOnline);
+  const roomId = String(lOpts.roomId || (jkRoster && jkRoster.roomId) || '').trim();
   const isSpectating = Boolean(lOpts.spectate);
   const spectateHost = lOpts.spectateHost || rival || null;
   if (!isSpectating && typeof setMyLiveActivity === 'function') {
     setMyLiveActivity({ type: 'playing', gameId: 'jackaroo', gameName: 'Jackaroo Royal', roomCode, mode });
   }
 
-  const players = cfg.activeSeats.map(seat => {
-    const rs = rosterBySeat.get(seat);
-    const meta = seatMeta[seat];
-    const isRealJoined = Boolean(rs && (rs.kind === 'joined' || rs.kind === 'invited'));
+  const players = (jkRoster && jkRoster.seats.length ? jkRoster.seats : cfg.activeSeats.map((seat, idx) => ({
+    seat,
+    uid: seat === 0 ? myUid : `jk_bot_${seat}`,
+    name: seat === 0 ? myProfile.name : (defaultBotPool[(idx - 1) % defaultBotPool.length]?.name || `Bot ${seat}`),
+    avatar: seat === 0 ? myProfile.avatar : (defaultBotPool[(idx - 1) % defaultBotPool.length]?.avatar || '🌟'),
+    gender: seat === 0 ? '♂' : '♀',
+    kind: seat === 0 ? 'host' : 'bot',
+    isBot: seat !== 0,
+    isRealHuman: seat === 0
+  }))).map((rs) => {
+    const seat = rs.seat;
     const useSpectateHost = isSpectating && seat === 0 && spectateHost;
     return {
       seat,
       team: mode === '1v1' ? (seat === 0 ? 0 : 1) : (seat % 2),
-      uid: useSpectateHost ? (spectateHost.uid || 'host_0') : (rs?.uid || (seat === 0 ? (typeof uid !== 'undefined' ? uid : 'local') : `bot_${seat}`)),
-      name: useSpectateHost ? (spectateHost.name || 'Player') : ((rs && rs.name) ? rs.name : meta.name),
-      avatar: useSpectateHost ? (spectateHost.avatar || 'av_b1') : ((rs && rs.avatar) ? rs.avatar : meta.avatar),
-      gender: meta.gender,
-      isBot: isSpectating ? true : seat !== 0,
-      isInvitedFriend: isRealJoined || meta.isFriend,
+      uid: useSpectateHost ? (spectateHost.uid || 'host_0') : rs.uid,
+      name: useSpectateHost ? (spectateHost.name || 'Player') : rs.name,
+      avatar: useSpectateHost ? (spectateHost.avatar || 'av_b1') : rs.avatar,
+      gender: rs.gender || '♂',
+      kind: isSpectating ? 'bot' : rs.kind,
+      isBot: isSpectating ? true : Boolean(rs.isBot),
+      isRealHuman: isSpectating ? false : Boolean(rs.isRealHuman),
+      isInvitedFriend: Boolean(rs.isRealHuman && rs.uid !== myUid),
       startPos: cfg.startPositions[seat],
       hand: drawCards(4),
       color: palette[seat],
-      micOn: isRealJoined || (seat !== 0 && Math.random() < 0.35)
+      micOn: Boolean(rs.isRealHuman && rs.uid !== myUid) || (Boolean(rs.isBot) && Math.random() < 0.35)
     };
   });
 
+  const myIdx = Math.max(0, players.findIndex(p => p.uid === myUid));
+  const mySeat = players[myIdx] ? players[myIdx].seat : 0;
+  const myTeam = players[myIdx] ? players[myIdx].team : 0;
+  const isLocalTurnNow = () => {
+    if (isSpectating || over) return false;
+    const curP = players[turnIdx];
+    if (!curP) return false;
+    if (jkRoster) return jkRoster.canLocalActForSeat(curP);
+    return !curP.isBot && turnIdx === myIdx;
+  };
+  const shouldRunBotFor = (p) => {
+    if (!p || over) return false;
+    if (isSpectating) return true;
+    if (jkRoster) return jkRoster.shouldRunBotForSeat(p);
+    return Boolean(p.isBot);
+  };
+  let liveSync = null;
+
   // Guarantee opening hand has a valid exit-base card (A, 2, or K in 1v1; A or 2 in 2v2)
-  if (!players[0].hand.some(c => Rules.getCardRole(c, mode).canExitBase)) {
+  if (players[0] && !players[0].hand.some(c => Rules.getCardRole(c, mode).canExitBase)) {
     const exitIdx = deck.findIndex(c => Rules.getCardRole(c, mode).canExitBase);
     if (exitIdx >= 0) {
       const swapped = deck.splice(exitIdx, 1)[0];
@@ -2224,13 +2253,65 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
   // =========================================================================
   // GAME ENGINE FLOW (ANIMATED STEP-BY-STEP + SMART 1-TAP PLAY)
   // =========================================================================
-  const endMatch = (winTeam) => {
+  const snapshotJackarooState = (winnerTeamOverride) => ({
+    turnIdx,
+    lastActionText,
+    winnerTeam: winnerTeamOverride !== undefined ? winnerTeamOverride : null,
+    deck: deck.map(c => ({ id: c.id, rank: c.rank, suit: c.suit })),
+    discard: discard.map(c => ({ id: c.id, rank: c.rank, suit: c.suit })),
+    handsBySeat: players.reduce((acc, p) => {
+      acc[p.seat] = p.hand.map(c => ({ id: c.id, rank: c.rank, suit: c.suit }));
+      return acc;
+    }, {}),
+    marbles: marbles.map(mb => ({
+      id: mb.id, owner: mb.owner, idx: mb.idx,
+      zone: mb.zone, pos: mb.pos, homeIdx: mb.homeIdx, stepsFromStart: mb.stepsFromStart
+    }))
+  });
+
+  const applyJackarooSnapshot = (snap) => {
+    if (!snap || typeof snap !== 'object') return;
+    if (Array.isArray(snap.deck)) {
+      deck.length = 0;
+      snap.deck.forEach(c => deck.push({ id: c.id, rank: c.rank, suit: c.suit }));
+    }
+    if (Array.isArray(snap.discard)) {
+      discard.length = 0;
+      snap.discard.forEach(c => discard.push({ id: c.id, rank: c.rank, suit: c.suit }));
+    }
+    if (snap.handsBySeat && typeof snap.handsBySeat === 'object') {
+      players.forEach(p => {
+        const h = snap.handsBySeat[p.seat];
+        if (Array.isArray(h)) p.hand = h.map(c => ({ id: c.id, rank: c.rank, suit: c.suit }));
+      });
+    }
+    if (Array.isArray(snap.marbles)) {
+      snap.marbles.forEach(rm => {
+        const loc = marbles.find(x => x.id === rm.id);
+        if (loc) {
+          loc.zone = rm.zone;
+          loc.pos = rm.pos;
+          loc.homeIdx = rm.homeIdx;
+          loc.stepsFromStart = rm.stepsFromStart;
+        }
+      });
+    }
+    if (snap.turnIdx !== undefined) {
+      turnIdx = Math.max(0, Math.min(players.length - 1, Number(snap.turnIdx)));
+    }
+    if (snap.lastActionText) lastActionText = String(snap.lastActionText);
+  };
+
+  const endMatch = (winTeam, fromRemoteSync) => {
     over = true;
     cancelActiveAnim();
     stopTurnTimer();
     clearTimeout(hiddenPickTimer);
     pendingHiddenDiscard = null;
-    const outcome = winTeam === 0 ? 'win' : 'lose';
+    if (isLiveOnline && liveSync && !fromRemoteSync) {
+      liveSync.pushState(snapshotJackarooState(winTeam));
+    }
+    const outcome = winTeam === myTeam ? 'win' : 'lose';
     if (typeof me !== 'undefined' && me) {
       me.stats = me.stats || {};
       me.stats.jk_matches = Number(me.stats.jk_matches || 0) + 1;
@@ -2381,11 +2462,11 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     const dot = m.querySelector('.jk-afk-dot');
     if (dot) dot.remove();
     if (typeof toast === 'function') toast('👋 Manual control resumed!');
-    if (turnIdx === 0 && !isAnimating && !showVsIntro) {
+    if (!isLiveOnline && isLocalTurnNow() && !isAnimating && !showVsIntro) {
       clearTimeout(turnAutoTimer);
       const remMs = Math.max(1200, turnDeadline - Date.now());
       turnAutoTimer = setTimeout(() => {
-        if (over || isAnimating || turnIdx !== 0) return;
+        if (over || isAnimating || !isLocalTurnNow() || isLiveOnline) return;
         playerAfk = true;
         if (typeof toast === 'function') toast('⏱️ 15s time up! Auto-Play Bot took over — tap screen to resume');
         runNoobHumanAutoTurn();
@@ -2403,31 +2484,39 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     updateTurnRingDom();
     turnTickTimer = setInterval(updateTurnRingDom, 100);
 
-    if (curP.isBot) {
+    if (shouldRunBotFor(curP)) {
       scheduleBotMove();
-    } else if (playerAfk) {
-      // 15s timer runs visibly, and after 3s noob bot auto-plays unless user taps screen!
-      const afkMs = Rules.getTurnActionDelayMs(false, true);
-      turnAutoTimer = setTimeout(() => {
-        if (over || isAnimating || turnIdx !== 0 || !playerAfk) return;
-        runNoobHumanAutoTurn();
-      }, afkMs);
+    } else if (isLocalTurnNow()) {
+      if (isLiveOnline) {
+        // Live PvP: NEVER hijack human player's turn with AFK bot
+        return;
+      }
+      if (playerAfk) {
+        // 15s timer runs visibly, and after 3s noob bot auto-plays unless user taps screen!
+        const afkMs = Rules.getTurnActionDelayMs(false, true);
+        turnAutoTimer = setTimeout(() => {
+          if (over || isAnimating || !isLocalTurnNow() || !playerAfk || isLiveOnline) return;
+          runNoobHumanAutoTurn();
+        }, afkMs);
+      } else {
+        turnAutoTimer = setTimeout(() => {
+          if (over || isAnimating || !isLocalTurnNow() || isLiveOnline) return;
+          playerAfk = true;
+          if (typeof toast === 'function') toast('⏱️ 15s time up! Auto-Play Bot took over — tap screen to resume');
+          runNoobHumanAutoTurn();
+        }, TURN_MS);
+      }
     } else {
-      turnAutoTimer = setTimeout(() => {
-        if (over || isAnimating || turnIdx !== 0) return;
-        playerAfk = true;
-        if (typeof toast === 'function') toast('⏱️ 15s time up! Auto-Play Bot took over — tap screen to resume');
-        runNoobHumanAutoTurn();
-      }, TURN_MS);
+      // Remote real human turn in Live PvP — wait strictly for synced move, NEVER run bot!
     }
   };
 
-  const advanceTurn = (extraTurn = false) => {
+  const advanceTurn = (extraTurn = false, skipSync = false) => {
     stopTurnTimer();
     clearSelectionState();
 
     const w = checkWinner();
-    if (w !== null) { endMatch(w); return; }
+    if (w !== null) { endMatch(w, skipSync); return; }
 
     if (extraTurn && players[turnIdx]) {
       const curP = players[turnIdx];
@@ -2437,18 +2526,21 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
         if (extraCard.length) curP.hand.push(extraCard[0]);
       }
       if (curP.hand.length > 0) {
-        if (turnIdx === 0 && !isSpectating) {
+        if (isLocalTurnNow()) {
           const st = getStateObj();
-          const anyPlayable = players[0].hand.some(c => Rules.isCardPlayable(c, 0, st));
-          const controlSeat = Rules.getControlSeat(0, st);
-          const mateTag = controlSeat !== 0 ? ` (Helping ${findPlayer(controlSeat)?.name || 'Partner'})` : '';
-          lastActionText = playerAfk
+          const anyPlayable = players[myIdx].hand.some(c => Rules.isCardPlayable(c, mySeat, st));
+          const controlSeat = Rules.getControlSeat(mySeat, st);
+          const mateTag = controlSeat !== mySeat ? ` (Helping ${findPlayer(controlSeat)?.name || 'Partner'})` : '';
+          lastActionText = playerAfk && !isLiveOnline
             ? '⚡ Bonus Turn! 🤖 Auto-Play ON (3s) — tap screen to resume'
             : (!anyPlayable
                 ? `⚡ Bonus Turn! No playable card — tap any card to discard`
                 : `⚡ Bonus Turn! Play another glowing card${mateTag}!`);
         } else {
           lastActionText = `⚡ ${curP.color.emoji} ${curP.name} earned a Bonus Turn…`;
+        }
+        if (isLiveOnline && liveSync && !skipSync) {
+          liveSync.pushState(snapshotJackarooState(null));
         }
         render();
         if (!over) startTurnTimer();
@@ -2461,20 +2553,26 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
       ? Rules.getNextTurnIndex(turnIdx, players, false)
       : (turnIdx + 1) % players.length;
 
-    if (!over && turnIdx === 0 && !isSpectating) {
+    if (!over && isLocalTurnNow()) {
       const st = getStateObj();
-      const anyPlayable = players[0].hand.some(c => Rules.isCardPlayable(c, 0, st));
-      const controlSeat = Rules.getControlSeat(0, st);
-      const mateTag = controlSeat !== 0 ? ` · Playing for ${findPlayer(controlSeat)?.name || 'Partner'}!` : '';
-      if (playerAfk) {
+      const anyPlayable = players[myIdx].hand.some(c => Rules.isCardPlayable(c, mySeat, st));
+      const controlSeat = Rules.getControlSeat(mySeat, st);
+      const mateTag = controlSeat !== mySeat ? ` · Playing for ${findPlayer(controlSeat)?.name || 'Partner'}!` : '';
+      if (playerAfk && !isLiveOnline) {
         lastActionText = '🤖 Auto-Play ON (3s) — tap screen to take control';
-      } else if (!anyPlayable && players[0].hand.length > 0) {
+      } else if (!anyPlayable && players[myIdx].hand.length > 0) {
         lastActionText = 'No playable card — tap any card to discard';
       } else {
         lastActionText = `Tap a glowing card to play${mateTag}`;
       }
     } else if (!over && players[turnIdx]) {
-      lastActionText = `${players[turnIdx].color.emoji} ${players[turnIdx].name} is thinking…`;
+      lastActionText = isLiveOnline && !players[turnIdx].isBot
+        ? `${players[turnIdx].color.emoji} Waiting for ${players[turnIdx].name}'s move…`
+        : `${players[turnIdx].color.emoji} ${players[turnIdx].name} is thinking…`;
+    }
+
+    if (isLiveOnline && liveSync && !skipSync) {
+      liveSync.pushState(snapshotJackarooState(null));
     }
 
     render();
@@ -2721,11 +2819,13 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
 
   const scheduleBotMove = () => {
     clearTimeout(botTimer);
+    const curCheck = players[turnIdx];
+    if (!curCheck || !shouldRunBotFor(curCheck)) return; // HARD BLOCK: Never run bot AI on human seats!
     const thinkMs = Rules.getTurnActionDelayMs(true, false);
     botTimer = setTimeout(() => {
       if (over || isAnimating) return;
       const p = players[turnIdx];
-      if (!p || !p.isBot) return;
+      if (!p || !shouldRunBotFor(p)) return;
       if (!p.hand.length) { advanceTurn(false); return; }
 
       const st = getStateObj();
@@ -2831,13 +2931,13 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
   // Returns Map<marbleId, { dest, steps, label }> for highlighting stones AND destination target rings
   const getSelectableTargets = () => {
     const map = new Map();
-    if (over || isAnimating || turnIdx !== 0 || !selectedCardId) return map;
+    if (over || isAnimating || !isLocalTurnNow() || !selectedCardId) return map;
     const st = getStateObj();
-    const controlSeat = Rules.getControlSeat(0, st);
+    const controlSeat = Rules.getControlSeat(mySeat, st);
     const myM = marbles.filter(x => x.owner === controlSeat);
 
     if (actionSubMode === 'jack_pick_my') {
-      const meP = players[0];
+      const meP = players[myIdx];
       const hasOpp = marbles.some(
         x => x.owner !== controlSeat && x.zone === 'track' && !Rules.isSafeStartMarble(x, players) && findPlayer(x.owner)?.team !== meP.team
       );
@@ -2847,13 +2947,13 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
           .forEach(x => map.set(x.id, { dest: null, steps: 0, label: 'Swap' }));
       }
     } else if (actionSubMode === 'jack_pick_opp') {
-      const meP = players[0];
+      const meP = players[myIdx];
       marbles
         .filter(x => x.owner !== controlSeat && x.zone === 'track' && !Rules.isSafeStartMarble(x, players) && findPlayer(x.owner)?.team !== meP.team)
         .forEach(x => map.set(x.id, { dest: null, steps: 0, label: 'Swap' }));
     } else if (actionSubMode === 'seven_split') {
       if (!splitMarbleA) {
-        const opts = Rules.getValidSplit7Options(0, st).filter(o => o.stepA === splitStepA);
+        const opts = Rules.getValidSplit7Options(mySeat, st).filter(o => o.stepA === splitStepA);
         opts.forEach(o => {
           if (!map.has(o.marbleAId)) map.set(o.marbleAId, { dest: o.dA, steps: splitStepA, label: `+${splitStepA}` });
         });
@@ -2891,7 +2991,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
   };
 
   const executeCardAutoAction = (card, autoAction) => {
-    const meP = players[0];
+    const meP = players[myIdx];
     if (!autoAction) return false;
 
     if (autoAction.type === 'exit_base') {
@@ -2904,7 +3004,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     if (autoAction.type === 'move') {
       const mb = marbles.find(x => x.id === autoAction.marbleId);
       if (!mb) return false;
-      const whose = mb.owner === 0 ? 'Moved' : `Moved ${findPlayer(mb.owner)?.name}'s stone`;
+      const whose = mb.owner === mySeat ? 'Moved' : `Moved ${findPlayer(mb.owner)?.name}'s stone`;
       runAnimatedTrackedMove(
         meP,
         mb,
@@ -2938,14 +3038,14 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
   };
 
   const handleCardSelect = (cardId) => {
-    if (isSpectating || over || isAnimating || turnIdx !== 0 || pendingHiddenDiscard) return;
-    const meP = players[0];
+    if (isSpectating || over || isAnimating || !isLocalTurnNow() || pendingHiddenDiscard) return;
+    const meP = players[myIdx];
     const card = meP.hand.find(c => c.id === cardId);
     if (!card) return;
 
     const st = getStateObj();
-    const legal = Rules.getLegalActionsForCard(card, 0, st);
-    const anyHandPlayable = meP.hand.some(c => Rules.isCardPlayable(c, 0, st));
+    const legal = Rules.getLegalActionsForCard(card, mySeat, st);
+    const anyHandPlayable = meP.hand.some(c => Rules.isCardPlayable(c, mySeat, st));
 
     // Dead hand (no playable card at all): 1-tap discard cleanly & pass turn to next player
     if (!anyHandPlayable) {
@@ -3047,18 +3147,18 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
   };
 
   const handleMarbleClick = (marbleId) => {
-    if (over || isAnimating || turnIdx !== 0 || pendingHiddenDiscard) return;
+    if (over || isAnimating || !isLocalTurnNow() || pendingHiddenDiscard) return;
     const targets = getSelectableTargets();
     if (!targets.has(marbleId)) return;
     const st = getStateObj();
-    const meP = players[0];
+    const meP = players[myIdx];
     const card = meP.hand.find(c => c.id === selectedCardId);
     const mb = marbles.find(x => x.id === marbleId);
     if (!card || !mb) return;
 
     if (actionSubMode === 'jack_pick_my') {
       const oppChoices = marbles.filter(
-        x => x.owner !== 0 && x.zone === 'track' && !Rules.isSafeStartMarble(x, players) && findPlayer(x.owner)?.team !== meP.team
+        x => x.owner !== mySeat && x.zone === 'track' && !Rules.isSafeStartMarble(x, players) && findPlayer(x.owner)?.team !== meP.team
       );
       if (oppChoices.length === 1) {
         runAnimatedSwap(meP, mb, oppChoices[0], card, () => advanceTurn());
@@ -3490,11 +3590,12 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
   // =========================================================================
   const render = () => {
     const curP = players[turnIdx];
-    const t0 = getTeamScore(0);
+    const tMine = getTeamScore(myTeam);
+    const localActive = isLocalTurnNow();
     if (typeof m.setStatus === 'function') {
       m.setStatus(
-        over ? 'Finished' : (turnIdx === 0 ? `Your Turn (${t0}/${totalTeamMarbles})` : `${curP.name}…`),
-        over ? 'neutral' : (turnIdx === 0 ? 'turn' : 'bot')
+        over ? 'Finished' : (localActive ? `Your Turn (${tMine}/${totalTeamMarbles})` : `${curP.name}…`),
+        over ? 'neutral' : (localActive ? 'turn' : 'bot')
       );
     }
 
@@ -3502,14 +3603,14 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     renderBoardSvg();
 
     const st = getStateObj();
-    const isMyTurn = !over && !isAnimating && turnIdx === 0;
+    const isMyTurn = !over && !isAnimating && localActive;
 
     const actBar = $('#jkActionBar', m);
     if (actBar) {
       let controls = '';
       if (isMyTurn && selectedCardId) {
-        const card = players[0].hand.find(c => c.id === selectedCardId);
-        const legal = card ? Rules.getLegalActionsForCard(card, 0, st) : null;
+        const card = players[myIdx].hand.find(c => c.id === selectedCardId);
+        const legal = card ? Rules.getLegalActionsForCard(card, mySeat, st) : null;
         if (card && legal) {
           if (actionSubMode === 'ace_pick') {
             controls = `<div class="jk-sub-row">
@@ -3555,7 +3656,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
           }
         }
       }
-      const afkBannerHtml = playerAfk && !over
+      const afkBannerHtml = playerAfk && !isLiveOnline && !over
         ? `<button type="button" class="turn-afk-banner" id="jkAfkBanner" data-testid="jk-afk-banner">🤖 Auto-Play Active (3s) · Tap anywhere to resume</button>`
         : '';
       actBar.innerHTML = `${afkBannerHtml}<div class="jk-status-msg">${esc(lastActionText)}</div>${controls}`;
@@ -3564,9 +3665,9 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
 
       actBar.querySelectorAll('[data-jkopt]').forEach(btn => {
         btn.onclick = () => {
-          if (over || isAnimating || turnIdx !== 0) return;
+          if (over || isAnimating || !isLocalTurnNow()) return;
           const opt = btn.dataset.jkopt;
-          const meP = players[0];
+          const meP = players[myIdx];
           const card = meP.hand.find(c => c.id === selectedCardId);
           if (opt === 'cancel') {
             clearSelectionState();
@@ -3576,7 +3677,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
           }
           if (!card) return;
           const curSt = getStateObj();
-          const legal = Rules.getLegalActionsForCard(card, 0, curSt);
+          const legal = Rules.getLegalActionsForCard(card, mySeat, curSt);
 
           if (opt === 'instant_open') {
             const mb = marbles.find(x => x.id === legal.exitMarbleId);
@@ -3635,12 +3736,12 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
 
     const handTray = $('#jkHandTray', m);
     if (handTray) {
-      const myHand = players[0].hand;
+      const myHand = players[myIdx].hand;
       const playabilityMap = new Map();
       let anyPlayable = false;
       if (isMyTurn) {
         myHand.forEach(c => {
-          const ok = Rules.isCardPlayable(c, 0, st);
+          const ok = Rules.isCardPlayable(c, mySeat, st);
           playabilityMap.set(c.id, ok);
           if (ok) anyPlayable = true;
         });
@@ -3794,13 +3895,44 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
       closePopover();
       if (typeof QuickVoice !== 'undefined') {
         QuickVoice.openPanel($('#jkQvBtn', m), 'jackaroo', (text, ico) => {
-          showAvatarBubble(0, `${ico} ${text}`);
+          showAvatarBubble(mySeat, `${ico} ${text}`);
         });
       }
     };
   }
 
   const shellEl = $('#jkShell', m);
+  if (isLiveOnline && roomId && typeof window.createLiveMatchSync === 'function') {
+    const oppUids = players.filter(p => !p.isBot && p.uid !== myUid).map(p => p.uid);
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'jackaroo',
+      myUid,
+      myName: myProfile.name,
+      oppUids,
+      onLeaveRequest: () => m.close(),
+      onState: (snap) => {
+        if (over || !snap) return;
+        cancelActiveAnim();
+        stopTurnTimer();
+        clearSelectionState();
+        applyJackarooSnapshot(snap);
+        if (typeof playSfx === 'function') playSfx('tap');
+        if (snap.winnerTeam !== null && snap.winnerTeam !== undefined) {
+          endMatch(snap.winnerTeam, true);
+          return;
+        }
+        render();
+        if (!showVsIntro) startTurnTimer();
+      }
+    });
+    if (shellEl) liveSync.mountConnectionBanner(shellEl);
+    if (jkRoster && jkRoster.isHost) {
+      liveSync.pushState(snapshotJackarooState(null));
+    }
+  }
+
   if (isSpectating && shellEl) {
     shellEl.insertAdjacentHTML('afterbegin', `
       <div class="sg-spectate-banner" data-testid="jk-spectate-banner">
@@ -3831,7 +3963,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
 
   if (shellEl) {
     shellEl.addEventListener('pointerdown', () => {
-      if (!isSpectating && playerAfk && !over) resumeFromAfk();
+      if (!isSpectating && !isLiveOnline && playerAfk && !over) resumeFromAfk();
     }, true);
   }
 
@@ -3845,6 +3977,7 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
     clearTimeout(comboTimer);
     clearInterval(rematchTimer);
     stopMicStream();
+    if (liveSync) liveSync.destroy();
     if (jkChatWidget) jkChatWidget.destroy();
     if (!isSpectating && typeof setMyLiveActivity === 'function') setMyLiveActivity({ type: 'online' });
     if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel();

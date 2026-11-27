@@ -15,13 +15,32 @@ function launchPool8BallPro(opts) {
     return;
   }
   const o = opts || {};
-  const modeType = o.modeType || 'bot'; // 'bot' | 'pvp' | 'invite'
+  const PvpRules = window.PvpSyncRules;
+  const myUid = (typeof uid !== 'undefined' && uid) ? uid : 'local_me';
+  const meProfile = (typeof me !== 'undefined' && me) ? { uid: myUid, name: me.name, avatar: me.avatar } : { uid: myUid, name: 'You', avatar: 'av_b1' };
+  const control = PvpRules
+    ? PvpRules.resolve2PControl(o, myUid, meProfile)
+    : {
+        modeType: o.modeType || 'bot',
+        isLiveOnline: Boolean(o.roomId && (o.modeType === 'invite' || o.modeType === 'pvp')),
+        isLocalPassAndPlay: o.modeType === 'pvp' && !o.rivalBot && !o.roomId,
+        botAllowed: (o.modeType || 'bot') === 'bot' && !o.roomId,
+        mySide: o.isHost === false ? 'p2' : 'p1',
+        p1Name: meProfile.name,
+        p2Name: o.rival?.name || 'Pool Bot',
+        oppUid: o.rival?.uid || ''
+      };
+  const modeType = control.modeType || o.modeType || 'bot';
   const botTier = o.botTier || (o.stake > 0 ? 'pro' : 'standard');
   const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
   const roomCode = String(o.roomCode || ('PL' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
-  const isLocalPvp = modeType === 'pvp' && !o.rivalBot;
-  const p1Name = (typeof me !== 'undefined' && me.name) ? me.name : 'You';
-  const p2Name = o.rival?.name || (isLocalPvp ? 'Player 2' : (botTier === 'pro' ? 'Pro Pool Bot' : 'Pool Bot'));
+  const roomId = String(o.roomId || '').trim();
+  const isLocalPvp = Boolean(control.isLocalPassAndPlay);
+  const isLiveOnline = Boolean(control.isLiveOnline && roomId);
+  const botAllowed = Boolean(control.botAllowed && !isLiveOnline && !isLocalPvp);
+  const mySide = control.mySide || 'p1';
+  const p1Name = control.p1Name || meProfile.name || 'Player 1';
+  const p2Name = control.p2Name || (botAllowed ? (botTier === 'pro' ? 'Pro Pool Bot' : 'Pool Bot') : 'Player 2');
   const pay = AR.calcMatchPayout(stake);
 
   if (typeof setMyLiveActivity === 'function') {
@@ -40,12 +59,16 @@ function launchPool8BallPro(opts) {
   let rafId = 0;
   let closed = false;
   let cuePullVisual = 0;
-  let bannerMsg = 'Drag felt to aim · Pull power bar to shoot';
+  let lastShotByLocal = false;
+  let bannerMsg = isLiveOnline && mySide === 'p2'
+    ? `Live PvP · Waiting for ${p1Name}'s break shot…`
+    : 'Drag felt to aim · Pull power bar to shoot';
   let chatWidget = null;
+  let liveSync = null;
 
   const subMeta = stake > 0
     ? `${stake} 🪙 · Pot ${fmtNum(pay.winnerPayout)}`
-    : (isLocalPvp ? `Player VS · ${roomCode}` : `Bot ${botTier === 'pro' ? 'Hard' : 'Normal'}`);
+    : (isLiveOnline ? `Live PvP · ${roomCode}` : (isLocalPvp ? `Player VS · ${roomCode}` : `Bot ${botTier === 'pro' ? 'Hard' : 'Normal'}`));
 
   const view = openFullScreenGameView({
     gameId: 'pool_8ball',
@@ -119,7 +142,11 @@ function launchPool8BallPro(opts) {
     chatWidget.mount($('#plChatHost', view));
   }
 
-  const isHumanTurn = () => !state.winner && !state.shotActive && (state.turn === 'p1' || isLocalPvp);
+  const isHumanTurn = () => {
+    if (state.winner || state.shotActive) return false;
+    if (PvpRules) return PvpRules.canActOn2PTurn(state.turn, control);
+    return isLiveOnline ? state.turn === mySide : (state.turn === 'p1' || isLocalPvp);
+  };
 
   const renderGroupDots = (playerKey) => {
     const grp = state.groups[playerKey];
@@ -139,18 +166,21 @@ function launchPool8BallPro(opts) {
     if ($('#plGrp2', view)) $('#plGrp2', view).textContent = g2 ? (g2 === 'solids' ? 'Solids' : 'Stripes') : 'Open';
     if ($('#plDots1', view)) $('#plDots1', view).innerHTML = renderGroupDots('p1');
     if ($('#plDots2', view)) $('#plDots2', view).innerHTML = renderGroupDots('p2');
+    const isMyTurn = isLiveOnline ? state.turn === mySide : state.turn === 'p1';
+    const activeTurnName = state.turn === 'p1' ? p1Name : p2Name;
     if ($('#plTurnTag', view)) {
       $('#plTurnTag', view).textContent = state.winner
         ? 'FINISHED'
-        : (state.ballInHand ? 'BALL IN HAND' : (state.turn === 'p1' ? 'P1 SHOT' : (isLocalPvp ? 'P2 SHOT' : 'BOT SHOT')));
+        : (state.ballInHand ? 'BALL IN HAND' : (isLiveOnline ? (isMyTurn ? 'YOUR SHOT' : `${activeTurnName.slice(0, 8).toUpperCase()}`) : (state.turn === 'p1' ? 'P1 SHOT' : (isLocalPvp ? 'P2 SHOT' : 'BOT SHOT'))));
     }
     if ($('#plBanner', view)) $('#plBanner', view).textContent = bannerMsg;
     if (shootBtn) shootBtn.disabled = !isHumanTurn() || state.ballInHand;
 
+    const myWon = state.winner === mySide;
     const statusTxt = state.winner
-      ? (state.winner === 'p1' ? 'Victory' : 'Finished')
-      : (state.ballInHand ? 'Place Cue' : (state.turn === 'p1' ? 'Your Shot' : `${p2Name}…`));
-    view.setStatus(statusTxt, state.winner ? (state.winner === 'p1' ? 'ok' : 'bot') : (state.turn === 'p1' ? 'turn' : 'bot'));
+      ? (myWon ? 'Victory' : 'Finished')
+      : (state.ballInHand ? (isMyTurn ? 'Place Cue' : `${activeTurnName} placing…`) : (isMyTurn ? 'Your Shot' : `${activeTurnName}…`));
+    view.setStatus(statusTxt, state.winner ? (myWon ? 'ok' : 'bot') : (isMyTurn ? 'turn' : 'bot'));
   };
 
   const spawnPocketBurst = (x, y, col) => {
@@ -194,10 +224,11 @@ function launchPool8BallPro(opts) {
     return { gx: sx + ux * bestT, gy: sy + uy * bestT, hitBall };
   };
 
-  const fireShot = (angle, pct) => {
+  const fireShot = (angle, pct, isRemoteShot) => {
     if (state.shotActive || state.winner || state.ballInHand) return;
     const clampedPct = Math.max(12, Math.min(100, Number(pct) || 60));
     const speed = (clampedPct / 100) * P.MAX_POWER;
+    lastShotByLocal = !isRemoteShot;
     state.cue.vx = Math.cos(angle) * speed;
     state.cue.vy = Math.sin(angle) * speed;
     state.shotActive = true;
@@ -205,25 +236,41 @@ function launchPool8BallPro(opts) {
     state.pottedThisShot = [];
     state.scratched = false;
     cuePullVisual = 0;
-    bannerMsg = state.turn === 'p1' ? 'Shot in motion…' : `${p2Name} shot!`;
+    const shooterName = state.turn === 'p1' ? p1Name : p2Name;
+    bannerMsg = !isRemoteShot ? 'Shot in motion…' : `${shooterName} shot!`;
     if (typeof playSfx === 'function') playSfx('poolHit');
     syncHud();
+    if (!isRemoteShot && isLiveOnline && liveSync) {
+      liveSync.pushState({
+        action: 'shot',
+        angle,
+        pct: clampedPct,
+        cueX: state.cue.x,
+        cueY: state.cue.y,
+        turn: state.turn
+      });
+    }
   };
 
+  let matchFinished = false;
   const finishMatch = () => {
-    const p1Won = state.winner === 'p1';
-    const outcome = isLocalPvp ? 'win' : (p1Won ? 'win' : 'lose');
+    if (matchFinished) return;
+    matchFinished = true;
+    clearTimeout(botTimeout);
+    const iWon = isLiveOnline ? (state.winner === mySide) : (state.winner === 'p1');
+    const outcome = isLocalPvp ? 'win' : (iWon ? 'win' : 'lose');
     const res = settleArenaMatchOutcome(outcome, stake, 55, 38, 14);
-    if (p1Won) spawnArenaSparks($('#poolTableBox', view), '#fde047', 18);
+    if (iWon) spawnArenaSparks($('#poolTableBox', view), '#fde047', 18);
     if (typeof recordMatchHistory === 'function') {
-      recordMatchHistory('pool_8ball', p1Won ? 'win' : 'lose', stake, modeType);
+      recordMatchHistory('pool_8ball', iWon ? 'win' : 'lose', stake, modeType);
     }
     syncHud();
     const host = $('#plResultHost', view);
     if (host) {
+      const winnerName = state.winner === 'p1' ? p1Name : p2Name;
       host.innerHTML = `
         <div class="arena-result-card pool-go-card" data-testid="pool-result-card">
-          <b>${isLocalPvp ? `🏆 ${esc(p1Won ? p1Name : p2Name)} Wins!` : esc(res.headline)}</b>
+          <b>${(isLocalPvp || isLiveOnline) ? `🏆 ${esc(winnerName)} Wins!` : esc(res.headline)}</b>
           <small>${esc(state.winReason)} · ${esc(res.detail)}</small>
           <div class="row" style="gap:8px;margin-top:10px;justify-content:center">
             <button type="button" class="btn ghost sm" id="plExitBtn">Exit</button>
@@ -240,10 +287,13 @@ function launchPool8BallPro(opts) {
   };
 
   const scheduleBotShot = () => {
-    if (closed || state.winner || state.turn !== 'p2' || isLocalPvp) return;
+    // HARD BLOCK: Bot AI NEVER fires in invite/friend/live PvP rooms
+    if (!botAllowed || isLiveOnline || isLocalPvp) return;
+    if (PvpRules && !PvpRules.shouldRun2PBot(state.turn, control)) return;
+    if (closed || state.winner || state.turn !== 'p2') return;
     clearTimeout(botTimeout);
     botTimeout = setTimeout(() => {
-      if (closed || state.winner || state.turn !== 'p2') return;
+      if (closed || state.winner || state.turn !== 'p2' || !botAllowed || isLiveOnline) return;
       // Handle Ball-in-Hand placement cleanly for bot
       if (state.ballInHand) {
         const spot = AR.findOpenCueSpot(state, 180 + Math.random() * 140, 100 + Math.random() * 160);
@@ -490,7 +540,24 @@ function launchPool8BallPro(opts) {
       if (!AR.isPoolMoving(state)) {
         const res = AR.resolvePoolShot(state);
         bannerMsg = res.message || 'Next shot';
+        if (isLiveOnline && !state.winner && state.turn !== mySide) {
+          bannerMsg = `${res.message ? res.message + ' · ' : ''}Waiting for ${state.turn === 'p1' ? p1Name : p2Name}…`;
+        }
         if (res.foul && typeof playSfx === 'function') playSfx('duelWrong');
+        if (lastShotByLocal && isLiveOnline && liveSync) {
+          liveSync.pushState({
+            action: 'settled',
+            balls: state.balls.map(b => ({ num: b.num, x: b.x, y: b.y, alive: b.alive, group: b.group, color: b.color, stripe: b.stripe })),
+            cue: { x: state.cue.x, y: state.cue.y, alive: state.cue.alive },
+            turn: state.turn,
+            groups: { ...state.groups },
+            ballInHand: state.ballInHand,
+            winner: state.winner,
+            winReason: state.winReason || '',
+            bannerMsg: res.message || ''
+          });
+        }
+        lastShotByLocal = false;
         if (res.winner) {
           finishMatch();
         } else {
@@ -499,7 +566,7 @@ function launchPool8BallPro(opts) {
           const legal = state.balls.find(b => b.alive && (grp ? (AR.countRemainingInGroup(state, grp) > 0 ? b.group === grp : b.group === 'eight') : b.group !== 'eight'));
           if (legal) aimAngle = Math.atan2(legal.y - state.cue.y, legal.x - state.cue.x);
           syncHud();
-          if (state.turn === 'p2' && !isLocalPvp) scheduleBotShot();
+          if (botAllowed && state.turn === 'p2') scheduleBotShot();
         }
       }
     }
@@ -570,10 +637,66 @@ function launchPool8BallPro(opts) {
     };
   }
 
+  if (isLiveOnline && typeof window.createLiveMatchSync === 'function') {
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'pool_8ball',
+      myUid,
+      myName: meProfile.name,
+      oppUids: [control.oppUid],
+      onLeaveRequest: () => view.close(),
+      onState: (remote) => {
+        if (closed || !remote || typeof remote !== 'object') return;
+        if (remote.action === 'shot') {
+          if (Number.isFinite(remote.cueX) && Number.isFinite(remote.cueY)) {
+            state.cue.x = remote.cueX;
+            state.cue.y = remote.cueY;
+            state.ballInHand = false;
+          }
+          if (remote.turn) state.turn = remote.turn;
+          fireShot(Number(remote.angle || 0), Number(remote.pct || 60), true);
+        } else if (remote.action === 'settled') {
+          state.shotActive = false;
+          state.cue.vx = 0; state.cue.vy = 0;
+          if (remote.cue) {
+            state.cue.x = remote.cue.x;
+            state.cue.y = remote.cue.y;
+            state.cue.alive = remote.cue.alive !== false;
+          }
+          if (Array.isArray(remote.balls)) {
+            remote.balls.forEach(rb => {
+              const localB = state.balls.find(b => b.num === rb.num);
+              if (localB) {
+                localB.x = rb.x; localB.y = rb.y; localB.vx = 0; localB.vy = 0;
+                localB.alive = Boolean(rb.alive);
+              }
+            });
+          }
+          if (remote.turn) state.turn = remote.turn;
+          if (remote.groups) state.groups = { ...remote.groups };
+          state.ballInHand = Boolean(remote.ballInHand);
+          if (remote.winner) {
+            state.winner = remote.winner;
+            state.winReason = remote.winReason || 'Match finished';
+            finishMatch();
+          } else {
+            bannerMsg = state.turn === mySide
+              ? (remote.ballInHand ? 'Ball in Hand! Tap table to place cue.' : `${remote.bannerMsg ? remote.bannerMsg + ' · ' : ''}Your turn!`)
+              : `Waiting for ${state.turn === 'p1' ? p1Name : p2Name}…`;
+            syncHud();
+          }
+        }
+      }
+    });
+    liveSync.mountConnectionBanner($('#poolProWrap', view));
+  }
+
   view.onclose = () => {
     closed = true;
     clearTimeout(botTimeout);
     cancelAnimationFrame(rafId);
+    if (liveSync) liveSync.destroy();
     if (chatWidget) chatWidget.destroy();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };

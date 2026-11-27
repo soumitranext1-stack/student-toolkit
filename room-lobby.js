@@ -883,6 +883,12 @@
     const o = opts || {};
     const gameId = Rules.normalizeGameId(o.gameId || 'ludo');
     const meta = Rules.getGameMeta(gameId);
+    if (typeof window.guardVrBeforeGameLaunch === 'function') {
+      const blocked = window.guardVrBeforeGameLaunch(o.gameName || meta.name || 'Game Lobby', () => {
+        createAndOpenWaitingLobby({ ...o, bypassVrGuard: true });
+      }, o);
+      if (blocked) return null;
+    }
     const subMode = o.subMode || meta.defaultSubMode || '1v1';
     const maxPlayers = Rules.getDefaultMaxPlayers(gameId, subMode, o.maxPlayers);
     const stake = Math.max(0, Math.min(500, Math.floor(Number(o.stake || 0))));
@@ -917,6 +923,12 @@
     const Rules = getRules();
     if (!Rules) return false;
     const o = opts || {};
+    if (typeof window.guardVrBeforeGameLaunch === 'function') {
+      const blocked = window.guardVrBeforeGameLaunch(o.gameName || 'Multiplayer Room', () => {
+        joinAndOpenWaitingLobby({ ...o, bypassVrGuard: true });
+      }, o);
+      if (blocked) return false;
+    }
     const roomId = String(o.roomId || '').trim();
     const cleanCode = String(o.roomCode || '').trim().toUpperCase();
     if (!roomId && !cleanCode) {

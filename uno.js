@@ -549,36 +549,8 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
   }
 
   const lOpts = launchOpts || {};
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
   const isSpectating = Boolean(lOpts.spectate);
-  const stake = isSpectating ? 0 : Math.max(0, Math.floor(Number(stakeRaw) || 0));
-  const mode = (modeRaw === 'fun' || modeRaw === '1v1') ? modeRaw : 'classic';
-  const funStacking = mode === 'fun';
-  const playerCount = mode === '1v1' ? 2 : 4;
-  const botTier = botTierRaw === 'pro' ? 'pro' : 'standard';
-  const roomCode = roomCodeRaw || ('UN' + Math.floor(1000 + Math.random() * 9000));
-  const modeTitle = mode === 'fun' ? 'Fun Play' : (mode === '1v1' ? '1v1 Duel' : 'Classic Free');
-
-  // Build players array: Seat 0 = Me (or spectated friend), Seat 1..N-1 = Seated Friends / Rivals / Bots
-  const pool = UNO_BOT_ROSTER.slice();
-  const invitedList = Array.isArray(lOpts.invitedFriends) ? lOpts.invitedFriends.slice() : [];
-  if (rival && rival.name && !isSpectating && !invitedList.some(x => x && x.uid === rival.uid)) {
-    invitedList.unshift(rival);
-  }
-  const pickBot = (idx) => {
-    const inv = !isSpectating ? invitedList[idx] : null;
-    if (inv && inv.name) {
-      return {
-        id: inv.uid || ('rival_' + (idx + 1)),
-        name: inv.name,
-        avatar: inv.avatar || 'av_b1',
-        gender: '♂',
-        isBot: true
-      };
-    }
-    const b = pool[idx % pool.length];
-    return { id: b.uid, name: b.name, avatar: b.avatar, gender: b.gender, isBot: true };
-  };
-
   const spectatedUser = lOpts.spectatedUser || (isSpectating ? rival : null);
   const myName = isSpectating
     ? ((spectatedUser && spectatedUser.name) || 'Player')
@@ -586,14 +558,68 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
   const myAv = isSpectating
     ? ((spectatedUser && spectatedUser.avatar) || 'av_b1')
     : ((typeof me !== 'undefined' && me && me.avatar) ? me.avatar : 'av_b1');
+  const stake = isSpectating ? 0 : Math.max(0, Math.floor(Number(stakeRaw) || 0));
+  const mode = (modeRaw === 'fun' || modeRaw === '1v1') ? modeRaw : 'classic';
+  const funStacking = mode === 'fun';
+  const requestedCount = mode === '1v1' ? 2 : 4;
+  const seatIds = Array.from({ length: requestedCount }, (_, i) => i);
+  const botTier = botTierRaw === 'pro' ? 'pro' : 'standard';
+  const modeTitle = mode === 'fun' ? 'Fun Play' : (mode === '1v1' ? '1v1 Duel' : 'Classic Free');
 
-  const players = [
-    { id: isSpectating ? (spectatedUser?.uid || 'spec_0') : 'me', name: myName, avatar: myAv, gender: '♂', isBot: isSpectating, hand: [], saidUno: false, micOn: false }
-  ];
-  for (let i = 1; i < playerCount; i++) {
-    const b = pickBot(i - 1);
-    players.push({ ...b, hand: [], saidUno: false, micOn: false });
+  const unoRoster = window.PvpSyncRules
+    ? window.PvpSyncRules.resolveMultiSeatRoster(
+        { ...lOpts, rival },
+        seatIds,
+        myUid,
+        { uid: myUid, name: myName, avatar: myAv },
+        UNO_BOT_ROSTER
+      )
+    : null;
+  const isLiveOnline = Boolean(unoRoster && unoRoster.isLiveOnline);
+  const roomId = String(lOpts.roomId || (unoRoster && unoRoster.roomId) || '').trim();
+  const roomCode = String(roomCodeRaw || (unoRoster && unoRoster.roomCode) || ('UN' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
+
+  // Build players array with local player rotated to index 0 (slot-me) while preserving clockwise order
+  let orderedSeats = (unoRoster && unoRoster.seats.length)
+    ? unoRoster.seats.slice()
+    : seatIds.map((s, idx) => {
+        if (idx === 0) {
+          return { seat: 0, uid: isSpectating ? (spectatedUser?.uid || 'spec_0') : myUid, name: myName, avatar: myAv, gender: '♂', kind: 'host', isBot: isSpectating, isRealHuman: !isSpectating };
+        }
+        const b = UNO_BOT_ROSTER[(idx - 1) % UNO_BOT_ROSTER.length];
+        return { seat: s, uid: b.uid, name: b.name, avatar: b.avatar, gender: b.gender, kind: 'bot', isBot: true, isRealHuman: false };
+      });
+
+  const hostUid = orderedSeats[0] ? orderedSeats[0].uid : myUid;
+  if (!isSpectating) {
+    const myPos = orderedSeats.findIndex(s => s.uid === myUid);
+    if (myPos > 0) {
+      orderedSeats = orderedSeats.slice(myPos).concat(orderedSeats.slice(0, myPos));
+    }
   }
+
+  const players = orderedSeats.map((s, idx) => ({
+    id: (isSpectating && idx === 0) ? (spectatedUser?.uid || 'spec_0') : s.uid,
+    uid: (isSpectating && idx === 0) ? (spectatedUser?.uid || 'spec_0') : s.uid,
+    name: (isSpectating && idx === 0) ? myName : s.name,
+    avatar: (isSpectating && idx === 0) ? myAv : s.avatar,
+    gender: s.gender || '♂',
+    kind: isSpectating ? 'bot' : (s.kind || (s.isBot ? 'bot' : 'joined')),
+    isBot: isSpectating ? true : Boolean(s.isBot),
+    isRealHuman: isSpectating ? false : Boolean(s.isRealHuman),
+    hand: [],
+    saidUno: false,
+    micOn: false
+  }));
+  const playerCount = players.length;
+
+  const shouldRunBotFor = (p) => {
+    if (!p || finished) return false;
+    if (isSpectating) return true;
+    if (unoRoster) return unoRoster.shouldRunBotForSeat(p);
+    return Boolean(p.isBot);
+  };
+  let liveSync = null;
 
   // Deck & Initial Deal
   let deck = Rules.buildDeck(mode);
@@ -724,6 +750,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
     finished = true;
     clearAllTimers();
     stopMicStream();
+    if (liveSync) liveSync.destroy();
     if (tableChatWidget && typeof tableChatWidget.destroy === 'function') tableChatWidget.destroy();
     if (!isSpectating && typeof setMyLiveActivity === 'function') {
       setMyLiveActivity({ type: 'online' });
@@ -731,6 +758,74 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
   };
 
   const rootEl = $('#unoGardenRoot', view);
+
+  const snapshotUnoState = (finishedReasonOverride) => ({
+    deck: deck.map(c => ({ ...c })),
+    discard: discard.map(c => ({ ...c })),
+    handsByUid: players.reduce((acc, p) => {
+      acc[p.id] = p.hand.map(c => ({ ...c }));
+      return acc;
+    }, {}),
+    saidUnoByUid: players.reduce((acc, p) => {
+      acc[p.id] = Boolean(p.saidUno);
+      return acc;
+    }, {}),
+    activeUid: players[turnIdx] ? players[turnIdx].id : hostUid,
+    activeColor,
+    direction,
+    pendingDraw,
+    statusBanner,
+    pendingWild4: pendingWild4Challenge
+      ? {
+          targetUid: players[0]?.id,
+          offenderUid: players[pendingWild4Challenge.offenderIdx]?.id,
+          prevHand: pendingWild4Challenge.prevHand,
+          prevActiveColor: pendingWild4Challenge.prevActiveColor,
+          newColor: pendingWild4Challenge.newColor
+        }
+      : null,
+    finishedReason: finishedReasonOverride || null
+  });
+
+  const applyUnoSnapshot = (snap) => {
+    if (!snap || typeof snap !== 'object') return;
+    if (Array.isArray(snap.deck)) deck = snap.deck.map(c => ({ ...c }));
+    if (Array.isArray(snap.discard) && snap.discard.length) {
+      discard.length = 0;
+      snap.discard.forEach(c => discard.push({ ...c }));
+    }
+    if (snap.handsByUid && typeof snap.handsByUid === 'object') {
+      players.forEach(p => {
+        if (Array.isArray(snap.handsByUid[p.id])) {
+          p.hand = snap.handsByUid[p.id].map(c => ({ ...c }));
+        }
+      });
+    }
+    if (snap.saidUnoByUid && typeof snap.saidUnoByUid === 'object') {
+      players.forEach(p => {
+        if (snap.saidUnoByUid[p.id] !== undefined) p.saidUno = Boolean(snap.saidUnoByUid[p.id]);
+      });
+    }
+    if (snap.activeColor) activeColor = snap.activeColor;
+    if (snap.direction === 1 || snap.direction === -1) direction = snap.direction;
+    if (snap.pendingDraw !== undefined) pendingDraw = Number(snap.pendingDraw || 0);
+    if (snap.activeUid) {
+      const idx = players.findIndex(p => p.id === snap.activeUid);
+      if (idx >= 0) turnIdx = idx;
+    }
+    if (snap.statusBanner) statusBanner = String(snap.statusBanner);
+    if (snap.pendingWild4 && snap.pendingWild4.targetUid === players[0].id) {
+      const offIdx = Math.max(0, players.findIndex(p => p.id === snap.pendingWild4.offenderUid));
+      pendingWild4Challenge = {
+        offenderIdx: offIdx,
+        prevHand: snap.pendingWild4.prevHand || [],
+        prevActiveColor: snap.pendingWild4.prevActiveColor || activeColor,
+        newColor: snap.pendingWild4.newColor || activeColor
+      };
+    } else {
+      pendingWild4Challenge = null;
+    }
+  };
 
   const showBubble = (seatIdx, text) => {
     seatBubbles[seatIdx] = text;
@@ -753,13 +848,16 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
 
   const topCard = () => discard[discard.length - 1];
 
-  const finishMatch = (reasonText) => {
+  const finishMatch = (reasonText, fromRemoteSync) => {
     if (finished) return;
     finished = true;
     phase = 'gameover';
     clearAllTimers();
+    if (isLiveOnline && liveSync && !fromRemoteSync) {
+      liveSync.pushState(snapshotUnoState(reasonText || 'Match Complete'));
+    }
     const ranked = Rules.rankPlayers(players);
-    const myRank = ranked.findIndex(r => r.id === 'me');
+    const myRank = ranked.findIndex(r => r.id === players[0].id);
     const won = myRank === 0;
     let outcomeInfo = { headline: isSpectating ? `🏆 ${ranked[0].name} Won!` : (won ? '🏆 Victory!' : 'Match Complete'), detail: reasonText || '' };
     if (!settled && !isSpectating) {
@@ -874,37 +972,48 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
     updateTurnRingDom();
     turnTickInterval = setInterval(updateTurnRingDom, 100);
 
-    if (curP.isBot && !pendingWild4Challenge) {
+    if (shouldRunBotFor(curP) && !pendingWild4Challenge) {
       // Bots wait a realistic 3–4 seconds while their 15s countdown ring ticks down
       const botMs = Rules.getTurnActionDelayMs(true, false);
       turnActionTimer = setTimeout(() => runBotTurn(), botMs);
-    } else if (turnIdx === 0) {
+    } else if (turnIdx === 0 && !isSpectating) {
+      if (isLiveOnline) {
+        // Live PvP: NEVER hijack human player's turn with AFK bot
+        return;
+      }
       if (playerAfk) {
         // 15s timer starts visibly; after 3s noob bot plays automatically unless user taps screen
         const afkMs = Rules.getTurnActionDelayMs(false, true);
         turnActionTimer = setTimeout(() => {
-          if (finished || phase !== 'playing' || turnIdx !== 0 || !playerAfk) return;
+          if (finished || phase !== 'playing' || turnIdx !== 0 || !playerAfk || isLiveOnline) return;
           runNoobHumanAutoTurn();
         }, afkMs);
       } else {
         turnActionTimer = setTimeout(() => {
-          if (finished || phase !== 'playing' || turnIdx !== 0) return;
+          if (finished || phase !== 'playing' || turnIdx !== 0 || isLiveOnline) return;
           playerAfk = true;
           toast('⏱️ 15s time up! Auto-Play Bot took over — tap screen to resume');
           runNoobHumanAutoTurn();
         }, TURN_MS);
       }
+    } else {
+      // Live online remote human turn — wait strictly for synced move, NEVER run bot!
     }
   };
 
-  const advanceTurn = (steps) => {
+  const advanceTurn = (steps, skipSync) => {
     if (finished) return;
     stopTurnTimer();
     turnIdx = Rules.getNextSeat(turnIdx, players.length, direction, steps == null ? 1 : steps);
-    if (turnIdx === 0 && playerAfk) {
+    if (turnIdx === 0 && playerAfk && !isLiveOnline) {
       statusBanner = '🤖 Auto-Play ON (3s) — tap screen to take control';
-    } else if (players[turnIdx] && players[turnIdx].isBot) {
+    } else if (players[turnIdx] && shouldRunBotFor(players[turnIdx])) {
       statusBanner = `${players[turnIdx].name} is thinking…`;
+    } else if (players[turnIdx] && turnIdx !== 0 && isLiveOnline) {
+      statusBanner = `Waiting for ${players[turnIdx].name}'s card…`;
+    }
+    if (isLiveOnline && liveSync && !skipSync) {
+      liveSync.pushState(snapshotUnoState(null));
     }
     render();
     startTurnTimer();
@@ -1043,8 +1152,26 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
         render();
         startTurnTimer();
         return;
+      } else if (isLiveOnline && !shouldRunBotFor(players[nextIdx])) {
+        // Remote real human target in Live PvP — send challenge prompt directly to their device!
+        turnIdx = nextIdx;
+        statusBanner = `${p.name} played Wild +4! Waiting for ${players[nextIdx].name} to Challenge or Draw 4…`;
+        if (liveSync) {
+          const snap = snapshotUnoState(null);
+          snap.pendingWild4 = {
+            targetUid: players[nextIdx].id,
+            offenderUid: p.id,
+            prevHand: prevHandSnapshot,
+            prevActiveColor: prevColorSnapshot,
+            newColor: activeColor
+          };
+          liveSync.pushState(snap);
+        }
+        render();
+        startTurnTimer();
+        return;
       } else {
-        // Bot decides whether to challenge (~38% chance)
+        // Explicit Bot decides whether to challenge (~38% chance)
         const botChallenges = Math.random() < 0.38;
         if (botChallenges) {
           const res = Rules.evaluateWild4Challenge(prevHandSnapshot, prevColorSnapshot);
@@ -1101,6 +1228,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
       showBubble(ch.offenderIdx, 'Busted +4 😵');
       if (typeof playSfx === 'function') playSfx('coin');
       turnIdx = 0;
+      if (isLiveOnline && liveSync) liveSync.pushState(snapshotUnoState(null));
       render();
       startTurnTimer();
     } else {
@@ -1139,7 +1267,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
   };
 
   const runBotTurn = () => {
-    if (finished || phase !== 'playing' || !players[turnIdx].isBot) return;
+    if (finished || phase !== 'playing' || !shouldRunBotFor(players[turnIdx])) return; // HARD BLOCK: Never run bot AI on human seats!
     const bot = players[turnIdx];
     const nextIdx = Rules.getNextSeat(turnIdx, players.length, direction, 1);
     // If human forgot ONE with 1 card, bot has 45% chance to catch!
@@ -1174,6 +1302,14 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
   const startPlayingPhase = () => {
     if (phase === 'playing' || finished) return;
     phase = 'playing';
+    // In live online PvP, Host always starts turn 0 (so Guest waits for Host's opening move!)
+    if (isLiveOnline) {
+      const hostIdx = players.findIndex(p => p.id === hostUid);
+      if (hostIdx >= 0) turnIdx = hostIdx;
+      if (turnIdx !== 0 && players[turnIdx]) {
+        statusBanner = `Waiting for ${players[turnIdx].name}'s opening card…`;
+      }
+    }
     if (!clockInterval) {
       clockInterval = setInterval(() => {
         if (finished || phase !== 'playing') return;
@@ -1184,6 +1320,9 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
           finishMatch('Time up! Ranked by highest card score.');
         }
       }, 1000);
+    }
+    if (isLiveOnline && liveSync && unoRoster && unoRoster.isHost) {
+      liveSync.pushState(snapshotUnoState(null));
     }
     render();
     startTurnTimer();
@@ -1800,15 +1939,46 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
     if (afkBtn) afkBtn.onclick = () => resumeFromAfk();
   };
 
+  // Live online multiplayer sync (Firestore + BroadcastChannel)
+  if (isLiveOnline && roomId && typeof window.createLiveMatchSync === 'function') {
+    const oppUids = players.filter(p => !p.isBot && p.id !== players[0].id).map(p => p.id);
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'uno',
+      myUid,
+      myName,
+      oppUids,
+      onLeaveRequest: () => view.close(),
+      onState: (snap) => {
+        if (finished || !snap) return;
+        stopTurnTimer();
+        applyUnoSnapshot(snap);
+        if (typeof playSfx === 'function') playSfx('cardPlay');
+        if (snap.finishedReason) {
+          finishMatch(snap.finishedReason, true);
+          return;
+        }
+        if (phase !== 'playing') {
+          startPlayingPhase();
+          return;
+        }
+        render();
+        startTurnTimer();
+      }
+    });
+    if (rootEl) liveSync.mountConnectionBanner(rootEl);
+  }
+
   // Any tap anywhere in the UNO table immediately resumes manual control if AFK Auto-Play is active
   if (rootEl) {
     rootEl.addEventListener('pointerdown', () => {
-      if (playerAfk && !finished) resumeFromAfk();
+      if (!isLiveOnline && playerAfk && !finished) resumeFromAfk();
     }, true);
   }
 
-  // Render initial matching screen (skip straight to playing when spectating!)
-  if (isSpectating) {
+  // Render initial matching screen (skip straight to playing when spectating or live room!)
+  if (isSpectating || isLiveOnline) {
     startPlayingPhase();
   } else {
     render();

@@ -335,13 +335,27 @@ function launchNumberMatch(opts) {
     return;
   }
   const o = opts || {};
+  const PvpRules = window.PvpSyncRules;
+  const myUid = (typeof uid !== 'undefined' && uid) ? uid : 'local_me';
+  const meProfile = (typeof me !== 'undefined' && me) ? { uid: myUid, name: me.name, avatar: me.avatar } : { uid: myUid, name: 'You', avatar: 'av_b1' };
+  const control = PvpRules
+    ? PvpRules.resolve2PControl(o, myUid, meProfile)
+    : {
+        isLiveOnline: Boolean(o.roomId && (o.modeType === 'invite' || o.modeType === 'pvp')),
+        botAllowed: !o.roomId && (o.modeType || 'bot') === 'bot',
+        oppUid: o.rival?.uid || '',
+        oppName: o.rival?.name || (o.stake > 0 ? 'Pro Solver Bot' : 'Nova Bot')
+      };
   const mode = o.mode === 'duel' ? 'duel' : 'classic';
   const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
   const stage = Math.max(1, Math.floor(Number(o.stage || 1)));
   const roomCode = String(o.roomCode || ('NM' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
+  const roomId = String(o.roomId || '').trim();
   const isSpectating = Boolean(o.spectate);
+  const isLiveOnline = Boolean(!isSpectating && control.isLiveOnline && roomId);
+  const botAllowed = Boolean(!isSpectating && control.botAllowed && !isLiveOnline);
   const spectateHost = o.spectateHost || o.rival || null;
-  const oppName = o.rival?.name || (stake > 0 ? 'Pro Solver Bot' : 'Nova Bot');
+  const oppName = control.oppName || o.rival?.name || (stake > 0 ? 'Pro Solver Bot' : 'Nova Bot');
   const pay = typeof calcArenaStakePayout === 'function' ? calcArenaStakePayout(stake) : { grossPot: stake * 2, winnerPayout: stake * 2 };
 
   if (!isSpectating && typeof setMyLiveActivity === 'function') {
@@ -366,6 +380,8 @@ function launchNumberMatch(opts) {
   let specTimer = 0;
   let beamTimeout = 0;
   let chatWidget = null;
+  let liveSync = null;
+  let lastPushedScore = -1;
   let bestScore = 0;
   try { bestScore = Number(localStorage.getItem('sg_nm_best') || 0); } catch {}
 
@@ -815,11 +831,44 @@ function launchNumberMatch(opts) {
     };
   }
 
-  // 1v1 Duel timers (60s countdown + smart rival score ticks)
+  // Live PvP score sync (replaces simulated bot ticks whenever real friend is connected)
+  const pushMyDuelScore = () => {
+    if (!isLiveOnline || !liveSync || score === lastPushedScore) return;
+    lastPushedScore = score;
+    liveSync.pushState({
+      uid: myUid,
+      score,
+      pairsCleared,
+      over
+    });
+  };
+
+  if (isLiveOnline && typeof window.createLiveMatchSync === 'function') {
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'number_match',
+      myUid,
+      myName: meProfile.name,
+      oppUids: [control.oppUid],
+      onLeaveRequest: () => view.close(),
+      onState: (remote) => {
+        if (over || !remote || typeof remote !== 'object') return;
+        if (remote.uid && remote.uid !== myUid && Number.isFinite(Number(remote.score))) {
+          rivalScore = Math.max(0, Math.floor(Number(remote.score)));
+          syncHud();
+        }
+      }
+    });
+    liveSync.mountConnectionBanner($('#nmStage', rootEl));
+  }
+
+  // 1v1 Duel timers (60s countdown; simulated rival score ticks ONLY in explicit Bot mode)
   if (mode === 'duel' && !isSpectating) {
     duelTimer = setInterval(() => {
       if (over) return;
       timeLeft--;
+      if (isLiveOnline) pushMyDuelScore();
       syncHud();
       if (timeLeft <= 0) {
         const outcome = score > rivalScore ? 'win' : (score === rivalScore ? 'tie' : 'lose');
@@ -827,12 +876,14 @@ function launchNumberMatch(opts) {
       }
     }, 1000);
 
-    rivalTimer = setInterval(() => {
-      if (over) return;
-      const stepPts = stake > 0 ? (15 + Math.floor(Math.random() * 18)) : (10 + Math.floor(Math.random() * 14));
-      rivalScore += stepPts;
-      syncHud();
-    }, stake > 0 ? 3200 : 4100);
+    if (botAllowed && !isLiveOnline) {
+      rivalTimer = setInterval(() => {
+        if (over || !botAllowed || isLiveOnline) return;
+        const stepPts = stake > 0 ? (15 + Math.floor(Math.random() * 18)) : (10 + Math.floor(Math.random() * 14));
+        rivalScore += stepPts;
+        syncHud();
+      }, stake > 0 ? 3200 : 4100);
+    }
   }
 
   // Spectate auto-play loop so spectators watch live matches clear pairs
@@ -883,6 +934,7 @@ function launchNumberMatch(opts) {
   view.onclose = () => {
     over = true;
     stopTimers();
+    if (liveSync) liveSync.destroy();
     if (chatWidget) chatWidget.destroy();
     if (!isSpectating && typeof setMyLiveActivity === 'function') setMyLiveActivity({ type: 'online' });
     if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel();

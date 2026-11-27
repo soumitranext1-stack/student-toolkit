@@ -485,6 +485,14 @@ window.openFullScreenGameView = openFullScreenGameView;
 
 /* Pre-Match Full-Screen Launch View: Always open Dedicated Visual Mode Selection */
 function openArenaGame(gameId, rivalUid, extraOpts) {
+  const gMeta = (typeof ARENA_GAMES !== 'undefined' ? ARENA_GAMES.find(x => x.id === gameId) : null);
+  const gameLabel = (gMeta && gMeta.name) || String(gameId || 'Game');
+  if (typeof window.guardVrBeforeGameLaunch === 'function') {
+    const blocked = window.guardVrBeforeGameLaunch(gameLabel, () => {
+      openArenaGame(gameId, rivalUid, { ...(extraOpts || {}), bypassVrGuard: true });
+    }, extraOpts);
+    if (blocked) return;
+  }
   if (typeof openVisualModeSelect === 'function') {
     openVisualModeSelect(gameId, rivalUid, extraOpts);
     return;
@@ -722,24 +730,53 @@ function chooseSmartDotsAiMove(n, h, v) {
   return minRisk ? minRisk.mv : moves[0];
 }
 
-function launchBlitzDots(stake, rival, botTierRaw) {
+function launchBlitzDots(stake, rival, botTierRaw, opts) {
+  const o = opts || {};
+  const Pvp = window.PvpSyncRules;
+  const myUid = (typeof auth !== 'undefined' && auth && auth.currentUser && auth.currentUser.uid) || (typeof me !== 'undefined' && me && me.uid) || 'local_me';
+  const myProfile = { uid: myUid, name: (typeof me !== 'undefined' && me && me.name) || 'You', avatar: (typeof me !== 'undefined' && me && me.avatar) || 'av_b1' };
+  const ctrl = Pvp && typeof Pvp.resolve2PControl === 'function'
+    ? Pvp.resolve2PControl({ ...o, rival: rival || o.rival, botTier: botTierRaw || o.botTier }, myUid, myProfile)
+    : {
+        isLiveOnline: false,
+        isLocalPassAndPlay: false,
+        botAllowed: true,
+        mySide: 'p1',
+        oppSide: 'p2',
+        oppUid: '',
+        oppName: rival?.name || 'Bot'
+      };
+
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const n = 3;
-  const h = Array.from({ length: n + 1 }, () => Array(n).fill(false));
-  const v = Array.from({ length: n }, () => Array(n + 1).fill(false));
-  const hOwner = Array.from({ length: n + 1 }, () => Array(n).fill(''));
-  const vOwner = Array.from({ length: n }, () => Array(n + 1).fill(''));
-  const boxes = Array.from({ length: n }, () => Array(n).fill(''));
-  let myScore = 0, botScore = 0, turn = 'me', over = false;
-  const oppName = rival?.name || (botTier === 'pro' ? 'Smart Pro Bot' : 'Bot');
+  let h = Array.from({ length: n + 1 }, () => Array(n).fill(false));
+  let v = Array.from({ length: n }, () => Array(n + 1).fill(false));
+  let hOwner = Array.from({ length: n + 1 }, () => Array(n).fill(''));
+  let vOwner = Array.from({ length: n }, () => Array(n + 1).fill(''));
+  let boxes = Array.from({ length: n }, () => Array(n).fill(''));
+  let p1Score = 0, p2Score = 0, turn = 'p1', over = false, settled = false;
+  let botTimer = 0;
+
+  const mySlot = ctrl.mySide || 'p1';
+  const oppSlot = ctrl.oppSide || 'p2';
+  const oppName = ctrl.oppName || rival?.name || (ctrl.isLiveOnline ? 'Friend' : (botTier === 'pro' ? 'Smart Pro Bot' : 'Bot'));
   const pay = calcArenaStakePayout(stake);
+
+  const isMyTurnNow = () => {
+    if (over) return false;
+    return Pvp && typeof Pvp.canActOn2PTurn === 'function'
+      ? Pvp.canActOn2PTurn(turn, ctrl)
+      : (turn === mySlot);
+  };
 
   const m = openFullScreenGameView({
     gameId: 'blitz_dots',
     title: 'Blitz Dots 1v1',
-    subMeta: stake > 0 ? `${stake} 🪙 · Smart Bot` : 'Free Bot',
-    statusText: 'Your Turn',
-    statusTone: 'turn',
+    subMeta: ctrl.isLiveOnline
+      ? `Live PvP · ${o.roomCode || 'Room'}`
+      : (stake > 0 ? `${stake} 🪙 · Smart Bot` : 'Free Bot'),
+    statusText: isMyTurnNow() ? 'Your Turn' : `${oppName}'s Turn`,
+    statusTone: isMyTurnNow() ? 'turn' : 'bot',
     themeClass: 'gfs-theme-wood',
     html: `
       <div class="arena-hud-bar" id="bdHud">
@@ -757,99 +794,169 @@ function launchBlitzDots(stake, rival, botTierRaw) {
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'bd', 'blitz_dots', '#bdFrame');
 
-  const checkBoxes = (who) => {
+  let liveSync = null;
+  const pushDotsState = () => {
+    if (!liveSync || !ctrl.isLiveOnline) return;
+    liveSync.pushState({
+      h, v, hOwner, vOwner, boxes, p1Score, p2Score, turn, over
+    });
+  };
+
+  const checkBoxes = (slot) => {
     let scored = 0;
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
         if (!boxes[r][c] && h[r][c] && h[r + 1][c] && v[r][c] && v[r][c + 1]) {
-          boxes[r][c] = who;
+          boxes[r][c] = slot;
           scored++;
         }
       }
     }
-    if (who === 'me') myScore += scored;
-    else botScore += scored;
-    if (scored > 0) spawnArenaSparks($('#bdFrame', m), who === 'me' ? '#38bdf8' : '#f43f5e', 12);
+    if (slot === 'p1') p1Score += scored;
+    else p2Score += scored;
+    if (scored > 0) spawnArenaSparks($('#bdFrame', m), slot === mySlot ? '#38bdf8' : '#f43f5e', 12);
     return scored;
   };
 
+  const ownerClass = (slot) => (!slot ? '' : (slot === mySlot ? 'me' : 'bot'));
+
   const renderBoard = () => {
-    $('#bdMe', m).textContent = `You: ${myScore}`;
-    $('#bdBot', m).textContent = `${oppName}: ${botScore}`;
-    $('#bdMe', m).classList.toggle('active-turn', !over && turn === 'me');
-    $('#bdBot', m).classList.toggle('active-turn', !over && turn === 'bot');
-    m.setStatus(over ? 'Finished' : (turn === 'me' ? 'Your Turn' : `${oppName}…`), over ? 'neutral' : (turn === 'me' ? 'turn' : 'bot'));
+    const mySc = mySlot === 'p1' ? p1Score : p2Score;
+    const oppSc = mySlot === 'p1' ? p2Score : p1Score;
+    const canMove = isMyTurnNow();
+
+    const meEl = $('#bdMe', m);
+    const oppEl = $('#bdBot', m);
+    if (meEl) {
+      meEl.textContent = `You: ${mySc}`;
+      meEl.classList.toggle('active-turn', !over && turn === mySlot);
+    }
+    if (oppEl) {
+      oppEl.textContent = `${oppName}: ${oppSc}`;
+      oppEl.classList.toggle('active-turn', !over && turn === oppSlot);
+    }
+    m.setStatus(
+      over ? 'Finished' : (canMove ? 'Your Turn' : `${oppName}…`),
+      over ? 'neutral' : (canMove ? 'turn' : 'bot')
+    );
 
     let html = '<div class="dots-grid">';
     for (let r = 0; r <= n; r++) {
       html += '<div class="dots-row">';
       for (let c = 0; c < n; c++) {
-        const cls = h[r][c] ? `on ${hOwner[r][c]}` : '';
-        html += `<span class="dot-pt brass-peg"></span><button type="button" class="dot-h ${cls}" data-dh="${r},${c}" ${h[r][c] || over || turn !== 'me' ? 'disabled' : ''} aria-label="Horizontal edge ${r}-${c}"></button>`;
+        const cls = h[r][c] ? `on ${ownerClass(hOwner[r][c])}` : '';
+        html += `<span class="dot-pt brass-peg"></span><button type="button" class="dot-h ${cls}" data-dh="${r},${c}" ${h[r][c] || over || !canMove ? 'disabled' : ''} aria-label="Horizontal edge ${r}-${c}"></button>`;
       }
       html += '<span class="dot-pt brass-peg"></span></div>';
       if (r < n) {
         html += '<div class="dots-mid-row">';
         for (let c = 0; c < n; c++) {
-          const vCls = v[r][c] ? `on ${vOwner[r][c]}` : '';
-          html += `<button type="button" class="dot-v ${vCls}" data-dv="${r},${c}" ${v[r][c] || over || turn !== 'me' ? 'disabled' : ''} aria-label="Vertical edge ${r}-${c}"></button><div class="dot-box ${boxes[r][c]}">${boxes[r][c] === 'me' ? '★' : (boxes[r][c] === 'bot' ? '⚡' : '')}</div>`;
+          const vCls = v[r][c] ? `on ${ownerClass(vOwner[r][c])}` : '';
+          const bCls = ownerClass(boxes[r][c]);
+          html += `<button type="button" class="dot-v ${vCls}" data-dv="${r},${c}" ${v[r][c] || over || !canMove ? 'disabled' : ''} aria-label="Vertical edge ${r}-${c}"></button><div class="dot-box ${bCls}">${bCls === 'me' ? '★' : (bCls === 'bot' ? '⚡' : '')}</div>`;
         }
-        const vEndCls = v[r][n] ? `on ${vOwner[r][n]}` : '';
-        html += `<button type="button" class="dot-v ${vEndCls}" data-dv="${r},${n}" ${v[r][n] || over || turn !== 'me' ? 'disabled' : ''} aria-label="Vertical edge ${r}-${n}"></button></div>`;
+        const vEndCls = v[r][n] ? `on ${ownerClass(vOwner[r][n])}` : '';
+        html += `<button type="button" class="dot-v ${vEndCls}" data-dv="${r},${n}" ${v[r][n] || over || !canMove ? 'disabled' : ''} aria-label="Vertical edge ${r}-${n}"></button></div>`;
       }
     }
     html += '</div>';
-    $('#bdBoard', m).innerHTML = html;
+    const boardEl = $('#bdBoard', m);
+    if (boardEl) boardEl.innerHTML = html;
 
-    if (myScore + botScore >= n * n && !over) {
+    if (p1Score + p2Score >= n * n && !settled) {
       over = true;
-      const outcome = myScore > botScore ? 'win' : (myScore === botScore ? 'tie' : 'lose');
+      settled = true;
+      const outcome = mySc > oppSc ? 'win' : (mySc === oppSc ? 'tie' : 'lose');
       const res = settleArenaMatchOutcome(outcome, stake, 45, 30, 12);
       if (outcome === 'win') spawnArenaSparks($('#bdBoard', m), '#ffd36b', 16);
       m.setStatus('Finished', outcome === 'win' ? 'ok' : 'bot');
-      $('#bdFoot', m).innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="bdAgain" style="margin-top:8px">Play Again</button></div>`;
-      $('#bdAgain', m).onclick = () => openArenaGame('blitz_dots', rival?.uid);
+      const foot = $('#bdFoot', m);
+      if (foot) {
+        foot.innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="bdAgain" style="margin-top:8px">Play Again</button></div>`;
+        const ag = $('#bdAgain', m);
+        if (ag) ag.onclick = () => openArenaGame('blitz_dots', rival?.uid);
+      }
     }
   };
 
   const botTurn = () => {
-    if (over || turn !== 'bot') return;
-    setTimeout(() => {
-      if (over || turn !== 'bot') return;
+    const allowBot = Pvp && typeof Pvp.shouldRun2PBot === 'function'
+      ? Pvp.shouldRun2PBot(turn, ctrl)
+      : (!ctrl.isLiveOnline && ctrl.botAllowed && turn === 'p2');
+    if (over || !allowBot) return;
+    clearTimeout(botTimer);
+    botTimer = setTimeout(() => {
+      const stillAllow = Pvp && typeof Pvp.shouldRun2PBot === 'function'
+        ? Pvp.shouldRun2PBot(turn, ctrl)
+        : (!ctrl.isLiveOnline && ctrl.botAllowed && turn === 'p2');
+      if (over || !stillAllow) return;
       const mv = chooseSmartDotsAiMove(n, h, v);
       if (!mv) return;
-      if (mv.type === 'h') { h[mv.r][mv.c] = true; hOwner[mv.r][mv.c] = 'bot'; }
-      else { v[mv.r][mv.c] = true; vOwner[mv.r][mv.c] = 'bot'; }
-      const got = checkBoxes('bot');
+      if (mv.type === 'h') { h[mv.r][mv.c] = true; hOwner[mv.r][mv.c] = 'p2'; }
+      else { v[mv.r][mv.c] = true; vOwner[mv.r][mv.c] = 'p2'; }
+      const got = checkBoxes('p2');
       if (typeof playSfx === 'function') playSfx(got > 0 ? 'duelWrong' : 'tap');
-      if (myScore + botScore >= n * n) { renderBoard(); return; }
+      if (p1Score + p2Score >= n * n) { renderBoard(); return; }
       if (got > 0) { renderBoard(); botTurn(); }
-      else { turn = 'me'; renderBoard(); }
+      else { turn = 'p1'; renderBoard(); }
     }, botTier === 'pro' ? 360 : 450);
   };
 
+  if (ctrl.isLiveOnline && typeof window.createLiveMatchSync === 'function' && (o.roomId || o.roomCode)) {
+    liveSync = window.createLiveMatchSync({
+      roomId: o.roomId || o.roomCode,
+      roomCode: o.roomCode || '',
+      gameId: 'blitz_dots',
+      myUid,
+      myName: myProfile.name,
+      oppUids: ctrl.oppUid ? [ctrl.oppUid] : [],
+      onState: (remote) => {
+        if (!remote || over) return;
+        if (Array.isArray(remote.h)) h = remote.h;
+        if (Array.isArray(remote.v)) v = remote.v;
+        if (Array.isArray(remote.hOwner)) hOwner = remote.hOwner;
+        if (Array.isArray(remote.vOwner)) vOwner = remote.vOwner;
+        if (Array.isArray(remote.boxes)) boxes = remote.boxes;
+        if (typeof remote.p1Score === 'number') p1Score = remote.p1Score;
+        if (typeof remote.p2Score === 'number') p2Score = remote.p2Score;
+        if (remote.turn === 'p1' || remote.turn === 'p2') turn = remote.turn;
+        if (typeof playSfx === 'function') playSfx('tap');
+        renderBoard();
+      },
+      onLeaveRequest: () => { if (typeof m.close === 'function') m.close(); }
+    });
+    liveSync.mountConnectionBanner(m);
+  }
+
   $('#bdBoard', m).onclick = e => {
-    if (over || turn !== 'me') return;
+    if (over || !isMyTurnNow()) return;
     const hb = e.target.closest('[data-dh]');
     const vb = e.target.closest('[data-dv]');
     if (!hb && !vb) return;
+    const activeSlot = ctrl.isLocalPassAndPlay ? turn : mySlot;
     if (hb) {
       const [r, c] = hb.dataset.dh.split(',').map(Number);
       if (h[r][c]) return;
-      h[r][c] = true; hOwner[r][c] = 'me';
+      h[r][c] = true; hOwner[r][c] = activeSlot;
     } else {
       const [r, c] = vb.dataset.dv.split(',').map(Number);
       if (v[r][c]) return;
-      v[r][c] = true; vOwner[r][c] = 'me';
+      v[r][c] = true; vOwner[r][c] = activeSlot;
     }
-    const got = checkBoxes('me');
+    const got = checkBoxes(activeSlot);
     if (typeof playSfx === 'function') playSfx(got > 0 ? 'duelCorrect' : 'tap');
-    if (got === 0 && myScore + botScore < n * n) turn = 'bot';
+    if (got === 0 && p1Score + p2Score < n * n) turn = activeSlot === 'p1' ? 'p2' : 'p1';
     renderBoard();
-    if (turn === 'bot') botTurn();
+    pushDotsState();
+    botTurn();
   };
 
-  m.onclose = () => { over = true; if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel(); };
+  m.onclose = () => {
+    over = true;
+    clearTimeout(botTimer);
+    if (liveSync) { try { liveSync.destroy(); } catch {} liveSync = null; }
+    if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel();
+  };
   renderBoard();
 }
 
@@ -1194,34 +1301,69 @@ const UNDERCOVER_WORD_PAIRS = [
   { id: 'uc12', civ: 'Camera', spy: 'Telescope', civClues: ['Shutter flash', 'Portrait lens', 'Photo frame'], spyClues: ['Night stars', 'Tripod zoom', 'Crater view'] }
 ];
 
-function launchUndercoverSpy(stake, botTierRaw) {
+function launchUndercoverSpy(stake, botTierRaw, opts) {
+  const o = opts || {};
+  const Pvp = window.PvpSyncRules;
+  const myUid = (typeof auth !== 'undefined' && auth && auth.currentUser && auth.currentUser.uid) || (typeof me !== 'undefined' && me && me.uid) || 'local_me';
+  const myProfile = { uid: myUid, name: (typeof me !== 'undefined' && me && me.name) || 'You', avatar: (typeof me !== 'undefined' && me && me.avatar) || 'av_b1' };
+  const botPool = [
+    { uid: 'bot_uc_1', name: 'Aria Nova', avatar: 'av_g1' },
+    { uid: 'bot_uc_2', name: 'Leo Blaze', avatar: 'av_b3' },
+    { uid: 'bot_uc_3', name: 'Zara Star', avatar: 'av_g3' }
+  ];
+  const roster = Pvp && typeof Pvp.resolveMultiSeatRoster === 'function'
+    ? Pvp.resolveMultiSeatRoster(o, [0, 1, 2, 3], myUid, myProfile, botPool)
+    : {
+        isLiveOnline: false,
+        isHost: true,
+        seats: [
+          { seat: 0, uid: myUid, name: myProfile.name, avatar: myProfile.avatar, kind: 'host', isBot: false, isRealHuman: true },
+          { seat: 1, uid: 'bot_uc_1', name: 'Aria Nova', avatar: 'av_g1', kind: 'bot', isBot: true, isRealHuman: false },
+          { seat: 2, uid: 'bot_uc_2', name: 'Leo Blaze', avatar: 'av_b3', kind: 'bot', isBot: true, isRealHuman: false },
+          { seat: 3, uid: 'bot_uc_3', name: 'Zara Star', avatar: 'av_g3', kind: 'bot', isBot: true, isRealHuman: false }
+        ],
+        shouldRunBotForSeat: (s) => Boolean(s && s.isBot)
+      };
+
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const SR = window.ShowGamesRules;
   const drawnPairs = SR && typeof SR.drawPersistentQuestions === 'function'
     ? SR.drawPersistentQuestions('undercover_pairs', UNDERCOVER_WORD_PAIRS, 1, p => p.id)
     : [UNDERCOVER_WORD_PAIRS[Math.floor(Math.random() * UNDERCOVER_WORD_PAIRS.length)]];
-  const pair = drawnPairs[0] || UNDERCOVER_WORD_PAIRS[0];
-  const players = [
-    { id: 'you', name: me.name || 'You', avatar: me.avatar || 'av_b1', isMe: true, alive: true, isSpy: false, clue: '' },
-    { id: 'b1', name: 'Aria Nova', avatar: 'av_g1', isMe: false, alive: true, isSpy: false, clue: '' },
-    { id: 'b2', name: 'Leo Blaze', avatar: 'av_b3', isMe: false, alive: true, isSpy: false, clue: '' },
-    { id: 'b3', name: 'Zara Star', avatar: 'av_g3', isMe: false, alive: true, isSpy: false, clue: '' }
-  ];
-  const spyIdx = 1 + Math.floor(Math.random() * 3);
-  players[spyIdx].isSpy = true;
+  let pair = drawnPairs[0] || UNDERCOVER_WORD_PAIRS[0];
+  let players = roster.seats.map(s => ({
+    id: s.uid,
+    uid: s.uid,
+    kind: s.kind || (s.isBot ? 'bot' : 'joined'),
+    name: s.name || 'Player',
+    avatar: s.avatar || 'av_b1',
+    isMe: s.uid === myUid,
+    isBot: Boolean(s.isBot),
+    isRealHuman: !s.isBot,
+    alive: true,
+    isSpy: false,
+    clue: ''
+  }));
+  let spyIdx = players.length > 1 ? (1 + Math.floor(Math.random() * (players.length - 1))) : 0;
+  if (players[spyIdx]) players[spyIdx].isSpy = true;
 
   let phase = 'mic';
   let turnIdx = 0;
   let roundNo = 1;
   let turnLeft = 20;
   let timerId = 0;
+  let botTimer = 0;
   let over = false;
+  let settled = false;
+  let eliminatedId = '';
   const pay = calcArenaStakePayout(stake);
 
   const m = openFullScreenGameView({
     gameId: 'undercover',
     title: 'Undercover Spy',
-    subMeta: stake > 0 ? `${stake} 🪙 · Pro Spy` : 'Free Bot',
+    subMeta: roster.isLiveOnline
+      ? `Live Room · ${o.roomCode || 'Room'}`
+      : (stake > 0 ? `${stake} 🪙 · Pro Spy` : 'Free Bot'),
     statusText: 'Mic Pass',
     statusTone: 'turn',
     themeClass: 'gfs-theme-spy',
@@ -1235,9 +1377,45 @@ function launchUndercoverSpy(stake, botTierRaw) {
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'uc', 'undercover', '#ucStage');
 
+  let liveSync = null;
+  const pushUcState = () => {
+    if (!liveSync || !roster.isLiveOnline) return;
+    liveSync.pushState({
+      pairId: pair.id,
+      spyId: players[spyIdx] ? players[spyIdx].id : '',
+      phase,
+      turnIdx,
+      roundNo,
+      over,
+      eliminatedId,
+      players: players.map(p => ({ id: p.id, alive: p.alive, clue: p.clue }))
+    });
+  };
+
   const aliveList = () => players.filter(p => p.alive);
 
-  const advanceMic = () => {
+  const finishSpyVote = (picked) => {
+    if (!picked || settled) return;
+    picked.alive = false;
+    eliminatedId = picked.id;
+    over = true;
+    settled = true;
+    phase = 'done';
+    clearInterval(timerId);
+    clearTimeout(botTimer);
+    const won = picked.isSpy;
+    const res = settleArenaMatchOutcome(won ? 'win' : 'lose', stake, 48, 32, 12);
+    if (won) spawnArenaSparks($('#ucStage', m), '#ffd36b', 14);
+    render();
+    const act = $('#ucAct', m);
+    if (act) {
+      act.innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${won ? `${esc(picked.name)} was Spy (${esc(pair.spy)})` : `Spy was ${esc(players[spyIdx]?.name || 'Spy')} (${esc(pair.spy)})`}</small><button type="button" class="btn gold sm" id="ucAgain" style="margin-top:8px">Play Again</button></div>`;
+      const ag = $('#ucAgain', m);
+      if (ag) ag.onclick = () => openArenaGame('undercover');
+    }
+  };
+
+  const advanceMic = (shouldSync) => {
     const alive = aliveList();
     turnIdx++;
     if (turnIdx >= alive.length) {
@@ -1245,25 +1423,29 @@ function launchUndercoverSpy(stake, botTierRaw) {
       clearInterval(timerId);
       if (typeof playSfx === 'function') playSfx('turnStart');
       render();
+      if (shouldSync) pushUcState();
       return;
     }
     turnLeft = 20;
     if (typeof playSfx === 'function') playSfx('micPass');
     render();
+    if (shouldSync) pushUcState();
     scheduleBotSpeak();
   };
 
   const scheduleBotSpeak = () => {
     const alive = aliveList();
     const curP = alive[turnIdx];
-    if (!curP || curP.isMe || phase !== 'mic' || over) return;
-    setTimeout(() => {
-      if (phase !== 'mic' || over) return;
+    const canDrive = curP && (typeof roster.shouldRunBotForSeat === 'function' ? roster.shouldRunBotForSeat(curP) : Boolean(curP.isBot && !roster.isLiveOnline));
+    if (!curP || curP.isMe || !canDrive || phase !== 'mic' || over) return;
+    clearTimeout(botTimer);
+    botTimer = setTimeout(() => {
+      if (phase !== 'mic' || over || !curP.isBot) return;
       const pool = curP.isSpy
         ? (botTier === 'pro' ? [pair.spyClues[0], 'Daily favorite', pair.spyClues[2]] : pair.spyClues)
         : pair.civClues;
       curP.clue = pool[(roundNo + turnIdx) % pool.length];
-      advanceMic();
+      advanceMic(true);
     }, 900);
   };
 
@@ -1272,6 +1454,8 @@ function launchUndercoverSpy(stake, botTierRaw) {
     const activeP = phase === 'mic' ? alive[turnIdx] : null;
     const body = $('#ucBody', m);
     if (!body) return;
+    const myPlayer = players.find(p => p.isMe);
+    const myWord = myPlayer && myPlayer.isSpy ? pair.spy : pair.civ;
 
     m.setStatus(
       phase === 'mic' ? `R${roundNo} Mic Pass` : (phase === 'vote' ? 'Vote Spy' : 'Case Closed'),
@@ -1281,8 +1465,8 @@ function launchUndercoverSpy(stake, botTierRaw) {
     const pct = Math.max(0, Math.min(100, Math.round((turnLeft / 20) * 100)));
     body.innerHTML = `
       <div class="arena-hud-bar">
-        <span class="hud-pill me">🔑 Word: <b>${esc(pair.civ)}</b></span>
-        ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">4 Agents</span>`}
+        <span class="hud-pill me">🔑 Word: <b>${esc(myWord)}</b></span>
+        ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">${players.length} Agents</span>`}
         ${phase === 'mic' ? `<span class="hud-pill bot" id="ucTimer">${turnLeft}s</span>` : `<span class="hud-pill ok">Vote</span>`}
       </div>
       ${phase === 'mic' ? `<div class="uc-timer-bar"><i id="ucTimerBar" style="width:${pct}%"></i></div>` : ''}
@@ -1304,18 +1488,18 @@ function launchUndercoverSpy(stake, botTierRaw) {
       if (activeP.isMe) {
         act.innerHTML = `
           <div class="row" style="gap:6px">
-            <input id="ucClueIn" maxlength="40" placeholder="Clue for ${esc(pair.civ)}..." style="flex:1">
+            <input id="ucClueIn" maxlength="40" placeholder="Clue for ${esc(myWord)}..." style="flex:1">
             <button type="button" class="btn gold sm" id="ucPassBtn">Pass Mic →</button>
           </div>
         `;
         const submitClue = () => {
           activeP.clue = ($('#ucClueIn', m).value || '').trim() || 'Classic pick';
-          advanceMic();
+          advanceMic(true);
         };
         $('#ucPassBtn', m).onclick = submitClue;
         $('#ucClueIn', m).onkeydown = e => { if (e.key === 'Enter') submitClue(); };
       } else {
-        act.innerHTML = `<div class="mp-sys-line">🎙️ ${esc(activeP.name)} speaking…</div>`;
+        act.innerHTML = `<div class="mp-sys-line">🎙️ ${esc(activeP.name)} ${activeP.isBot ? 'speaking…' : 'is entering a clue…'}</div>`;
       }
     } else if (phase === 'vote') {
       act.innerHTML = `
@@ -1328,35 +1512,84 @@ function launchUndercoverSpy(stake, botTierRaw) {
         b.onclick = () => {
           const picked = players.find(x => x.id === b.dataset.ucvote);
           if (!picked) return;
-          picked.alive = false;
-          over = true;
-          phase = 'done';
-          const won = picked.isSpy;
-          const res = settleArenaMatchOutcome(won ? 'win' : 'lose', stake, 48, 32, 12);
-          if (won) spawnArenaSparks($('#ucStage', m), '#ffd36b', 14);
-          render();
-          $('#ucAct', m).innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>${won ? `${esc(picked.name)} was Spy (${esc(pair.spy)})` : `Spy was ${esc(players[spyIdx].name)} (${esc(pair.spy)})`}</small><button type="button" class="btn gold sm" id="ucAgain" style="margin-top:8px">Play Again</button></div>`;
-          $('#ucAgain', m).onclick = () => openArenaGame('undercover');
+          finishSpyVote(picked);
+          pushUcState();
         };
       });
     }
   };
 
+  if (roster.isLiveOnline && typeof window.createLiveMatchSync === 'function' && (o.roomId || o.roomCode)) {
+    liveSync = window.createLiveMatchSync({
+      roomId: o.roomId || o.roomCode,
+      roomCode: o.roomCode || '',
+      gameId: 'undercover',
+      myUid,
+      myName: myProfile.name,
+      oppUids: players.filter(p => !p.isMe && !p.isBot).map(p => p.id),
+      onState: (remote) => {
+        if (!remote) return;
+        if (remote.pairId) {
+          const foundPair = UNDERCOVER_WORD_PAIRS.find(p => p.id === remote.pairId);
+          if (foundPair) pair = foundPair;
+        }
+        if (remote.spyId) {
+          const si = players.findIndex(p => p.id === remote.spyId);
+          if (si >= 0) {
+            spyIdx = si;
+            players.forEach((p, idx) => { p.isSpy = idx === si; });
+          }
+        }
+        if (Array.isArray(remote.players)) {
+          remote.players.forEach(rp => {
+            const loc = players.find(p => p.id === rp.id);
+            if (loc) {
+              loc.alive = rp.alive !== false;
+              loc.clue = rp.clue || '';
+            }
+          });
+        }
+        if (typeof remote.turnIdx === 'number') turnIdx = remote.turnIdx;
+        if (typeof remote.roundNo === 'number') roundNo = remote.roundNo;
+        if (remote.phase) phase = remote.phase;
+        turnLeft = 20;
+        if (remote.over && remote.eliminatedId) {
+          const picked = players.find(p => p.id === remote.eliminatedId);
+          if (picked) { finishSpyVote(picked); return; }
+        }
+        render();
+        scheduleBotSpeak();
+      },
+      onLeaveRequest: () => { if (typeof m.close === 'function') m.close(); }
+    });
+    liveSync.mountConnectionBanner(m);
+    if (roster.isHost) pushUcState();
+  }
+
   timerId = setInterval(() => {
     if (over || phase !== 'mic') return;
+    const alive = aliveList();
+    const curP = alive[turnIdx];
+    if (roster.isLiveOnline && curP && !curP.isMe && !curP.isBot) return;
     turnLeft--;
     const tEl = $('#ucTimer', m);
     if (tEl) tEl.textContent = Math.max(0, turnLeft) + 's';
     const bEl = $('#ucTimerBar', m);
     if (bEl) bEl.style.width = Math.max(0, Math.round((turnLeft / 20) * 100)) + '%';
     if (turnLeft <= 0) {
-      const alive = aliveList();
-      if (alive[turnIdx] && !alive[turnIdx].clue) alive[turnIdx].clue = 'Passed turn';
-      advanceMic();
+      if (curP && !curP.clue) curP.clue = 'Passed turn';
+      advanceMic(true);
     }
   }, 1000);
-  m.onclose = () => { over = true; clearInterval(timerId); if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel(); };
+  m.onclose = () => {
+    over = true;
+    clearInterval(timerId);
+    clearTimeout(botTimer);
+    if (liveSync) { try { liveSync.destroy(); } catch {} liveSync = null; }
+    if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel();
+  };
   render();
+  scheduleBotSpeak();
 }
 
 /* 4. SQUAD TRIVIA 1v1 */
@@ -1383,20 +1616,31 @@ const SQUAD_TRIVIA_BANK = [
   { id: 'sq20', q: 'Which ocean lies between Europe and North America?', o: ['Indian', 'Pacific', 'Atlantic', 'Southern'], a: 2 }
 ];
 
-function launchSquadTrivia(stake, rival, botTierRaw) {
+function launchSquadTrivia(stake, rival, botTierRaw, opts) {
+  const o = opts || {};
+  const Pvp = window.PvpSyncRules;
+  const myUid = (typeof auth !== 'undefined' && auth && auth.currentUser && auth.currentUser.uid) || (typeof me !== 'undefined' && me && me.uid) || 'local_me';
+  const myProfile = { uid: myUid, name: (typeof me !== 'undefined' && me && me.name) || 'You', avatar: (typeof me !== 'undefined' && me && me.avatar) || 'av_b1' };
+  const ctrl = Pvp && typeof Pvp.resolve2PControl === 'function'
+    ? Pvp.resolve2PControl({ ...o, rival: rival || o.rival, botTier: botTierRaw || o.botTier }, myUid, myProfile)
+    : { isLiveOnline: false, botAllowed: true, mySide: 'p1', oppUid: '', oppName: rival?.name || 'Rival Bot' };
+
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const SR = window.ShowGamesRules;
-  const qs = SR && typeof SR.drawPersistentQuestions === 'function'
+  let qs = SR && typeof SR.drawPersistentQuestions === 'function'
     ? SR.drawPersistentQuestions('squad_trivia', SQUAD_TRIVIA_BANK, 5, q => q.id)
     : SQUAD_TRIVIA_BANK.slice(0, 5);
-  let idx = 0, myScore = 0, botScore = 0, streak = 0, locked = false, over = false;
-  const oppName = rival?.name || (botTier === 'pro' ? 'Apex Pro Bot' : 'Rival Bot');
+  let idx = 0, myScore = 0, oppScore = 0, oppDone = !ctrl.isLiveOnline, streak = 0, locked = false, over = false, settled = false;
+  let nextTimer = 0;
+  const oppName = ctrl.oppName || rival?.name || (ctrl.isLiveOnline ? 'Friend' : (botTier === 'pro' ? 'Apex Pro Bot' : 'Rival Bot'));
   const pay = calcArenaStakePayout(stake);
 
   const m = openFullScreenGameView({
     gameId: 'squad_arena',
     title: 'Squad Trivia 1v1',
-    subMeta: stake > 0 ? `${stake} 🪙 · Pro Bot` : 'Free Bot',
+    subMeta: ctrl.isLiveOnline
+      ? `Live PvP · ${o.roomCode || 'Room'}`
+      : (stake > 0 ? `${stake} 🪙 · Pro Bot` : 'Free Bot'),
     statusText: 'Q 1/5',
     statusTone: 'turn',
     themeClass: 'gfs-theme-trivia',
@@ -1410,17 +1654,44 @@ function launchSquadTrivia(stake, rival, botTierRaw) {
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'sq', 'squad_arena', '#sqStage');
 
+  let liveSync = null;
+  const scoresByUid = { [myUid]: { score: 0, idx: 0, done: false } };
+  const pushTriviaState = () => {
+    if (!liveSync || !ctrl.isLiveOnline) return;
+    scoresByUid[myUid] = { score: myScore, idx, done: idx >= qs.length };
+    liveSync.pushState({
+      qIds: qs.map(q => q.id),
+      scoresByUid
+    });
+  };
+
   const render = () => {
     const body = $('#sqBody', m);
     if (!body) return;
     if (idx >= qs.length) {
+      if (ctrl.isLiveOnline && !oppDone) {
+        m.setStatus(`Waiting for ${oppName}…`, 'bot');
+        body.innerHTML = `
+          <div class="arena-hud-bar">
+            <span class="hud-pill me">You: ${myScore}</span>
+            <span class="hud-pill neutral">Done 5/5</span>
+            <span class="hud-pill bot">${esc(oppName)}: ${oppScore}</span>
+          </div>
+          <div class="arena-result-card"><b>Waiting for ${esc(oppName)}…</b><small>Your score (${myScore}) is locked. Result reveals as soon as ${esc(oppName)} finishes.</small></div>
+        `;
+        return;
+      }
       over = true;
-      const outcome = myScore > botScore ? 'win' : (myScore === botScore ? 'tie' : 'lose');
-      const res = settleArenaMatchOutcome(outcome, stake, 42, 28, 10);
-      if (outcome === 'win') spawnArenaSparks($('#sqStage', m), '#ffd36b', 16);
-      m.setStatus('Finished', outcome === 'win' ? 'ok' : 'bot');
-      body.innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>Score ${myScore} – ${botScore} · ${esc(res.detail)}</small><button type="button" class="btn gold sm" id="sqAgain" style="margin-top:8px">Rematch</button></div>`;
-      $('#sqAgain', m).onclick = () => openArenaGame('squad_arena', rival?.uid);
+      if (!settled) {
+        settled = true;
+        const outcome = myScore > oppScore ? 'win' : (myScore === oppScore ? 'tie' : 'lose');
+        const res = settleArenaMatchOutcome(outcome, stake, 42, 28, 10);
+        if (outcome === 'win') spawnArenaSparks($('#sqStage', m), '#ffd36b', 16);
+        m.setStatus('Finished', outcome === 'win' ? 'ok' : 'bot');
+        body.innerHTML = `<div class="arena-result-card"><b>${esc(res.headline)}</b><small>Score ${myScore} – ${oppScore} · ${esc(res.detail)}</small><button type="button" class="btn gold sm" id="sqAgain" style="margin-top:8px">Rematch</button></div>`;
+        const ag = $('#sqAgain', m);
+        if (ag) ag.onclick = () => openArenaGame('squad_arena', rival?.uid);
+      }
       return;
     }
     const q = qs[idx];
@@ -1430,7 +1701,7 @@ function launchSquadTrivia(stake, rival, botTierRaw) {
       <div class="arena-hud-bar">
         <span class="hud-pill me active-turn">You: ${myScore}${streak >= 2 ? ` 🔥${streak}` : ''}</span>
         ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">5 Rounds</span>`}
-        <span class="hud-pill bot">${esc(oppName)}: ${botScore}</span>
+        <span class="hud-pill bot">${esc(oppName)}: ${oppScore}</span>
       </div>
       <div class="sq-prog-bar"><i style="width:${progress}%"></i></div>
       <div class="sq-question-glass"><b>${esc(q.q)}</b></div>
@@ -1452,39 +1723,102 @@ function launchSquadTrivia(stake, rival, botTierRaw) {
         } else {
           streak = 0;
         }
-        const botAcc = botTier === 'pro' ? (botScore <= myScore ? 0.86 : 0.78) : (botScore < myScore ? 0.72 : 0.60);
-        if (Math.random() < botAcc) botScore += 20;
+        // Hard-block bot score simulation in live friend/PvP rooms
+        if (!ctrl.isLiveOnline && ctrl.botAllowed) {
+          const botAcc = botTier === 'pro' ? (oppScore <= myScore ? 0.86 : 0.78) : (oppScore < myScore ? 0.72 : 0.60);
+          if (Math.random() < botAcc) oppScore += 20;
+        }
         if (typeof playSfx === 'function') playSfx(ok ? 'duelCorrect' : 'duelWrong');
-        setTimeout(() => {
+        clearTimeout(nextTimer);
+        nextTimer = setTimeout(() => {
+          if (over) return;
           idx++;
           locked = false;
+          pushTriviaState();
           render();
         }, 420);
       };
     });
   };
-  m.onclose = () => { over = true; if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel(); };
+
+  if (ctrl.isLiveOnline && typeof window.createLiveMatchSync === 'function' && (o.roomId || o.roomCode)) {
+    liveSync = window.createLiveMatchSync({
+      roomId: o.roomId || o.roomCode,
+      roomCode: o.roomCode || '',
+      gameId: 'squad_arena',
+      myUid,
+      myName: myProfile.name,
+      oppUids: ctrl.oppUid ? [ctrl.oppUid] : [],
+      onState: (remote) => {
+        if (!remote) return;
+        if (Array.isArray(remote.qIds) && remote.qIds.length && idx === 0 && !locked) {
+          const syncedQs = remote.qIds.map(id => SQUAD_TRIVIA_BANK.find(q => q.id === id)).filter(Boolean);
+          if (syncedQs.length === remote.qIds.length) qs = syncedQs;
+        }
+        if (remote.scoresByUid && typeof remote.scoresByUid === 'object') {
+          Object.keys(remote.scoresByUid).forEach(uid => {
+            if (uid !== myUid) {
+              scoresByUid[uid] = remote.scoresByUid[uid];
+              oppScore = Number(remote.scoresByUid[uid]?.score || 0);
+              oppDone = Boolean(remote.scoresByUid[uid]?.done);
+            }
+          });
+        }
+        render();
+      },
+      onLeaveRequest: () => { if (typeof m.close === 'function') m.close(); }
+    });
+    liveSync.mountConnectionBanner(m);
+    if (ctrl.mySide === 'p1') pushTriviaState();
+  }
+
+  m.onclose = () => {
+    over = true;
+    clearTimeout(nextTimer);
+    if (liveSync) { try { liveSync.destroy(); } catch {} liveSync = null; }
+    if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel();
+  };
   render();
 }
 
 /* 5. LUDO EXPRESS */
-function launchLudoExpress(stake, rival, botTierRaw) {
+function launchLudoExpress(stake, rival, botTierRaw, opts) {
+  const o = opts || {};
+  const Pvp = window.PvpSyncRules;
+  const myUid = (typeof auth !== 'undefined' && auth && auth.currentUser && auth.currentUser.uid) || (typeof me !== 'undefined' && me && me.uid) || 'local_me';
+  const myProfile = { uid: myUid, name: (typeof me !== 'undefined' && me && me.name) || 'You', avatar: (typeof me !== 'undefined' && me && me.avatar) || 'av_b1' };
+  const ctrl = Pvp && typeof Pvp.resolve2PControl === 'function'
+    ? Pvp.resolve2PControl({ ...o, rival: rival || o.rival, botTier: botTierRaw || o.botTier }, myUid, myProfile)
+    : { isLiveOnline: false, isLocalPassAndPlay: false, botAllowed: true, mySide: 'p1', oppSide: 'p2', oppUid: '', oppName: rival?.name || 'Turbo Bot' };
+
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
   const goal = 24;
   const BOOST_TILES = { 5: 9, 14: 18 };
   const SAFE_STARS = new Set([6, 12, 19]);
-  let myPos = 0, botPos = 0, turn = 'me', over = false, rolling = false;
+  const mySlot = ctrl.mySide || 'p1';
+  const oppSlot = ctrl.oppSide || 'p2';
+  let p1Pos = 0, p2Pos = 0, turn = 'p1', over = false, settled = false, rolling = false;
   let lastDie = 6;
+  let rollTimer = 0, botTimer = 0;
   let logTxt = 'Tap Dice to race across the 24-tile board';
-  const oppName = rival?.name || (botTier === 'pro' ? 'Turbo Pro Bot' : 'Turbo Bot');
+  const oppName = ctrl.oppName || rival?.name || (ctrl.isLiveOnline ? 'Friend' : (botTier === 'pro' ? 'Turbo Pro Bot' : 'Turbo Bot'));
   const pay = calcArenaStakePayout(stake);
+
+  const isMyTurnNow = () => {
+    if (over) return false;
+    return Pvp && typeof Pvp.canActOn2PTurn === 'function'
+      ? Pvp.canActOn2PTurn(turn, ctrl)
+      : (turn === mySlot);
+  };
 
   const m = openFullScreenGameView({
     gameId: 'ludo_snakes',
     title: 'Ludo Express',
-    subMeta: stake > 0 ? `${stake} 🪙 · Pro Bot` : 'Free Bot',
-    statusText: 'Your Roll',
-    statusTone: 'turn',
+    subMeta: ctrl.isLiveOnline
+      ? `Live PvP · ${o.roomCode || 'Room'}`
+      : (stake > 0 ? `${stake} 🪙 · Pro Bot` : 'Free Bot'),
+    statusText: isMyTurnNow() ? 'Your Roll' : `${oppName}…`,
+    statusTone: isMyTurnNow() ? 'turn' : 'bot',
     themeClass: 'gfs-theme-wood',
     html: `
       <div id="ldStage" class="ludo-wood-stage">
@@ -1495,6 +1829,12 @@ function launchLudoExpress(stake, rival, botTierRaw) {
   });
 
   if (typeof QuickVoice !== 'undefined') QuickVoice.bindGameVoiceBar(m, 'ld', 'ludo_snakes', '#ldStage');
+
+  let liveSync = null;
+  const pushLudoExpState = () => {
+    if (!liveSync || !ctrl.isLiveOnline) return;
+    liveSync.pushState({ p1Pos, p2Pos, turn, lastDie, logTxt, over });
+  };
 
   const diePipsSvg = (val) => {
     const map = {
@@ -1518,110 +1858,176 @@ function launchLudoExpress(stake, rival, botTierRaw) {
   };
 
   const renderBoardGrid = () => {
+    const myPos = mySlot === 'p1' ? p1Pos : p2Pos;
+    const oppPos = mySlot === 'p1' ? p2Pos : p1Pos;
     let tiles = '';
     for (let i = 1; i <= goal; i++) {
       const isBoost = BOOST_TILES[i] !== undefined;
       const isStar = SAFE_STARS.has(i);
       const isCrown = i === goal;
       const hasMe = myPos === i;
-      const hasBot = botPos === i;
+      const hasOpp = oppPos === i;
       tiles += `<div class="ludo-tile ${isCrown ? 'crown' : isBoost ? 'boost' : isStar ? 'star' : ''}">
         <span class="lt-num">${isCrown ? '👑' : isBoost ? '⚡' : isStar ? '★' : i}</span>
         <div class="lt-pawns">
           ${hasMe ? '<i class="ludo-pawn me" title="You"></i>' : ''}
-          ${hasBot ? '<i class="ludo-pawn bot" title="Bot"></i>' : ''}
+          ${hasOpp ? `<i class="ludo-pawn bot" title="${esc(oppName)}"></i>` : ''}
         </div>
       </div>`;
     }
     return `<div class="ludo-board-grid">${tiles}</div>`;
   };
 
+  const settleIfFinished = () => {
+    const myPos = mySlot === 'p1' ? p1Pos : p2Pos;
+    const oppPos = mySlot === 'p1' ? p2Pos : p1Pos;
+    if ((myPos >= goal || oppPos >= goal) && !settled) {
+      over = true;
+      settled = true;
+      const won = myPos >= goal;
+      const res = settleArenaMatchOutcome(won ? 'win' : 'lose', stake, 40, 26, 10);
+      if (won) spawnArenaSparks($('#ldStage', m), '#38bdf8', 16);
+      const act = $('#ldAct', m);
+      if (act) {
+        act.innerHTML = `<div class="arena-result-card" style="width:100%"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="ldAgain" style="margin-top:8px">Rematch</button></div>`;
+        const ag = $('#ldAgain', m);
+        if (ag) ag.onclick = () => openArenaGame('ludo_snakes', rival?.uid);
+      }
+    }
+  };
+
+  const scheduleBotRoll = () => {
+    const allowBot = Pvp && typeof Pvp.shouldRun2PBot === 'function'
+      ? Pvp.shouldRun2PBot(turn, ctrl)
+      : (!ctrl.isLiveOnline && ctrl.botAllowed && turn === 'p2');
+    if (over || !allowBot) return;
+    clearTimeout(botTimer);
+    botTimer = setTimeout(() => {
+      if (over || !allowBot) return;
+      rolling = true;
+      logTxt = `${oppName} rolling dice…`;
+      if (typeof playSfx === 'function') playSfx('diceRoll');
+      render();
+      rollTimer = setTimeout(() => {
+        if (over) return;
+        rolling = false;
+        const br = botTier === 'pro'
+          ? (p2Pos < p1Pos ? (2 + Math.floor(Math.random() * 5)) : (1 + Math.floor(Math.random() * 6)))
+          : (1 + Math.floor(Math.random() * 6));
+        lastDie = br;
+        p2Pos = Math.min(goal, p2Pos + br);
+        let bExtra = '';
+        if (BOOST_TILES[p2Pos]) { p2Pos = BOOST_TILES[p2Pos]; bExtra = ' · ⚡ Boost!'; }
+        if (typeof playSfx === 'function') playSfx(bExtra ? 'capture' : 'pawnStep');
+        logTxt = `${oppName} rolled 🎲 ${br}${bExtra}`;
+        if (p2Pos >= goal) {
+          over = true;
+          render();
+          settleIfFinished();
+          return;
+        }
+        turn = 'p1';
+        render();
+      }, 380);
+    }, 420);
+  };
+
   const render = () => {
     const body = $('#ldBody', m);
     if (!body) return;
-    m.setStatus(over ? 'Finished' : (turn === 'me' ? 'Your Roll' : `${oppName}…`), over ? (myPos >= goal ? 'ok' : 'bot') : (turn === 'me' ? 'turn' : 'bot'));
+    const myPos = mySlot === 'p1' ? p1Pos : p2Pos;
+    const oppPos = mySlot === 'p1' ? p2Pos : p1Pos;
+    const canMove = isMyTurnNow();
+    m.setStatus(
+      over ? 'Finished' : (canMove ? 'Your Roll' : `${oppName}…`),
+      over ? (myPos >= goal ? 'ok' : 'bot') : (canMove ? 'turn' : 'bot')
+    );
     body.innerHTML = `
       <div class="arena-hud-bar">
-        <span class="hud-pill me ${!over && turn === 'me' ? 'active-turn' : ''}">🔵 You: ${myPos}/${goal}</span>
+        <span class="hud-pill me ${!over && turn === mySlot ? 'active-turn' : ''}">🔵 You: ${myPos}/${goal}</span>
         ${stake > 0 ? `<span class="hud-pill gold">Pot ${fmtNum(pay.grossPot)} 🪙</span>` : `<span class="hud-pill neutral">Race to 24</span>`}
-        <span class="hud-pill bot ${!over && turn === 'bot' ? 'active-turn' : ''}">🔴 ${esc(oppName)}: ${botPos}/${goal}</span>
+        <span class="hud-pill bot ${!over && turn === oppSlot ? 'active-turn' : ''}">🔴 ${esc(oppName)}: ${oppPos}/${goal}</span>
       </div>
       ${renderBoardGrid()}
       <div class="mp-sys-line" style="margin:8px 0">${esc(logTxt)}</div>
       <div id="ldAct" class="ludo-dice-dock">
         ${!over ? `
           <div class="ludo-die-box">${diePipsSvg(lastDie)}</div>
-          <button type="button" class="btn gold" id="ldRoll" style="flex:1" ${turn !== 'me' || rolling ? 'disabled' : ''}>🎲 Roll Dice</button>
+          <button type="button" class="btn gold" id="ldRoll" style="flex:1" ${!canMove || rolling ? 'disabled' : ''}>🎲 Roll Dice</button>
         ` : ''}
       </div>
     `;
+    if (over) settleIfFinished();
     if ($('#ldRoll', body)) {
       $('#ldRoll', body).onclick = () => {
-        if (over || turn !== 'me' || rolling) return;
+        if (over || !isMyTurnNow() || rolling) return;
+        const activeSlot = ctrl.isLocalPassAndPlay ? turn : mySlot;
         rolling = true;
         if (typeof playSfx === 'function') playSfx('diceRoll');
         render();
-        setTimeout(() => {
+        rollTimer = setTimeout(() => {
           if (over) return;
           rolling = false;
           const roll = 1 + Math.floor(Math.random() * 6);
           lastDie = roll;
-          myPos = Math.min(goal, myPos + roll);
+          let newPos = Math.min(goal, (activeSlot === 'p1' ? p1Pos : p2Pos) + roll);
           let extra = '';
-          if (BOOST_TILES[myPos]) {
-            myPos = BOOST_TILES[myPos];
+          if (BOOST_TILES[newPos]) {
+            newPos = BOOST_TILES[newPos];
             extra = ' · ⚡ Boost!';
             spawnArenaSparks($('#ldStage', m), '#fde047', 10);
           }
-          logTxt = `You rolled 🎲 ${roll}${roll === 6 ? ' (Bonus!)' : ''}${extra}`;
+          if (activeSlot === 'p1') p1Pos = newPos;
+          else p2Pos = newPos;
+          const actorName = myProfile.name || 'You';
+          logTxt = `${actorName} rolled 🎲 ${roll}${roll === 6 ? ' (Bonus!)' : ''}${extra}`;
           if (typeof playSfx === 'function') playSfx(extra ? 'rowClear' : 'pawnStep');
-          if (myPos >= goal) {
+          if (newPos >= goal) {
             over = true;
-            const res = settleArenaMatchOutcome('win', stake, 40, 26, 10);
-            spawnArenaSparks($('#ldStage', m), '#38bdf8', 16);
+            pushLudoExpState();
             render();
-            $('#ldAct', m).innerHTML = `<div class="arena-result-card" style="width:100%"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="ldAgain" style="margin-top:8px">Rematch</button></div>`;
-            $('#ldAgain', m).onclick = () => openArenaGame('ludo_snakes', rival?.uid);
+            settleIfFinished();
             return;
           }
-          if (roll !== 6) turn = 'bot';
+          if (roll !== 6) turn = activeSlot === 'p1' ? 'p2' : 'p1';
+          pushLudoExpState();
           render();
-          if (turn === 'bot') {
-            setTimeout(() => {
-              if (over) return;
-              rolling = true;
-              logTxt = `${oppName} rolling dice…`;
-              if (typeof playSfx === 'function') playSfx('diceRoll');
-              render();
-              setTimeout(() => {
-                if (over) return;
-                rolling = false;
-                const br = botTier === 'pro'
-                  ? (botPos < myPos ? (2 + Math.floor(Math.random() * 5)) : (1 + Math.floor(Math.random() * 6)))
-                  : (1 + Math.floor(Math.random() * 6));
-                lastDie = br;
-                botPos = Math.min(goal, botPos + br);
-                let bExtra = '';
-                if (BOOST_TILES[botPos]) { botPos = BOOST_TILES[botPos]; bExtra = ' · ⚡ Boost!'; }
-                if (typeof playSfx === 'function') playSfx(bExtra ? 'capture' : 'pawnStep');
-                logTxt = `${oppName} rolled 🎲 ${br}${bExtra}`;
-                if (botPos >= goal) {
-                  over = true;
-                  const res = settleArenaMatchOutcome('lose', stake, 40, 26, 10);
-                  render();
-                  $('#ldAct', m).innerHTML = `<div class="arena-result-card" style="width:100%"><b>${esc(res.headline)}</b><small>${esc(res.detail)}</small><button type="button" class="btn gold sm" id="ldAgain" style="margin-top:8px">Rematch</button></div>`;
-                  $('#ldAgain', m).onclick = () => openArenaGame('ludo_snakes', rival?.uid);
-                  return;
-                }
-                turn = 'me';
-                render();
-              }, 380);
-            }, 420);
-          }
+          scheduleBotRoll();
         }, 280);
       };
     }
   };
-  m.onclose = () => { over = true; if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel(); };
+
+  if (ctrl.isLiveOnline && typeof window.createLiveMatchSync === 'function' && (o.roomId || o.roomCode)) {
+    liveSync = window.createLiveMatchSync({
+      roomId: o.roomId || o.roomCode,
+      roomCode: o.roomCode || '',
+      gameId: 'ludo_snakes',
+      myUid,
+      myName: myProfile.name,
+      oppUids: ctrl.oppUid ? [ctrl.oppUid] : [],
+      onState: (remote) => {
+        if (!remote) return;
+        if (typeof remote.p1Pos === 'number') p1Pos = remote.p1Pos;
+        if (typeof remote.p2Pos === 'number') p2Pos = remote.p2Pos;
+        if (remote.turn === 'p1' || remote.turn === 'p2') turn = remote.turn;
+        if (typeof remote.lastDie === 'number') lastDie = remote.lastDie;
+        if (typeof remote.logTxt === 'string') logTxt = remote.logTxt;
+        if (remote.over) over = true;
+        if (typeof playSfx === 'function') playSfx('diceRoll');
+        render();
+      },
+      onLeaveRequest: () => { if (typeof m.close === 'function') m.close(); }
+    });
+    liveSync.mountConnectionBanner(m);
+  }
+
+  m.onclose = () => {
+    over = true;
+    clearTimeout(rollTimer);
+    clearTimeout(botTimer);
+    if (liveSync) { try { liveSync.destroy(); } catch {} liveSync = null; }
+    if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel();
+  };
   render();
 }

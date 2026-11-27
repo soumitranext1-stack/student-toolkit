@@ -2192,12 +2192,13 @@ function handleAppBack(){
     pushBackGuardState('after-game');
     return 'close-game-view';
   }
-  /* 4. Close Full-Screen Voice/Video Party Room */
+  /* 4. Minimize Full-Screen Voice/Video Party Room into Floating VR Icon Mode */
   const partyRoot=$('#partyFsRoot');
   if(partyRoot&&!partyRoot.hidden){
-    if(typeof closePartyRoom==='function')closePartyRoom();
-    pushBackGuardState('after-party');
-    return 'close-party-room';
+    if(typeof minimizePartyRoom==='function')minimizePartyRoom();
+    else if(typeof closePartyRoom==='function')closePartyRoom();
+    pushBackGuardState('after-party-minimize');
+    return 'minimize-party-room';
   }
   /* 4. Close DM / World Chat thread (returns to Chat list) */
   const thr=$('#thread');
@@ -2265,22 +2266,22 @@ function loadScriptOnce(src){
 window.loadScriptOnce=loadScriptOnce;
 
 const GAME_MODULE_BUNDLES={
-  ludo:['ludo-rules.js?v=30','ludo.js?v=30'],
-  number_match:['number-match-rules.js?v=30','number-match.js?v=30'],
-  jackaroo:['jackaroo-rules.js?v=30','jackaroo.js?v=30'],
-  uno:['uno-rules.js?v=30','uno.js?v=30'],
-  pool_8ball:['pool-8ball.js?v=30'],
-  chess_blitz:['chess-arena.js?v=30'],
-  tile_race:['voice-narrator.js?v=30','arcade-games.js?v=30'],
-  trap_door:['voice-narrator.js?v=30','arcade-games.js?v=30'],
-  mind_clash:['voice-narrator.js?v=30','arcade-games.js?v=30'],
-  pocket_territory:['voice-narrator.js?v=30','arcade-games.js?v=30'],
-  budget_clash:['voice-narrator.js?v=30','budget-clash.js?v=30'],
-  couple_arena:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30'],
-  couple_mind_sync:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30'],
-  couple_truth_dare:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30'],
-  couple_most_likely:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30'],
-  couple_love_meter:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30']
+  ludo:['ludo-rules.js?v=35','ludo.js?v=35'],
+  number_match:['number-match-rules.js?v=35','number-match.js?v=35'],
+  jackaroo:['jackaroo-rules.js?v=35','jackaroo.js?v=35'],
+  uno:['uno-rules.js?v=35','uno.js?v=35'],
+  pool_8ball:['pool-8ball.js?v=35'],
+  chess_blitz:['chess-arena.js?v=35'],
+  tile_race:['voice-narrator.js?v=35','arcade-games.js?v=35'],
+  trap_door:['voice-narrator.js?v=35','arcade-games.js?v=35'],
+  mind_clash:['voice-narrator.js?v=35','arcade-games.js?v=35'],
+  pocket_territory:['voice-narrator.js?v=35','arcade-games.js?v=35'],
+  budget_clash:['voice-narrator.js?v=35','budget-clash.js?v=35'],
+  couple_arena:['voice-narrator.js?v=35','budget-clash.js?v=35','couple-arena.js?v=35'],
+  couple_mind_sync:['voice-narrator.js?v=35','budget-clash.js?v=35','couple-arena.js?v=35'],
+  couple_truth_dare:['voice-narrator.js?v=35','budget-clash.js?v=35','couple-arena.js?v=35'],
+  couple_most_likely:['voice-narrator.js?v=35','budget-clash.js?v=35','couple-arena.js?v=35'],
+  couple_love_meter:['voice-narrator.js?v=35','budget-clash.js?v=35','couple-arena.js?v=35']
 };
 
 const GAME_MODULE_SYMBOLS={
@@ -2337,7 +2338,7 @@ async function ensureCoupleChroniclesLoaded(){
     return true;
   }
   if(_chroniclesLoadPromise)return _chroniclesLoadPromise;
-  const files=['voice-narrator.js?v=33','story-rules.js?v=33','story-data.js?v=33','story.js?v=33'];
+  const files=['voice-narrator.js?v=35','story-rules.js?v=35','story-data.js?v=35','story.js?v=35'];
   _chroniclesLoadPromise=(async ()=>{
     try{
       for(const f of files){

@@ -354,53 +354,99 @@ function launchLudoGame(opts) {
     return;
   }
   const o = opts || {};
-  const mode = o.mode === '1v1' ? '1v1' : '4p';
-  const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
-  const botTier = o.botTier === 'pro' ? 'pro' : 'standard';
-  const roomCode = String(o.roomCode || ('LU' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
+  const myProfile = {
+    uid: myUid,
+    name: (typeof me !== 'undefined' && me?.name) || 'You',
+    avatar: (typeof me !== 'undefined' && me?.avatar) || 'av_b1'
+  };
+  const requestedMode = o.mode === '1v1' ? '1v1' : '4p';
+  const initialActiveSeats = Rules.getActiveSeats(requestedMode);
+  const defaultBotPool = [1, 2, 3].map(s => ({
+    uid: `ludo_bot_${s}`,
+    name: (LUDO_BOT_NAMES[s] && LUDO_BOT_NAMES[s].name) || `Bot ${s}`,
+    avatar: (LUDO_BOT_NAMES[s] && LUDO_BOT_NAMES[s].avatar) || 'av_g2'
+  }));
+  const roster = window.PvpSyncRules
+    ? window.PvpSyncRules.resolveMultiSeatRoster(o, initialActiveSeats, myUid, myProfile, defaultBotPool)
+    : null;
+
+  // If live online room has <= 2 occupied seats, automatically place players across each other (seats 0 & 2)
+  const effectiveMode = (roster && roster.isLiveOnline && roster.seats.length <= 2) ? '1v1' : requestedMode;
+  const activeSeats = Rules.getActiveSeats(effectiveMode);
+  const finalRoster = (window.PvpSyncRules && effectiveMode !== requestedMode)
+    ? window.PvpSyncRules.resolveMultiSeatRoster(o, activeSeats, myUid, myProfile, defaultBotPool)
+    : roster;
+
+  const isLiveOnline = Boolean(finalRoster && finalRoster.isLiveOnline);
   const isSpectating = Boolean(o.spectate);
   const spectateHost = o.spectateHost || o.rival || null;
+  const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
+  const botTier = o.botTier === 'pro' ? 'pro' : 'standard';
+  const roomId = String(o.roomId || (finalRoster && finalRoster.roomId) || '').trim();
+  const roomCode = String(o.roomCode || (finalRoster && finalRoster.roomCode) || ('LU' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
   const pay = typeof calcArenaStakePayout === 'function' ? calcArenaStakePayout(stake) : { winnerPayout: stake * 2 };
   const winPrize = pay.winnerPayout || (stake * 2);
 
-  const activeSeats = Rules.getActiveSeats(mode);
-  const invitedList = Array.isArray(o.invitedFriends) ? o.invitedFriends.slice() : [];
-  if (!isSpectating && o.rival && !invitedList.some(x => x.uid === o.rival.uid)) invitedList.unshift(o.rival);
-  const fallbackPool = [
-    { name: 'Maya Vex', avatar: 'av_g2' },
-    { name: 'Rohan Ace', avatar: 'av_b3' },
-    { name: 'Leo Blaze', avatar: 'av_b4' },
-    { name: 'Zara Star', avatar: 'av_g3' }
-  ];
-  const usedNames = new Set();
-
   const playersMeta = {};
-  activeSeats.forEach((seat, idx) => {
-    if (seat === 0) {
-      if (isSpectating && spectateHost) {
-        playersMeta[0] = { uid: spectateHost.uid || 'host_0', name: spectateHost.name || 'Host', avatar: spectateHost.avatar || 'av_g1', isBot: true };
-      } else {
-        playersMeta[0] = { uid: typeof uid !== 'undefined' ? uid : 'me', name: (typeof me !== 'undefined' && me?.name) || 'You', avatar: (typeof me !== 'undefined' && me?.avatar) || 'av_b1', isBot: false };
-      }
-      usedNames.add(String(playersMeta[0].name || '').toLowerCase());
-    } else {
-      const inv = invitedList[idx - 1];
-      let def = LUDO_BOT_NAMES[seat] || { name: `Player ${seat + 1}`, avatar: 'av_b2' };
-      const chosen = (inv && !usedNames.has(String(inv.name || '').toLowerCase())) ? inv
-        : (!usedNames.has(String(def.name || '').toLowerCase()) ? def : (fallbackPool.find(f => !usedNames.has(f.name.toLowerCase())) || def));
-      usedNames.add(String(chosen.name || '').toLowerCase());
-      playersMeta[seat] = {
-        uid: (inv && chosen === inv ? inv.uid : null) || `ludo_bot_${seat}`,
-        name: chosen.name,
-        avatar: chosen.avatar || def.avatar,
-        isBot: true
+  const occupiedSeatSet = new Set();
+  if (finalRoster && finalRoster.seats.length) {
+    finalRoster.seats.forEach((s) => {
+      occupiedSeatSet.add(s.seat);
+      playersMeta[s.seat] = {
+        uid: s.uid,
+        name: s.name,
+        avatar: s.avatar,
+        isBot: isSpectating ? true : Boolean(s.isBot),
+        kind: s.kind,
+        isRealHuman: isSpectating ? false : Boolean(s.isRealHuman)
       };
+    });
+  } else {
+    activeSeats.forEach((seat) => {
+      occupiedSeatSet.add(seat);
+      if (seat === 0) {
+        playersMeta[0] = isSpectating && spectateHost
+          ? { uid: spectateHost.uid || 'host_0', name: spectateHost.name || 'Host', avatar: spectateHost.avatar || 'av_g1', isBot: true, isRealHuman: false }
+          : { uid: myUid, name: myProfile.name, avatar: myProfile.avatar, isBot: false, isRealHuman: true };
+      } else {
+        const def = LUDO_BOT_NAMES[seat] || { name: `Player ${seat + 1}`, avatar: 'av_b2' };
+        playersMeta[seat] = { uid: `ludo_bot_${seat}`, name: def.name, avatar: def.avatar, isBot: true, kind: 'bot', isRealHuman: false };
+      }
+    });
+  }
+
+  const state = Rules.createInitialState({ mode: effectiveMode, playersMeta });
+  // In live online rooms, exclude any unoccupied seats so empty seats NEVER become bots
+  if (isLiveOnline && occupiedSeatSet.size > 0) {
+    state.players = state.players.filter(p => occupiedSeatSet.has(p.seat));
+    state.tokens = state.tokens.filter(t => occupiedSeatSet.has(t.owner));
+  }
+  state.players.forEach(p => {
+    const meta = playersMeta[p.seat];
+    if (meta) {
+      p.kind = meta.kind || (meta.isBot ? 'bot' : 'joined');
+      p.isRealHuman = Boolean(meta.isRealHuman);
+      p.isBot = Boolean(meta.isBot);
     }
   });
 
-  const state = Rules.createInitialState({ mode, playersMeta });
+  const myPlayerObj = state.players.find(p => p.uid === myUid) || state.players[0];
+  const mySeatId = myPlayerObj ? myPlayerObj.seat : 0;
+  const isLocalTurn = (p) => {
+    if (!p || isSpectating || over) return false;
+    if (finalRoster) return finalRoster.canLocalActForSeat(p);
+    return !p.isBot && p.seat === mySeatId;
+  };
+  const shouldRunBot = (p) => {
+    if (!p || over) return false;
+    if (isSpectating) return true;
+    if (finalRoster) return finalRoster.shouldRunBotForSeat(p);
+    return Boolean(p.isBot);
+  };
+
   if (!isSpectating && typeof setMyLiveActivity === 'function') {
-    setMyLiveActivity({ type: 'playing', gameId: 'ludo', gameName: 'Ludo Royal', roomCode, mode });
+    setMyLiveActivity({ type: 'playing', gameId: 'ludo', gameName: 'Ludo Royal', roomCode, mode: effectiveMode });
   }
 
   // Match runtime state
@@ -409,7 +455,9 @@ function launchLudoGame(opts) {
   let currentDice = 6;
   let lastRollInfo = null; // { seat, name, colorHex, value, rolling, ts }
   let legalMoves = [];
-  let statusText = isSpectating ? `Watching ${playersMeta[0].name}'s live match…` : 'Tap Dice to Roll!';
+  let statusText = isSpectating
+    ? `Watching ${state.players[0]?.name || 'Host'}'s live match…`
+    : (isLocalTurn(state.players[state.turnIdx]) ? 'Tap Dice to Roll!' : `Waiting for ${state.players[state.turnIdx]?.name || 'Opponent'}…`);
   let turnDeadline = 0;
   let turnTick = 0;
   let autoTimer = 0;
@@ -420,7 +468,34 @@ function launchLudoGame(opts) {
   let animOverride = null; // { tokenId, x, y, lift }
   let burstFx = null;      // { x, y, color }
   let chatWidget = null;
+  let liveSync = null;
   const TURN_MS = 15000;
+
+  const snapshotLudoState = () => ({
+    turnIdx: state.turnIdx,
+    consecutiveSixes: state.consecutiveSixes,
+    winnerSeat: state.winnerSeat,
+    tokens: state.tokens.map(t => ({
+      id: t.id, owner: t.owner, idx: t.idx,
+      zone: t.zone, pos: t.pos, homeIdx: t.homeIdx, stepsFromStart: t.stepsFromStart
+    }))
+  });
+
+  const applyLudoSnapshot = (snap) => {
+    if (!snap || !Array.isArray(snap.tokens)) return;
+    state.turnIdx = Math.max(0, Math.min(state.players.length - 1, Number(snap.turnIdx || 0)));
+    state.consecutiveSixes = Number(snap.consecutiveSixes || 0);
+    state.winnerSeat = snap.winnerSeat !== undefined ? snap.winnerSeat : null;
+    snap.tokens.forEach(rt => {
+      const loc = state.tokens.find(t => t.id === rt.id);
+      if (loc) {
+        loc.zone = rt.zone;
+        loc.pos = rt.pos;
+        loc.homeIdx = rt.homeIdx;
+        loc.stepsFromStart = rt.stepsFromStart;
+      }
+    });
+  };
 
   // Map 15x15 grid coordinates to SVG 450x450 viewBox (30px per cell)
   const CELL = 30;
@@ -531,7 +606,7 @@ function launchLudoGame(opts) {
               <div class="ld-tl">
                 <button type="button" class="jk-ghost-icon" id="ldExitBtn" aria-label="Leave Ludo Royal">‹</button>
                 <div class="ld-id-block">
-                  <b>Ludo Royal ${mode === '1v1' ? '1v1' : '4P'}</b>
+                  <b>Ludo Royal ${effectiveMode === '1v1' ? '1v1' : '4P'}</b>
                   <small>Room ${esc(roomCode)} ${stake > 0 ? `· 🪙 ${fmtNum(winPrize)} Pot` : '· Free Table'}</small>
                 </div>
               </div>
@@ -734,12 +809,13 @@ function launchLudoGame(opts) {
       diceCube.classList.toggle('is-rolling', phase === 'rolling');
     }
 
-    const canHumanRoll = !isSpectating && !over && curP && !curP.isBot && phase === 'roll';
-    const isOppRollVisible = Boolean(lastRollInfo && curP && lastRollInfo.seat === curP.seat && (curP.isBot || isSpectating));
+    const canHumanRoll = !isSpectating && !over && curP && isLocalTurn(curP) && phase === 'roll';
+    const isRemoteOrBotTurn = Boolean(curP && !isLocalTurn(curP));
+    const isOppRollVisible = Boolean(lastRollInfo && curP && lastRollInfo.seat === curP.seat && (isRemoteOrBotTurn || isSpectating));
     if (diceBtn) {
       diceBtn.disabled = !canHumanRoll;
       diceBtn.classList.toggle('ready', canHumanRoll);
-      diceBtn.classList.toggle('opp-rolling', phase === 'rolling' && curP && curP.isBot);
+      diceBtn.classList.toggle('opp-rolling', phase === 'rolling' && isRemoteOrBotTurn);
     }
     if (diceLbl) {
       if (phase === 'rolling' && curP) {
@@ -750,7 +826,7 @@ function launchLudoGame(opts) {
         diceLbl.textContent = `LIVE · ${currentDice}`;
       } else if (canHumanRoll) {
         diceLbl.textContent = 'TAP TO ROLL';
-      } else if (phase === 'pick') {
+      } else if (phase === 'pick' && isLocalTurn(curP)) {
         diceLbl.textContent = `YOU ROLLED ${currentDice}!`;
       } else {
         diceLbl.textContent = curP ? `${curP.name} · 🎲 ${currentDice}` : 'LUDO';
@@ -758,15 +834,17 @@ function launchLudoGame(opts) {
     }
     if (diceSub) {
       if (phase === 'rolling' && curP) {
-        diceSub.textContent = curP.isBot ? 'Opponent rolling dice…' : 'Rolling dice…';
+        diceSub.textContent = isRemoteOrBotTurn ? 'Opponent rolling dice…' : 'Rolling dice…';
       } else if (isOppRollVisible && !lastRollInfo.rolling) {
         diceSub.textContent = `Landed on ${lastRollInfo.value} · Moving pawn…`;
       } else if (isSpectating) {
         diceSub.textContent = 'Spectator View Active';
       } else if (canHumanRoll) {
         diceSub.textContent = 'Your Turn · Tap Dice';
-      } else if (phase === 'pick') {
+      } else if (phase === 'pick' && isLocalTurn(curP)) {
         diceSub.textContent = 'Tap a glowing pawn to move';
+      } else if (isLiveOnline && curP && !curP.isBot) {
+        diceSub.textContent = `Live PvP · Waiting for ${curP.name}…`;
       } else {
         diceSub.textContent = 'Wait for turn…';
       }
@@ -826,7 +904,7 @@ function launchLudoGame(opts) {
     phase = 'over';
     stopTimers();
     const winner = state.players.find(p => p.seat === winnerSeat) || state.players[0];
-    const iWon = !isSpectating && winner.seat === 0;
+    const iWon = !isSpectating && winner.seat === mySeatId;
 
     let outcomeInfo = {
       headline: iWon ? '👑 ROYAL VICTORY!' : `🏆 ${winner.name} WINS!`,
@@ -864,14 +942,15 @@ function launchLudoGame(opts) {
     $('#ldGoExit', host).onclick = () => view.close();
     $('#ldGoAgain', host).onclick = () => {
       view.close();
-      launchLudoGame({ mode, stake: isSpectating ? 0 : stake, botTier, roomCode, spectate: isSpectating, spectateHost });
+      launchLudoGame({ ...o, mode: effectiveMode, stake: isSpectating ? 0 : stake, botTier, roomCode, spectate: isSpectating, spectateHost });
     };
   };
 
-  const executeTokenMove = (tokenId) => {
-    if (over || phase !== 'pick') return;
+  const executeTokenMove = (tokenId, isRemoteSync) => {
+    if (over || (phase !== 'pick' && !isRemoteSync)) return;
     const curP = state.players[state.turnIdx];
-    const mv = legalMoves.find(m => m.tokenId === tokenId);
+    const mv = legalMoves.find(m => m.tokenId === tokenId)
+      || (isRemoteSync ? Rules.getLegalMoves(state, curP.seat, currentDice).find(m => m.tokenId === tokenId) : null);
     if (!curP || !mv) return;
     const token = state.tokens.find(t => t.id === tokenId);
     if (!token) return;
@@ -886,6 +965,9 @@ function launchLudoGame(opts) {
       const res = Rules.applyMove(state, curP.seat, tokenId, currentDice);
       if (!res.ok) {
         Rules.advanceTurn(state, false);
+        if (isLiveOnline && liveSync && !isRemoteSync) {
+          liveSync.pushState({ event: 'turn', state: snapshotLudoState(), statusText });
+        }
         beginTurn();
         return;
       }
@@ -903,6 +985,19 @@ function launchLudoGame(opts) {
       }
 
       if (res.winnerSeat !== null) {
+        if (isLiveOnline && liveSync && !isRemoteSync) {
+          liveSync.pushState({
+            event: 'move',
+            actorSeat: curP.seat,
+            tokenId,
+            dice: currentDice,
+            captured: res.capturedTokens.length > 0,
+            enteredHome: res.enteredHome,
+            winnerSeat: res.winnerSeat,
+            state: snapshotLudoState(),
+            statusText: `🏆 ${curP.name} won!`
+          });
+        }
         render();
         showGameOverOverlay(res.winnerSeat);
         return;
@@ -911,6 +1006,21 @@ function launchLudoGame(opts) {
       statusText = res.bonusTurn
         ? `${curP.color.emoji} ${curP.name} earned a Bonus Roll!`
         : `${state.players[state.turnIdx].color.emoji} ${state.players[state.turnIdx].name}'s turn`;
+
+      if (isLiveOnline && liveSync && !isRemoteSync) {
+        liveSync.pushState({
+          event: 'move',
+          actorSeat: curP.seat,
+          tokenId,
+          dice: currentDice,
+          captured: res.capturedTokens.length > 0,
+          enteredHome: res.enteredHome,
+          bonusTurn: res.bonusTurn,
+          winnerSeat: null,
+          state: snapshotLudoState(),
+          statusText
+        });
+      }
       beginTurn();
     });
   };
@@ -919,6 +1029,8 @@ function launchLudoGame(opts) {
     if (over || phase !== 'roll') return;
     const curP = state.players[state.turnIdx];
     if (!curP) return;
+    // Hard-block remote human seats from rolling locally
+    if (!isLocalTurn(curP) && !shouldRunBot(curP)) return;
 
     phase = 'rolling';
     clearTimeout(autoTimer);
@@ -977,6 +1089,17 @@ function launchLudoGame(opts) {
           statusText = `⚠️ ${curP.name} rolled three 6s! Turn passed.`;
           showSeatBubble(curP.seat, 'Three 6s! 😅');
           if (typeof playSfx === 'function') playSfx('duelWrong');
+          if (isLiveOnline && liveSync) {
+            liveSync.pushState({
+              event: 'roll',
+              actorSeat: curP.seat,
+              dice: currentDice,
+              lastRollInfo,
+              noMove: true,
+              state: snapshotLudoState(),
+              statusText
+            });
+          }
           render();
           botTimer = setTimeout(() => { if (!over) beginTurn(); }, 950);
           return;
@@ -986,34 +1109,59 @@ function launchLudoGame(opts) {
         if (!legalMoves.length) {
           statusText = `${curP.color.emoji} ${curP.name} rolled 🎲 ${currentDice} — no legal move`;
           Rules.advanceTurn(state, false);
+          if (isLiveOnline && liveSync) {
+            liveSync.pushState({
+              event: 'roll',
+              actorSeat: curP.seat,
+              dice: currentDice,
+              lastRollInfo,
+              noMove: true,
+              state: snapshotLudoState(),
+              statusText
+            });
+          }
           render();
           botTimer = setTimeout(() => { if (!over) beginTurn(); }, 950);
           return;
         }
 
         phase = 'pick';
-        if (curP.isBot || isSpectating) {
+        if (isLiveOnline && liveSync) {
+          liveSync.pushState({
+            event: 'roll',
+            actorSeat: curP.seat,
+            dice: currentDice,
+            lastRollInfo,
+            noMove: false,
+            state: snapshotLudoState(),
+            statusText: `${curP.color.emoji} ${curP.name} rolled 🎲 ${currentDice}!`
+          });
+        }
+
+        if (shouldRunBot(curP)) {
           statusText = `${curP.color.emoji} ${curP.name} rolled 🎲 ${currentDice}!`;
           render();
           const chosen = Rules.chooseBotMove(state, curP.seat, currentDice, botTier);
           botTimer = setTimeout(() => {
             if (!over && chosen) executeTokenMove(chosen.tokenId);
           }, 680);
-        } else if (legalMoves.length === 1) {
-          statusText = `You rolled 🎲 ${currentDice} · Moving pawn…`;
-          render();
-          botTimer = setTimeout(() => {
-            if (!over) executeTokenMove(legalMoves[0].tokenId);
-          }, 300);
-        } else {
-          statusText = `You rolled 🎲 ${currentDice}! Tap a glowing pawn`;
-          render();
-          autoTimer = setTimeout(() => {
-            if (!over && phase === 'pick' && legalMoves.length) {
-              const pick = Rules.chooseBotMove(state, 0, currentDice, 'standard');
-              if (pick) executeTokenMove(pick.tokenId);
-            }
-          }, TURN_MS);
+        } else if (isLocalTurn(curP)) {
+          if (legalMoves.length === 1) {
+            statusText = `You rolled 🎲 ${currentDice} · Moving pawn…`;
+            render();
+            botTimer = setTimeout(() => {
+              if (!over) executeTokenMove(legalMoves[0].tokenId);
+            }, 300);
+          } else {
+            statusText = `You rolled 🎲 ${currentDice}! Tap a glowing pawn`;
+            render();
+            autoTimer = setTimeout(() => {
+              if (!over && phase === 'pick' && legalMoves.length && isLocalTurn(curP)) {
+                const pick = Rules.chooseBotMove(state, curP.seat, currentDice, 'standard');
+                if (pick) executeTokenMove(pick.tokenId);
+              }
+            }, TURN_MS);
+          }
         }
       }
     };
@@ -1035,25 +1183,90 @@ function launchLudoGame(opts) {
       if (timerEl) timerEl.textContent = `${rem}s`;
     }, 250);
 
-    if (curP.isBot || isSpectating) {
+    if (shouldRunBot(curP)) {
       statusText = `${curP.color.emoji} ${curP.name}'s turn…`;
       render();
       botTimer = setTimeout(() => { if (!over) performDiceRoll(); }, 620);
-    } else {
+    } else if (isLocalTurn(curP)) {
       if (typeof playSfx === 'function') playSfx('turnStart');
       statusText = 'Your Turn — Tap Dice to Roll!';
       render();
-      autoTimer = setTimeout(() => {
-        if (!over && phase === 'roll') performDiceRoll();
-      }, TURN_MS);
+      if (!isLiveOnline) {
+        autoTimer = setTimeout(() => {
+          if (!over && phase === 'roll' && isLocalTurn(curP)) performDiceRoll();
+        }, TURN_MS);
+      }
+    } else {
+      // Live online remote human turn — STRICTLY wait for remote sync, NEVER run bot!
+      statusText = `${curP.color.emoji} Waiting for ${curP.name} to roll…`;
+      render();
     }
   };
+
+  // Live online multiplayer sync (Firestore + BroadcastChannel)
+  if (isLiveOnline && roomId && typeof window.createLiveMatchSync === 'function') {
+    const oppUids = state.players.filter(p => !p.isBot && p.uid !== myUid).map(p => p.uid);
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'ludo',
+      myUid,
+      myName: myProfile.name,
+      oppUids,
+      onLeaveRequest: () => view.close(),
+      onState: (payload) => {
+        if (over || !payload) return;
+        if (payload.event === 'roll') {
+          currentDice = Number(payload.dice || currentDice);
+          if (payload.lastRollInfo) {
+            lastRollInfo = { ...payload.lastRollInfo, ts: Date.now() };
+            clearTimeout(calloutTimer);
+            calloutTimer = setTimeout(() => {
+              if (lastRollInfo && Date.now() - lastRollInfo.ts >= 2100) {
+                lastRollInfo = null;
+                renderPlayerCards();
+                renderRollCallout();
+              }
+            }, 2200);
+          }
+          if (typeof playSfx === 'function') playSfx('diceRoll');
+          if (payload.statusText) statusText = payload.statusText;
+          if (payload.noMove && payload.state) {
+            applyLudoSnapshot(payload.state);
+            render();
+            botTimer = setTimeout(() => { if (!over) beginTurn(); }, 750);
+          } else {
+            render();
+          }
+        } else if (payload.event === 'move') {
+          currentDice = Number(payload.dice || currentDice);
+          if (payload.statusText) statusText = payload.statusText;
+          if (payload.state) applyLudoSnapshot(payload.state);
+          if (payload.captured && typeof playSfx === 'function') playSfx('capture');
+          else if (payload.enteredHome && typeof playSfx === 'function') playSfx('rowClear');
+          else if (typeof playSfx === 'function') playSfx('pawnStep');
+          if (payload.winnerSeat !== null && payload.winnerSeat !== undefined) {
+            render();
+            showGameOverOverlay(payload.winnerSeat);
+          } else {
+            beginTurn();
+          }
+        } else if (payload.state) {
+          applyLudoSnapshot(payload.state);
+          if (payload.statusText) statusText = payload.statusText;
+          beginTurn();
+        }
+      }
+    });
+    liveSync.mountConnectionBanner($('#ldStage', rootEl) || rootEl);
+  }
 
   // Event bindings (clean single delegation per container)
   const boardSvg = $('#ldBoardSvg', rootEl);
   if (boardSvg) {
     boardSvg.onclick = (e) => {
-      if (isSpectating || phase !== 'pick') return;
+      const curP = state.players[state.turnIdx];
+      if (isSpectating || phase !== 'pick' || !isLocalTurn(curP)) return;
       const g = e.target.closest('[data-ld-token]');
       if (!g) return;
       const tokId = g.dataset.ldToken;
@@ -1068,7 +1281,8 @@ function launchLudoGame(opts) {
   const diceBtn = $('#ldDiceBtn', rootEl);
   if (diceBtn) {
     diceBtn.onclick = () => {
-      if (!isSpectating && phase === 'roll' && state.players[state.turnIdx] && !state.players[state.turnIdx].isBot) {
+      const curP = state.players[state.turnIdx];
+      if (!isSpectating && phase === 'roll' && isLocalTurn(curP)) {
         performDiceRoll();
       }
     };
@@ -1078,14 +1292,14 @@ function launchLudoGame(opts) {
   if ($('#ldSpecExit', rootEl)) $('#ldSpecExit', rootEl).onclick = () => view.close();
   if ($('#ldRulesBtn', rootEl)) $('#ldRulesBtn', rootEl).onclick = () => openLudoRulesModal();
   if ($('#ldInviteBtn', rootEl)) {
-    $('#ldInviteBtn', rootEl).onclick = () => openLudoInviteModal({ mode, stake, roomCode });
+    $('#ldInviteBtn', rootEl).onclick = () => openLudoInviteModal({ mode: effectiveMode, stake, roomCode });
   }
   if ($('#ldQvBtn', rootEl)) {
     $('#ldQvBtn', rootEl).onclick = (e) => {
       e.stopPropagation();
       if (typeof QuickVoice !== 'undefined') {
         QuickVoice.openPanel($('#ldQvBtn', rootEl), 'ludo_snakes', (text, ico) => {
-          showSeatBubble(0, `${ico} ${text}`);
+          showSeatBubble(mySeatId, `${ico} ${text}`);
           if (chatWidget) chatWidget.pushMessage(me?.name || 'You', `${ico} ${text}`, { spectate: isSpectating });
         });
       }
@@ -1112,7 +1326,7 @@ function launchLudoGame(opts) {
       spectate: isSpectating,
       quickLines: ['Roll a 6! 🎲', 'Nice capture! 💥', 'Safe star! ★', 'Good game! 👏', 'Watch out! 😎'],
       onMessage: (item) => {
-        if (!item.system) showSeatBubble(0, item.text);
+        if (!item.system) showSeatBubble(mySeatId, item.text);
       }
     });
     chatWidget.mount(chatHost);
@@ -1121,6 +1335,7 @@ function launchLudoGame(opts) {
   view.onclose = () => {
     over = true;
     stopTimers();
+    if (liveSync) liveSync.destroy();
     if (chatWidget) chatWidget.destroy();
     if (!isSpectating && typeof setMyLiveActivity === 'function') setMyLiveActivity({ type: 'online' });
     if (typeof QuickVoice !== 'undefined') QuickVoice.closePanel();

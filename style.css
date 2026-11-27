@@ -11623,6 +11623,318 @@ body.light .gfs-status-pill.bot {
   }
 }
 
+/* =====================================================================
+   LIVE PVP CONNECTION & RECONNECT BANNER (NO SILENT BOT FALLBACK)
+   ===================================================================== */
+.pvp-conn-banner {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto 10px;
+  padding: 10px 14px;
+  border-radius: 13px;
+  background: rgba(127, 29, 29, 0.92);
+  border: 1px solid rgba(252, 165, 165, 0.45);
+  color: #fef2f2;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  z-index: 25;
+}
+.pvp-conn-banner[data-conn-status="opponent_reconnecting"],
+.pvp-conn-banner[data-conn-status="reconnecting"] {
+  background: rgba(120, 53, 15, 0.92);
+  border-color: rgba(253, 224, 71, 0.45);
+  color: #fffbeb;
+}
+.pvp-conn-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pvp-conn-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+.pvp-conn-copy b {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.pvp-conn-copy span {
+  font-size: 11.5px;
+  opacity: 0.9;
+  line-height: 1.35;
+}
+.pvp-conn-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* =====================================================================
+   VR FLOATING ICON PILL, GAME GUARD, AD-SYNC STRIP & LIVE EMOJI FX (v36)
+   ===================================================================== */
+.vr-floating-pill {
+  position: fixed;
+  right: 12px;
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  z-index: 260;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(15, 23, 48, 0.96), rgba(30, 27, 75, 0.96));
+  border: 1.5px solid rgba(56, 189, 248, 0.55);
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  max-width: min(260px, calc(100vw - 24px));
+  animation: vrPillPop 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes vrPillPop {
+  from { opacity: 0; transform: translateY(14px) scale(0.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.vr-fp-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  color: #f8fafc;
+  padding: 2px 4px 2px 0;
+  cursor: pointer;
+  min-width: 0;
+  text-align: left;
+}
+.vr-fp-orb {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.5);
+}
+.vr-fp-pulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid rgba(52, 211, 153, 0.78);
+  animation: vrOrbPulse 1.8s ease-out infinite;
+}
+@keyframes vrOrbPulse {
+  0% { transform: scale(0.94); opacity: 0.95; }
+  100% { transform: scale(1.24); opacity: 0; }
+}
+.vr-fp-ico {
+  font-size: 16px;
+  line-height: 1;
+}
+.vr-fp-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.vr-fp-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 132px;
+}
+.vr-fp-sub {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #6ee7b7;
+  white-space: nowrap;
+}
+.vr-fp-exit {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(248, 113, 113, 0.42);
+  background: rgba(220, 38, 38, 0.22);
+  color: #fecaca;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.vr-fp-exit:hover {
+  background: rgba(220, 38, 38, 0.42);
+}
+
+.party-room-card.is-vr-floating {
+  box-shadow: 0 0 0 2px #38bdf8, 0 12px 26px rgba(14, 165, 233, 0.35);
+}
+
+.pfs-hdr-btn.exit {
+  background: rgba(220, 38, 38, 0.26);
+  border-color: rgba(248, 113, 113, 0.5);
+  color: #fecaca;
+}
+
+.vr-guard-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.vr-guard-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+.vr-guard-msg {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--tx);
+}
+.vr-guard-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* VR Floating Emoji Burst Layer & Seat Reaction Bubbles */
+.pfs-fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 45;
+}
+.pfs-rx-float {
+  position: absolute;
+  bottom: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translateX(-50%);
+  animation: vrEmojiFloat 2.2s cubic-bezier(0.18, 0.85, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+.pfs-rx-em {
+  font-size: 32px;
+  line-height: 1;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+}
+.pfs-rx-who {
+  font-size: 10px;
+  font-weight: 800;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  white-space: nowrap;
+}
+@keyframes vrEmojiFloat {
+  0% { opacity: 0; transform: translate(-50%, 16px) scale(0.65); }
+  14% { opacity: 1; transform: translate(-50%, -20px) scale(1.12); }
+  75% { opacity: 0.95; transform: translate(-50%, -185px) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -250px) scale(0.85); }
+}
+
+.pfs-seat-rx {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1.5px solid rgba(251, 191, 36, 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  z-index: 6;
+  animation: vrSeatRxPop 0.25s ease-out;
+}
+@keyframes vrSeatRxPop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.pfs-rx-ticker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px 0 4px;
+}
+.pfs-rx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.16);
+  border: 1px solid rgba(251, 191, 36, 0.42);
+  color: #fef08a;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* YouTube Ad / Buffering Sync Status Strip */
+.pfs-vid-ad-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  background: rgba(180, 83, 9, 0.28);
+  border-top: 1px solid rgba(251, 191, 36, 0.35);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fef08a;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: center;
+}
+.pfs-vid-status-dot.ad {
+  background: #f59e0b !important;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.85);
+}
+
+/* Keep VR Chat & Emoji Dock comfortably visible even during Video Watch-Together */
+.pfs-shell .pfs-chat-feed {
+  min-height: 92px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.pfs-shell .pfs-main-scroll {
+  padding-bottom: 10px;
+}
+
+
+
 
 
 

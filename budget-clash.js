@@ -199,6 +199,17 @@ function launchBudgetClash(opts) {
   let curRoundData = null;
   let matchSettled = false;
 
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
+  const myName = (typeof me !== 'undefined' && me?.name) ? me.name : 'You';
+  const auth = window.PvpSyncRules ? window.PvpSyncRules.resolveMatchAuthority(o, myUid) : null;
+  const isLiveOnline = Boolean(auth && auth.isLiveOnline);
+  const bcRoomId = String(o.roomId || (auth && auth.roomId) || '').trim();
+  const bcRoomCode = String(o.roomCode || (auth && auth.roomCode) || '').toUpperCase();
+  const realRemotePlayers = (auth && Array.isArray(auth.remoteHumans)) ? auth.remoteHumans : [];
+  let liveSync = null;
+  let liveClosestGuesses = {}; // { [roundNo]: { [uid]: { id, name, guess } } }
+  let liveClosestRevealFn = null;
+
   const view = openFullScreenGameView({
     gameId: 'budget_clash',
     title: 'Budget Clash',
@@ -732,19 +743,9 @@ function launchBudgetClash(opts) {
       };
     });
 
-    const submitClosest = () => {
-      if (locked || over) return;
-      const myGuess = Math.max(1, Math.round(Number($('#bcGuessInput', host)?.value || 0)));
-      locked = true;
-      stopRoundTimer();
-      const bot1Guess = Math.max(10, Math.round(item.price * (0.78 + Math.random() * 0.44)));
-      const bot2Guess = Math.max(10, Math.round(item.price * (0.68 + Math.random() * 0.64)));
-      const res = SR.evaluateClosestGuesses(item.price, [
-        { id: 'me', name: (typeof me !== 'undefined' && me.name) || 'You', guess: myGuess },
-        { id: 'aria', name: 'Aria Nova', guess: bot1Guess },
-        { id: 'leo', name: 'Leo Blaze', guess: bot2Guess }
-      ]);
-      const won = res.winnerId === 'me';
+    const renderClosestOutcome = (entries) => {
+      const res = SR.evaluateClosestGuesses(item.price, entries);
+      const won = res.winnerId === myUid || res.winnerId === 'me';
       animateRollingCounter(10, item.price, 'ACTUAL MARKET PRICE', won);
       if (won) {
         wins++; streak++; bestStreak = Math.max(bestStreak, streak);
@@ -757,12 +758,13 @@ function launchBudgetClash(opts) {
       }
       const coinMsg = settleRoundBet(won, false);
       syncHud();
-      $('#bcGuessForm', host).hidden = true;
+      if ($('#bcGuessForm', host)) $('#bcGuessForm', host).hidden = true;
       const rev = $('#bcRevealBoard', host);
+      if (!rev) return;
       rev.innerHTML = `
         <div class="bc-reveal-list" data-testid="bc-simultaneous-reveal">
           ${res.ranked.map((r, idx) => `
-            <div class="bc-rev-row ${idx === 0 ? 'winner' : ''} ${r.id === 'me' ? 'me' : ''}">
+            <div class="bc-rev-row ${idx === 0 ? 'winner' : ''} ${(r.id === myUid || r.id === 'me') ? 'me' : ''}">
               <span>${idx === 0 ? '👑' : `#${idx + 1}`} <b>${esc(r.name)}</b></span>
               <span class="bc-rev-num">${SR.formatINR(r.guess)} <small>(±${SR.formatINR(r.diff)})</small></span>
             </div>
@@ -788,7 +790,62 @@ function launchBudgetClash(opts) {
           setTimeout(() => floater.remove(), 1100);
         };
       });
-      $('#bcNextBtn', rev).onclick = () => { roundNo++; renderRound(); };
+      $('#bcNextBtn', rev).onclick = () => { liveClosestRevealFn = null; roundNo++; renderRound(); };
+    };
+
+    const submitClosest = () => {
+      if (locked || over) return;
+      const myGuess = Math.max(1, Math.round(Number($('#bcGuessInput', host)?.value || 0)));
+      locked = true;
+      stopRoundTimer();
+
+      if (isLiveOnline) {
+        // HARD BLOCK: NEVER inject fake Aria Nova / Leo Blaze bots in a live friend room!
+        liveClosestGuesses[roundNo] = liveClosestGuesses[roundNo] || {};
+        liveClosestGuesses[roundNo][myUid] = { id: myUid, name: myName, guess: myGuess };
+        if (liveSync) {
+          liveSync.pushState({
+            type: 'closest_guess',
+            roundNo,
+            itemId: item.id,
+            entry: { id: myUid, name: myName, guess: myGuess }
+          });
+        }
+        const expectedCount = Math.max(2, 1 + realRemotePlayers.length);
+        const tryRevealLive = () => {
+          const map = liveClosestGuesses[roundNo] || {};
+          const entries = Object.values(map);
+          if (entries.length >= expectedCount) {
+            liveClosestRevealFn = null;
+            renderClosestOutcome(entries);
+          } else {
+            if ($('#bcGuessForm', host)) $('#bcGuessForm', host).hidden = true;
+            const waitingNames = realRemotePlayers
+              .filter(p => !map[p.uid])
+              .map(p => p.name)
+              .join(', ') || 'Friend';
+            const rev = $('#bcRevealBoard', host);
+            if (rev) {
+              rev.innerHTML = `
+                <div class="bc-feedback-bar" data-testid="bc-waiting-friend">
+                  <div class="bc-fb-pill ok">🔒 Your guess (${SR.formatINR(myGuess)}) locked! Waiting for ${esc(waitingNames)}…</div>
+                </div>
+              `;
+            }
+          }
+        };
+        liveClosestRevealFn = tryRevealLive;
+        tryRevealLive();
+        return;
+      }
+
+      const bot1Guess = Math.max(10, Math.round(item.price * (0.78 + Math.random() * 0.44)));
+      const bot2Guess = Math.max(10, Math.round(item.price * (0.68 + Math.random() * 0.64)));
+      renderClosestOutcome([
+        { id: myUid, name: myName, guess: myGuess },
+        { id: 'aria', name: 'Aria Nova', guess: bot1Guess },
+        { id: 'leo', name: 'Leo Blaze', guess: bot2Guess }
+      ]);
     };
     $('#bcLockGuessBtn', host).onclick = submitClosest;
     startRoundTimer(12, submitClosest);
@@ -874,12 +931,37 @@ function launchBudgetClash(opts) {
     syncHud();
   };
 
+  if (isLiveOnline && bcRoomId && typeof window.createLiveMatchSync === 'function') {
+    liveSync = window.createLiveMatchSync({
+      roomId: bcRoomId,
+      roomCode: bcRoomCode,
+      gameId: 'budget_clash',
+      myUid,
+      myName,
+      oppUids: realRemotePlayers.map(p => p.uid),
+      onLeaveRequest: () => view.close(),
+      onState: (payload) => {
+        if (over || !payload) return;
+        if (payload.type === 'closest_guess' && payload.entry && payload.entry.id) {
+          const rNo = Number(payload.roundNo || roundNo);
+          liveClosestGuesses[rNo] = liveClosestGuesses[rNo] || {};
+          liveClosestGuesses[rNo][payload.entry.id] = payload.entry;
+          if (rNo === roundNo && typeof liveClosestRevealFn === 'function') {
+            liveClosestRevealFn();
+          }
+        }
+      }
+    });
+    liveSync.mountConnectionBanner($('#bcArena', view));
+  }
+
   view.onclose = () => {
     over = true;
     stopRoundTimer();
     cancelAnimationFrame(rollRaf);
     clearTimeout(curtainTimer);
     clearTimeout(confettiTimer);
+    if (liveSync) liveSync.destroy();
     if (typeof VoiceNarrator !== 'undefined') VoiceNarrator.stop();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };

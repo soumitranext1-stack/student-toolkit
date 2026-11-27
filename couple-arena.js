@@ -14,15 +14,29 @@ function launchCoupleArena(opts) {
   if (!SR) return;
   const o = opts || {};
   let activeMode = o.subMode || 'mind_sync';
-  const roomCode = String(o.roomCode || ('CP' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
-  const p1Name = (typeof me !== 'undefined' && me.name) ? me.name : 'You';
-  const p2Name = o.rival?.name || 'Aria Nova';
-  const p1User = (typeof me !== 'undefined') ? me : { name: p1Name, avatar: 'av_b1', frame: 'none' };
-  const p2User = o.rival || { name: p2Name, avatar: 'av_g2', frame: 'fx_rose' };
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
+  const myProfile = {
+    uid: myUid,
+    name: (typeof me !== 'undefined' && me.name) ? me.name : 'You',
+    avatar: (typeof me !== 'undefined' && me.avatar) ? me.avatar : 'av_b1'
+  };
+  const ctrl = window.PvpSyncRules ? window.PvpSyncRules.resolve2PControl(o, myUid, myProfile) : null;
+  const isLiveOnline = Boolean(ctrl && ctrl.isLiveOnline);
+  const mySide = ctrl ? ctrl.mySide : 'p1';
+  const oppSide = mySide === 'p1' ? 'p2' : 'p1';
+  const roomId = String(o.roomId || (ctrl && ctrl.roomId) || '').trim();
+  const roomCode = String(o.roomCode || (ctrl && ctrl.roomCode) || ('CP' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
+  const p1Name = (ctrl && ctrl.p1Name) || myProfile.name;
+  const p2Name = (ctrl && ctrl.p2Name) || o.rival?.name || 'Aria Nova';
+  const p1User = (ctrl && ctrl.p1) ? { name: ctrl.p1Name, avatar: ctrl.p1Avatar || 'av_b1', frame: mySide === 'p1' ? (me?.frame || 'none') : 'fx_rose' } : ((typeof me !== 'undefined') ? me : { name: p1Name, avatar: 'av_b1', frame: 'none' });
+  const p2User = (ctrl && ctrl.p2) ? { name: ctrl.p2Name, avatar: ctrl.p2Avatar || 'av_g2', frame: mySide === 'p2' ? (me?.frame || 'none') : 'fx_rose' } : (o.rival || { name: p2Name, avatar: 'av_g2', frame: 'fx_rose' });
   const matchStake = Math.max(0, Math.floor(Number(o.stake || 0)));
   const matchStakePaid = Boolean(o.stakeDeducted && matchStake > 0);
   let matchSettled = false;
-  let duoPlayMode = o.modeType === 'invite' || o.modeType === 'pvp' ? 'pass' : 'bot'; // 'bot' | 'pass'
+  // HARD BLOCK: In a live invited partner room, NEVER allow AI Partner mode!
+  let duoPlayMode = isLiveOnline ? 'live' : (o.modeType === 'invite' || o.modeType === 'pvp' ? 'pass' : 'bot'); // 'bot' | 'pass' | 'live'
+  let liveSync = null;
+  let onRemoteCoupleState = null;
 
   const settleCoupleOutcome = (won, tie, expWin) => {
     const activeStake = (matchStakePaid && !matchSettled) ? matchStake : 0;
@@ -81,8 +95,10 @@ function launchCoupleArena(opts) {
           </div>
           <div class="cp-sub-toolbar">
             <div class="cp-duo-toggle" role="group" aria-label="Partner Mode">
-              <button type="button" class="cp-dt-btn ${duoPlayMode === 'bot' ? 'on' : ''}" data-cpduo="bot">🤖 AI Partner</button>
-              <button type="button" class="cp-dt-btn ${duoPlayMode === 'pass' ? 'on' : ''}" data-cpduo="pass">👥 2P Secret Lock</button>
+              ${isLiveOnline
+                ? `<span class="cp-dt-btn on" data-testid="cp-live-partner-badge">💞 Live Partner · ${esc(roomCode)}</span>`
+                : `<button type="button" class="cp-dt-btn ${duoPlayMode === 'bot' ? 'on' : ''}" data-cpduo="bot">🤖 AI Partner</button>
+                   <button type="button" class="cp-dt-btn ${duoPlayMode === 'pass' ? 'on' : ''}" data-cpduo="pass">👥 2P Secret Lock</button>`}
             </div>
             ${typeof VoiceNarrator !== 'undefined' ? VoiceNarrator.renderBar('cp') : ''}
           </div>
@@ -158,11 +174,50 @@ function launchCoupleArena(opts) {
 
   /* ===== MODE 1: MIND SYNC (DIL KI DHADKAN) ===== */
   const runMindSync = () => {
-    const prompts = typeof SR.drawPersistentQuestions === 'function'
-      ? SR.drawPersistentQuestions('couple_mind_sync', SR.MIND_SYNC_PROMPTS, 5, q => q.id || q.question)
-      : SR.MIND_SYNC_PROMPTS.slice(0, 5);
-    let idx = 0, matches = 0, p1Pick = null;
+    const prompts = isLiveOnline
+      ? SR.MIND_SYNC_PROMPTS.slice(0, 5)
+      : (typeof SR.drawPersistentQuestions === 'function'
+          ? SR.drawPersistentQuestions('couple_mind_sync', SR.MIND_SYNC_PROMPTS, 5, q => q.id || q.question)
+          : SR.MIND_SYNC_PROMPTS.slice(0, 5));
+    let idx = 0, matches = 0, p1Pick = null, p2Pick = null, roundScored = false;
     const host = $('#cpStageHost', view);
+
+    const showLiveReveal = (q, finalP1, finalP2) => {
+      const ev = SR.evaluateMindSync(finalP1, finalP2);
+      if (!roundScored) {
+        roundScored = true;
+        if (ev.matched) {
+          matches++;
+          if (typeof playSfx === 'function') playSfx('fanfare');
+          spawnHeartBurst(['💖', '✨', '🔥', '💝']);
+        } else if (typeof playSfx === 'function') {
+          playSfx('funnyBuzzer');
+        }
+      }
+      $$('[data-msopt]', host).forEach((x, i) => {
+        x.disabled = true;
+        if (i === finalP1 && i === finalP2) x.classList.add('sync-hit');
+        else if (i === finalP1 || i === finalP2) x.classList.add('sync-miss');
+      });
+      const rev = $('#cpMsReveal', host);
+      if (rev) {
+        rev.innerHTML = `
+          <div class="cp-sync-banner ${ev.matched ? 'hit' : 'miss'}" data-testid="cp-sync-reveal">
+            <b>${esc(ev.headline)}</b>
+            <small>${esc(p1Name)}: ${esc(q.options[finalP1])} · ${esc(p2Name)}: ${esc(q.options[finalP2])}</small>
+            <button type="button" class="btn gold sm" id="cpMsNext" style="margin-top:8px">${idx + 1 >= prompts.length ? 'Final Score ›' : 'Next Round ›'}</button>
+          </div>
+        `;
+        $('#cpMsNext', host).onclick = () => {
+          p1Pick = null;
+          p2Pick = null;
+          roundScored = false;
+          idx++;
+          if (isLiveOnline && liveSync) liveSync.pushState({ mode: 'mind_sync', action: 'next', idx, matches });
+          paint();
+        };
+      }
+    };
 
     const paint = () => {
       if (idx >= prompts.length) {
@@ -194,26 +249,44 @@ function launchCoupleArena(opts) {
       }
 
       const q = prompts[idx];
-      const stepLabel = p1Pick === null
-        ? `${p1Name}: Lock Secret Answer (${idx + 1}/${prompts.length})`
-        : `${p2Name}: Lock Secret Answer (${idx + 1}/${prompts.length})`;
-      if (p1Pick === null) speak(q);
+      const myLocked = mySide === 'p1' ? p1Pick !== null : p2Pick !== null;
+      const partnerName = mySide === 'p1' ? p2Name : p1Name;
+      const stepLabel = isLiveOnline
+        ? (myLocked ? `🔒 Locked! Waiting for ${partnerName} (${idx + 1}/${prompts.length})` : `Lock Your Secret Answer (${idx + 1}/${prompts.length})`)
+        : (p1Pick === null
+            ? `${p1Name}: Lock Secret Answer (${idx + 1}/${prompts.length})`
+            : `${p2Name}: Lock Secret Answer (${idx + 1}/${prompts.length})`);
+      if (p1Pick === null && p2Pick === null) speak(q);
 
       host.innerHTML = `
         <div class="cp-card">
           <div class="cp-kicker">${esc(stepLabel)}</div>
           <h3 class="cp-q-title">${esc(q.question || q.prompt || '')}</h3>
           <div class="cp-opts-grid">
-            ${q.options.map((opt, i) => `<button type="button" class="cp-opt-btn" data-msopt="${i}" data-testid="cp-ms-opt-${i}">${esc(opt)}</button>`).join('')}
+            ${q.options.map((opt, i) => `<button type="button" class="cp-opt-btn" data-msopt="${i}" data-testid="cp-ms-opt-${i}" ${isLiveOnline && myLocked ? 'disabled' : ''}>${esc(opt)}</button>`).join('')}
           </div>
           <div id="cpMsReveal"></div>
         </div>
       `;
 
+      if (isLiveOnline && p1Pick !== null && p2Pick !== null) {
+        showLiveReveal(q, p1Pick, p2Pick);
+        return;
+      } else if (isLiveOnline && myLocked) {
+        $('#cpMsReveal', host).innerHTML = `<div class="cp-sync-banner" data-testid="cp-waiting-partner"><b>🔒 Secret Answer Locked!</b><small>Waiting for ${esc(partnerName)} to lock their answer…</small></div>`;
+        return;
+      }
+
       $$('[data-msopt]', host).forEach(b => {
         b.onclick = () => {
           const pick = Number(b.dataset.msopt);
           if (typeof playSfx === 'function') playSfx('heartPop');
+          if (isLiveOnline) {
+            if (mySide === 'p1') p1Pick = pick; else p2Pick = pick;
+            if (liveSync) liveSync.pushState({ mode: 'mind_sync', action: 'pick', idx, side: mySide, pick });
+            paint();
+            return;
+          }
           if (duoPlayMode === 'pass' && p1Pick === null) {
             p1Pick = pick;
             toast(`${p1Name} locked! Pass to ${p2Name}`);
@@ -224,33 +297,24 @@ function launchCoupleArena(opts) {
           const finalP2 = duoPlayMode === 'pass'
             ? pick
             : (Math.random() < 0.68 ? finalP1 : (finalP1 + 1 + Math.floor(Math.random() * 3)) % q.options.length);
-          const ev = SR.evaluateMindSync(finalP1, finalP2);
-          if (ev.matched) {
-            matches++;
-            if (typeof playSfx === 'function') playSfx('fanfare');
-            spawnHeartBurst(['💖', '✨', '🔥', '💝']);
-          } else {
-            if (typeof playSfx === 'function') playSfx('funnyBuzzer');
-          }
-          $$('[data-msopt]', host).forEach((x, i) => {
-            x.disabled = true;
-            if (i === finalP1 && i === finalP2) x.classList.add('sync-hit');
-            else if (i === finalP1 || i === finalP2) x.classList.add('sync-miss');
-          });
-          $('#cpMsReveal', host).innerHTML = `
-            <div class="cp-sync-banner ${ev.matched ? 'hit' : 'miss'}" data-testid="cp-sync-reveal">
-              <b>${esc(ev.headline)}</b>
-              <small>${esc(p1Name)}: ${esc(q.options[finalP1])} · ${esc(p2Name)}: ${esc(q.options[finalP2])}</small>
-              <button type="button" class="btn gold sm" id="cpMsNext" style="margin-top:8px">${idx + 1 >= prompts.length ? 'Final Score ›' : 'Next Round ›'}</button>
-            </div>
-          `;
-          $('#cpMsNext', host).onclick = () => {
-            p1Pick = null;
-            idx++;
-            paint();
-          };
+          showLiveReveal(q, finalP1, finalP2);
         };
       });
+    };
+
+    onRemoteCoupleState = (payload) => {
+      if (!payload || payload.mode !== 'mind_sync') return;
+      if (payload.action === 'pick' && Number(payload.idx) === idx) {
+        if (payload.side === 'p1') p1Pick = Number(payload.pick);
+        if (payload.side === 'p2') p2Pick = Number(payload.pick);
+        paint();
+      } else if (payload.action === 'next' && Number(payload.idx) > idx) {
+        idx = Number(payload.idx);
+        p1Pick = null;
+        p2Pick = null;
+        roundScored = false;
+        paint();
+      }
     };
 
     paint();
@@ -382,10 +446,14 @@ function launchCoupleArena(opts) {
 
   /* ===== MODE 3: WHO'S MOST LIKELY TO? ===== */
   const runMostLikely = () => {
-    const prompts = typeof SR.drawPersistentQuestions === 'function'
-      ? SR.drawPersistentQuestions('couple_most_likely', SR.MOST_LIKELY_PROMPTS, 5, q => q.id || q.prompt)
-      : SR.MOST_LIKELY_PROMPTS.slice(0, 5);
+    const prompts = isLiveOnline
+      ? SR.MOST_LIKELY_PROMPTS.slice(0, 5)
+      : (typeof SR.drawPersistentQuestions === 'function'
+          ? SR.drawPersistentQuestions('couple_most_likely', SR.MOST_LIKELY_PROMPTS, 5, q => q.id || q.prompt)
+          : SR.MOST_LIKELY_PROMPTS.slice(0, 5));
     let idx = 0, p1Votes = 0, p2Votes = 0;
+    let liveVotes = { p1: null, p2: null };
+    let scoredThis = false;
     const host = $('#cpStageHost', view);
 
     const paint = () => {
@@ -414,17 +482,19 @@ function launchCoupleArena(opts) {
       }
 
       const item = prompts[idx];
-      speak(item);
+      if (!liveVotes.p1 && !liveVotes.p2) speak(item);
+      const myVoted = Boolean(liveVotes[mySide]);
+      const partnerName = mySide === 'p1' ? p2Name : p1Name;
       host.innerHTML = `
         <div class="cp-card">
           <div class="cp-kicker">WHO'S MOST LIKELY TO? · ${idx + 1}/${prompts.length}</div>
           <h3 class="cp-q-title">${esc(item.prompt)}</h3>
           <div class="cp-vote-pair">
-            <button type="button" class="cp-av-vote" data-cpvote="p1" data-testid="cp-vote-p1">
+            <button type="button" class="cp-av-vote" data-cpvote="p1" data-testid="cp-vote-p1" ${isLiveOnline && myVoted ? 'disabled' : ''}>
               ${typeof av === 'function' ? av(p1User, 62) : '🧑'}
               <b>${esc(p1Name)}</b>
             </button>
-            <button type="button" class="cp-av-vote" data-cpvote="p2" data-testid="cp-vote-p2">
+            <button type="button" class="cp-av-vote" data-cpvote="p2" data-testid="cp-vote-p2" ${isLiveOnline && myVoted ? 'disabled' : ''}>
               ${typeof av === 'function' ? av(p2User, 62) : '👩'}
               <b>${esc(p2Name)}</b>
             </button>
@@ -433,12 +503,47 @@ function launchCoupleArena(opts) {
         </div>
       `;
 
+      if (isLiveOnline && liveVotes.p1 && liveVotes.p2) {
+        if (!scoredThis) {
+          scoredThis = true;
+          if (liveVotes.p1 === 'p1') p1Votes++; else p2Votes++;
+          if (liveVotes.p2 === 'p1') p1Votes++; else p2Votes++;
+        }
+        const agreed = liveVotes.p1 === liveVotes.p2;
+        const pickedNm = liveVotes[mySide] === 'p1' ? p1Name : p2Name;
+        const partnerPickedNm = liveVotes[oppSide] === 'p1' ? p1Name : p2Name;
+        $('#cpVoteSpot', host).innerHTML = `
+          <div class="cp-sync-banner ${agreed ? 'hit' : 'miss'}" data-testid="cp-ml-live-reveal">
+            <b>${agreed ? `🔦 Both pointed at ${esc(pickedNm)}!` : `😂 Split Vote!`}</b>
+            <small>You picked ${esc(pickedNm)} · ${esc(partnerName)} picked ${esc(partnerPickedNm)}</small>
+            <button type="button" class="btn gold sm" id="cpMlNext" style="margin-top:8px">Next Prompt ›</button>
+          </div>
+        `;
+        $('#cpMlNext', host).onclick = () => {
+          idx++;
+          liveVotes = { p1: null, p2: null };
+          scoredThis = false;
+          if (liveSync) liveSync.pushState({ mode: 'most_likely', action: 'next', idx });
+          paint();
+        };
+        return;
+      } else if (isLiveOnline && myVoted) {
+        $('#cpVoteSpot', host).innerHTML = `<div class="cp-sync-banner" data-testid="cp-waiting-partner"><b>🔒 Vote Locked!</b><small>Waiting for ${esc(partnerName)} to vote…</small></div>`;
+        return;
+      }
+
       $$('[data-cpvote]', host).forEach(b => {
         b.onclick = () => {
           const v = b.dataset.cpvote;
-          if (v === 'p1') p1Votes++; else p2Votes++;
           if (typeof playSfx === 'function') playSfx('heartPop');
           spawnHeartBurst(['👉', '😂', '✨']);
+          if (isLiveOnline) {
+            liveVotes[mySide] = v;
+            if (liveSync) liveSync.pushState({ mode: 'most_likely', action: 'vote', idx, side: mySide, vote: v });
+            paint();
+            return;
+          }
+          if (v === 'p1') p1Votes++; else p2Votes++;
           $$('[data-cpvote]', host).forEach(x => {
             x.disabled = true;
             x.classList.toggle('spotlight-win', x.dataset.cpvote === v);
@@ -455,6 +560,20 @@ function launchCoupleArena(opts) {
         };
       });
     };
+
+    onRemoteCoupleState = (payload) => {
+      if (!payload || payload.mode !== 'most_likely') return;
+      if (payload.action === 'vote' && Number(payload.idx) === idx) {
+        liveVotes[payload.side] = payload.vote;
+        paint();
+      } else if (payload.action === 'next' && Number(payload.idx) > idx) {
+        idx = Number(payload.idx);
+        liveVotes = { p1: null, p2: null };
+        scoredThis = false;
+        paint();
+      }
+    };
+
     paint();
   };
 
@@ -536,6 +655,7 @@ function launchCoupleArena(opts) {
 
   const renderActiveMode = () => {
     clearCoupleTimers();
+    onRemoteCoupleState = null;
     syncTopTabs();
     if (activeMode === 'truth_dare') runTruthDareWheel();
     else if (activeMode === 'most_likely') runMostLikely();
@@ -543,16 +663,40 @@ function launchCoupleArena(opts) {
     else runMindSync();
   };
 
+  if (isLiveOnline && roomId && typeof window.createLiveMatchSync === 'function') {
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'couple_arena',
+      myUid,
+      myName: myProfile.name,
+      oppUids: ctrl && ctrl.oppUid ? [ctrl.oppUid] : [],
+      onLeaveRequest: () => view.close(),
+      onState: (payload) => {
+        if (over || !payload) return;
+        if (payload.switchMode && payload.switchMode !== activeMode) {
+          activeMode = payload.switchMode;
+          renderActiveMode();
+          return;
+        }
+        if (typeof onRemoteCoupleState === 'function') onRemoteCoupleState(payload);
+      }
+    });
+    liveSync.mountConnectionBanner($('#cpArena', view));
+  }
+
   $$('[data-cpmode]', view).forEach(b => {
     b.onclick = () => {
       activeMode = b.dataset.cpmode;
       if (typeof playSfx === 'function') playSfx('tap');
+      if (isLiveOnline && liveSync) liveSync.pushState({ switchMode: activeMode });
       renderActiveMode();
     };
   });
 
   $$('[data-cpduo]', view).forEach(b => {
     b.onclick = () => {
+      if (isLiveOnline) return; // HARD BLOCK: Never switch to AI Partner in a live room!
       duoPlayMode = b.dataset.cpduo;
       if (typeof playSfx === 'function') playSfx('tap');
       renderActiveMode();
@@ -562,6 +706,7 @@ function launchCoupleArena(opts) {
   view.onclose = () => {
     over = true;
     clearCoupleTimers();
+    if (liveSync) liveSync.destroy();
     if (typeof VoiceNarrator !== 'undefined') VoiceNarrator.stop();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };

@@ -1,10 +1,11 @@
 "use strict";
 /* =====================================================================
    COUPLE CHRONICLES — HUB, 2-SEAT FIRESTORE LOBBY, DUAL-CHOICE READER,
-   CONTINUOUS WEB AUDIO BGM, HI/EN/BN VOICE & CUSTOM NAMED PDF EXPORTER
+   LAYERED SVG/CSS SCENE ART, CONTINUOUS WEB AUDIO BGM, HI/EN/BN VOICE
+   NARRATION & PERSONALIZED STORY BOOK PDF EXPORTER
    ===================================================================== */
 (function () {
-  const UNLOCKED_KEY = 'sg_cc_unlocked_endings_v1';
+  const UNLOCKED_KEY = 'sg_cc_unlocked_endings_v2';
   const LANG_KEY = 'sg_cc_voice_lang';
 
   let activeFilter = 'All';
@@ -13,90 +14,16 @@
   let activeRoomUnsub = null;
   let activeBroadcast = null;
   let activeStorageHandler = null;
+  let activeNetCleanup = null;
   let activeView = null;
   let activeReaderMode = null; // 'lobby' | 'reader'
   let voiceMuted = false;
-  let bgmUnlockAttached = false;
+  let pendingSfxTimers = [];
 
   try {
     const savedL = localStorage.getItem(LANG_KEY) || localStorage.getItem('sg_voice_lang');
     if (savedL === 'en' || savedL === 'hi' || savedL === 'bn') activeLang = savedL;
   } catch {}
-
-  function getImageCandidates(rawSrc) {
-    const Rules = getRules();
-    if (Rules && typeof Rules.resolveChronicleImageCandidates === 'function') {
-      return Rules.resolveChronicleImageCandidates(rawSrc);
-    }
-    const clean = String(rawSrc || '').trim();
-    return clean ? [clean] : [];
-  }
-
-  function getFallbackArtwork(theme, label) {
-    const Rules = getRules();
-    if (Rules && typeof Rules.buildFallbackArtworkDataUri === 'function') {
-      return Rules.buildFallbackArtworkDataUri(theme || 'cover', label || 'The Midnight Express');
-    }
-    return '';
-  }
-
-  function ccHandleImageError(imgEl) {
-    if (!imgEl || imgEl.dataset.ccFallbackApplied === '1') return;
-    const rawSrc = imgEl.dataset.ccSrc || imgEl.getAttribute('src') || '';
-    const candidates = getImageCandidates(rawSrc);
-    const nextIdx = Number(imgEl.dataset.ccTryIdx || '0') + 1;
-    if (nextIdx < candidates.length) {
-      imgEl.dataset.ccTryIdx = String(nextIdx);
-      imgEl.src = candidates[nextIdx];
-      return;
-    }
-    imgEl.dataset.ccFallbackApplied = '1';
-    imgEl.onerror = null;
-    const theme = imgEl.dataset.ccTheme || 'cover';
-    const label = imgEl.dataset.ccLabel || imgEl.alt || 'The Midnight Express';
-    const fallbackUri = getFallbackArtwork(theme, label);
-    if (imgEl.parentElement) imgEl.parentElement.classList.add('cc-has-fallback');
-    if (fallbackUri) {
-      imgEl.classList.add('cc-img-fallback');
-      imgEl.src = fallbackUri;
-    } else {
-      imgEl.style.display = 'none';
-    }
-  }
-  window.ccHandleImageError = ccHandleImageError;
-
-  function applyChronicleImage(imgEl, rawSrc, theme, label, onReady) {
-    if (!imgEl) return;
-    const candidates = getImageCandidates(rawSrc);
-    imgEl.dataset.ccSrc = String(rawSrc || '');
-    imgEl.dataset.ccTheme = String(theme || 'cover');
-    imgEl.dataset.ccLabel = String(label || 'The Midnight Express');
-    imgEl.dataset.ccTryIdx = '0';
-    imgEl.dataset.ccFallbackApplied = '0';
-    imgEl.classList.remove('cc-img-fallback');
-    imgEl.style.display = '';
-
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      if (typeof onReady === 'function') onReady(imgEl);
-    };
-
-    imgEl.onload = finish;
-    imgEl.onerror = () => {
-      ccHandleImageError(imgEl);
-      if (imgEl.dataset.ccFallbackApplied === '1') finish();
-    };
-
-    if (candidates.length) {
-      imgEl.src = candidates[0];
-      if (imgEl.complete && imgEl.naturalWidth > 0) finish();
-    } else {
-      ccHandleImageError(imgEl);
-      finish();
-    }
-  }
 
   function getRules() {
     return window.StoryRules || null;
@@ -104,6 +31,14 @@
 
   function getCatalog() {
     return Array.isArray(window.STORIES_CATALOG) ? window.STORIES_CATALOG : [];
+  }
+
+  function getSceneArtUri(themeKey, labelText) {
+    const Rules = getRules();
+    if (Rules && typeof Rules.buildChronicleSceneDataUri === 'function') {
+      return Rules.buildChronicleSceneDataUri(themeKey || 'cover_divided', labelText || '');
+    }
+    return '';
   }
 
   function getActiveUid() {
@@ -116,7 +51,7 @@
   function myProfile() {
     return {
       uid: getActiveUid(),
-      name: (typeof me !== 'undefined' && me && me.name) ? String(me.name) : 'Player',
+      name: (typeof me !== 'undefined' && me && me.name) ? String(me.name) : 'Aarav',
       avatar: (typeof me !== 'undefined' && me && me.avatar) ? String(me.avatar) : 'av_b1',
       frame: (typeof me !== 'undefined' && me && me.frame) ? String(me.frame) : 'none'
     };
@@ -153,9 +88,14 @@
     return null;
   }
 
+  function clearPendingSfxTimers() {
+    pendingSfxTimers.forEach(t => clearTimeout(t));
+    pendingSfxTimers = [];
+  }
+
   /* ===================================================================
-     CONTINUOUS AMBIENT BGM SYNTHESIZER (Loops per scene, crossfades
-     smoothly on scene mood change, respects mute, zero external audio)
+     CONTINUOUS AMBIENT BGM SYNTHESIZER (Loops uninterrupted per scene,
+     smooth mood transitions, respects mute, clean teardown)
      =================================================================== */
   const StoryBGM = (() => {
     let ctx = null;
@@ -164,17 +104,81 @@
     let activeNodes = [];
     let loopTimer = 0;
     let bgmMuted = false;
+    let unlockHandler = null;
 
     const MOODS = {
-      noir_train: { chords: [[110, 164.81, 220, 261.63], [98, 146.83, 196, 246.94]], rain: true, filter: 520, tempoMs: 4200 },
-      velvet_mystery: { chords: [[130.81, 196, 246.94, 311.13], [116.54, 174.61, 233.08, 293.66]], rain: false, filter: 680, tempoMs: 4600 },
-      tension_pulse: { chords: [[92.5, 138.59, 185, 220], [87.31, 130.81, 174.61, 207.65]], rain: true, filter: 440, tempoMs: 3000 },
-      reunion_strings: { chords: [[146.83, 220, 293.66, 369.99], [130.81, 196, 261.63, 329.63]], rain: false, filter: 860, tempoMs: 4400 },
-      ending_glow: { chords: [[174.61, 220, 261.63, 349.23], [196, 246.94, 293.66, 392]], rain: false, filter: 980, tempoMs: 4800 }
+      monsoon_piano: {
+        chords: [
+          [146.83, 220.0, 261.63, 329.63],
+          [130.81, 196.0, 246.94, 293.66],
+          [116.54, 174.61, 220.0, 261.63],
+          [110.0, 164.81, 220.0, 261.63]
+        ],
+        rain: true,
+        filter: 620,
+        tempoMs: 4200
+      },
+      mansion_velvet: {
+        chords: [
+          [130.81, 196.0, 246.94, 311.13],
+          [123.47, 185.0, 246.94, 293.66],
+          [110.0, 164.81, 220.0, 293.66]
+        ],
+        rain: false,
+        filter: 740,
+        tempoMs: 4600
+      },
+      midnight_call: {
+        chords: [
+          [174.61, 220.0, 261.63, 329.63],
+          [146.83, 220.0, 261.63, 349.23],
+          [130.81, 196.0, 246.94, 329.63]
+        ],
+        rain: true,
+        filter: 690,
+        tempoMs: 4400
+      },
+      heartbreak_tension: {
+        chords: [
+          [110.0, 164.81, 196.0, 246.94],
+          [98.0, 146.83, 196.0, 233.08]
+        ],
+        rain: true,
+        filter: 460,
+        tempoMs: 3400
+      },
+      reunion_warmth: {
+        chords: [
+          [146.83, 220.0, 293.66, 369.99],
+          [164.81, 246.94, 329.63, 392.0],
+          [130.81, 196.0, 261.63, 329.63]
+        ],
+        rain: true,
+        filter: 880,
+        tempoMs: 4300
+      },
+      ending_dawn: {
+        chords: [
+          [174.61, 220.0, 261.63, 349.23],
+          [196.0, 246.94, 293.66, 392.0],
+          [130.81, 196.0, 261.63, 329.63]
+        ],
+        rain: false,
+        filter: 980,
+        tempoMs: 4700
+      }
     };
 
     function isGlobalMuted() {
       return bgmMuted || (typeof SFX !== 'undefined' && typeof SFX.isMuted === 'function' && SFX.isMuted());
+    }
+
+    function detachUnlockListeners() {
+      if (unlockHandler && typeof window !== 'undefined') {
+        try { window.removeEventListener('pointerdown', unlockHandler); } catch {}
+        try { window.removeEventListener('keydown', unlockHandler); } catch {}
+        unlockHandler = null;
+      }
     }
 
     function ensureCtx() {
@@ -187,16 +191,15 @@
         }
         if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
-          if (!bgmUnlockAttached && typeof window !== 'undefined') {
-            bgmUnlockAttached = true;
-            const resumeBgm = () => {
-              bgmUnlockAttached = false;
+          if (!unlockHandler && typeof window !== 'undefined') {
+            unlockHandler = () => {
+              detachUnlockListeners();
               if (ctx && ctx.state === 'suspended' && !isGlobalMuted()) {
                 ctx.resume().catch(() => {});
               }
             };
-            window.addEventListener('pointerdown', resumeBgm, { once: true, passive: true });
-            window.addEventListener('keydown', resumeBgm, { once: true, passive: true });
+            window.addEventListener('pointerdown', unlockHandler, { once: true, passive: true });
+            window.addEventListener('keydown', unlockHandler, { once: true, passive: true });
           }
         }
         if (!masterGain) {
@@ -223,13 +226,12 @@
     }
 
     function startMood(moodKey) {
-      const target = MOODS[moodKey] ? moodKey : 'noir_train';
+      const target = MOODS[moodKey] ? moodKey : 'monsoon_piano';
       if (isGlobalMuted()) {
         activeMood = target;
         stop(false);
         return;
       }
-      // Keep looping uninterrupted if already playing the same mood!
       if (activeMood === target && activeNodes.length > 0 && loopTimer) return;
 
       const c = ensureCtx();
@@ -245,24 +247,23 @@
 
       masterGain.gain.cancelScheduledValues(now);
       masterGain.gain.setValueAtTime(Math.max(0.0001, masterGain.gain.value || 0.0001), now);
-      masterGain.gain.linearRampToValueAtTime(0.075, now + 0.9);
+      masterGain.gain.linearRampToValueAtTime(0.072, now + 0.85);
 
-      // Soft warm rain noise bed for rainy/storm moods
       if (spec.rain) {
         try {
           const len = c.sampleRate * 2;
           const buf = c.createBuffer(1, len, c.sampleRate);
           const data = buf.getChannelData(0);
-          for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.25;
+          for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.22;
           const src = c.createBufferSource();
           src.buffer = buf;
           src.loop = true;
           const flt = c.createBiquadFilter();
           flt.type = 'bandpass';
-          flt.frequency.value = 950;
-          flt.Q.value = 0.7;
+          flt.frequency.value = 920;
+          flt.Q.value = 0.72;
           const rg = c.createGain();
-          rg.gain.value = 0.18;
+          rg.gain.value = 0.16;
           src.connect(flt);
           flt.connect(rg);
           rg.connect(masterGain);
@@ -277,7 +278,7 @@
         const notes = spec.chords[chordIdx % spec.chords.length];
         chordIdx++;
         const t = ctx.currentTime;
-        const durSec = spec.tempoMs / 1000 + 0.7;
+        const durSec = spec.tempoMs / 1000 + 0.75;
         notes.forEach((freq, i) => {
           try {
             const osc = ctx.createOscillator();
@@ -288,7 +289,7 @@
             flt.type = 'lowpass';
             flt.frequency.setValueAtTime(spec.filter, t);
             g.gain.setValueAtTime(0.0001, t);
-            g.gain.linearRampToValueAtTime(i === 0 ? 0.24 : 0.11, t + 1.1);
+            g.gain.linearRampToValueAtTime(i === 0 ? 0.24 : 0.11, t + 1.15);
             g.gain.exponentialRampToValueAtTime(0.0001, t + durSec);
             osc.connect(flt);
             flt.connect(g);
@@ -307,6 +308,7 @@
 
     function stop(resetMood) {
       clearNodes();
+      detachUnlockListeners();
       if (ctx && masterGain) {
         try {
           const now = ctx.currentTime;
@@ -332,7 +334,7 @@
   })();
 
   /* ===================================================================
-     MULTI-LANGUAGE VOICE NARRATION (EN / HI / BN) WITH CLEANUP
+     MULTI-LANGUAGE VOICE NARRATION (EN / HI / BN) WITH CLEAN STOP
      =================================================================== */
   function stopStoryVoice() {
     try {
@@ -358,7 +360,6 @@
       return;
     }
 
-    // Lightweight direct Web Speech fallback if voice-narrator.js wasn't loaded
     try {
       if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') return;
       window.speechSynthesis.cancel();
@@ -433,6 +434,7 @@
   }
 
   function teardownStorySession() {
+    clearPendingSfxTimers();
     if (typeof activeRoomUnsub === 'function') {
       try { activeRoomUnsub(); } catch {}
     }
@@ -442,6 +444,10 @@
     if (activeStorageHandler) {
       try { window.removeEventListener('storage', activeStorageHandler); } catch {}
       activeStorageHandler = null;
+    }
+    if (typeof activeNetCleanup === 'function') {
+      try { activeNetCleanup(); } catch {}
+      activeNetCleanup = null;
     }
     if (activeBroadcast) {
       activeBroadcast.onmessage = null;
@@ -460,11 +466,12 @@
   }
 
   /* ===================================================================
-     LAZY CUSTOM NAMED STORY BOOK PDF GENERATOR (Runs ONLY on Ending Click)
+     CUSTOM NAMED STORY BOOK PDF GENERATOR (Lightweight SVG -> A4 PDF 1.4)
      =================================================================== */
-  function loadSingleImageSafe(src) {
+  function loadSvgArtworkToImage(themeKey, labelText) {
     return new Promise((resolve) => {
-      if (!src) return resolve(null);
+      const uri = getSceneArtUri(themeKey, labelText);
+      if (!uri) return resolve(null);
       let settled = false;
       const done = (val) => {
         if (settled) return;
@@ -472,22 +479,12 @@
         clearTimeout(timer);
         resolve(val);
       };
-      const timer = setTimeout(() => done(null), 3500);
+      const timer = setTimeout(() => done(null), 2500);
       const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => done(img.naturalWidth > 0 ? img : null);
+      img.onload = () => done(img);
       img.onerror = () => done(null);
-      img.src = src;
+      img.src = uri;
     });
-  }
-
-  async function loadImageSafe(src) {
-    const candidates = getImageCandidates(src);
-    for (let i = 0; i < candidates.length; i++) {
-      const loaded = await loadSingleImageSafe(candidates[i]);
-      if (loaded) return loaded;
-    }
-    return null;
   }
 
   function wrapCanvasText(ctx, text, maxWidth) {
@@ -515,25 +512,22 @@
     const H = 1754;
     const pages = [];
 
-    const coverImg = await loadImageSafe(book.coverArt);
-    const endingObj = story.endings && state.endingId ? story.endings[state.endingId] : null;
-    const endImg = endingObj && endingObj.bg ? await loadImageSafe(endingObj.bg) : coverImg;
+    const coverImg = await loadSvgArtworkToImage(book.artTheme || 'cover_divided', `${book.partnerAName} & ${book.partnerBName}`);
+    const endImg = await loadSvgArtworkToImage(book.endingArtTheme || 'courtyard_climax', book.endingTitle);
 
-    // --- PAGE 1: CUSTOM NAMED KEEPSAKE COVER & EPILOGUE ---
+    // --- PAGE 1: PERSONALIZED KEEPSAKE COVER & EPILOGUE ---
     const c1 = document.createElement('canvas');
     c1.width = W;
     c1.height = H;
     const ctx1 = c1.getContext('2d');
 
-    // Deep velvet background
     const bgGrad = ctx1.createLinearGradient(0, 0, 0, H);
     bgGrad.addColorStop(0, '#130e1f');
-    bgGrad.addColorStop(0.55, '#191124');
+    bgGrad.addColorStop(0.55, '#1d1126');
     bgGrad.addColorStop(1, '#0b0913');
     ctx1.fillStyle = bgGrad;
     ctx1.fillRect(0, 0, W, H);
 
-    // Ornate double brass border
     ctx1.strokeStyle = 'rgba(216, 163, 93, 0.72)';
     ctx1.lineWidth = 4;
     ctx1.strokeRect(48, 48, W - 96, H - 96);
@@ -541,33 +535,31 @@
     ctx1.lineWidth = 2;
     ctx1.strokeRect(64, 64, W - 128, H - 128);
 
-    // Header label
     ctx1.fillStyle = '#d8a35d';
     ctx1.font = '700 24px "Plus Jakarta Sans", sans-serif';
     ctx1.textAlign = 'center';
-    ctx1.fillText('COUPLE CHRONICLES  ·  PERSONALIZED STORY BOOK', W / 2, 132);
+    ctx1.fillText('COUPLE CHRONICLES  ·  PERSONALIZED STORY BOOK', W / 2, 128);
 
-    // Cover illustration frame
     const artX = 110;
-    const artY = 175;
+    const artY = 166;
     const artW = W - 220;
-    const artH = 540;
+    const artH = 520;
     ctx1.save();
     ctx1.beginPath();
     ctx1.rect(artX, artY, artW, artH);
     ctx1.clip();
     if (coverImg) {
-      const scale = Math.max(artW / coverImg.width, artH / coverImg.height);
-      const dw = coverImg.width * scale;
-      const dh = coverImg.height * scale;
-      ctx1.drawImage(coverImg, artX + (artW - dw) / 2, artY + (artH - dh) / 2, dw, dh);
+      ctx1.drawImage(coverImg, artX, artY, artW, artH);
     } else {
-      ctx1.fillStyle = '#29172f';
+      const fb = ctx1.createLinearGradient(artX, artY, artX + artW, artY + artH);
+      fb.addColorStop(0, '#13223b');
+      fb.addColorStop(1, '#431530');
+      ctx1.fillStyle = fb;
       ctx1.fillRect(artX, artY, artW, artH);
     }
-    const scrim = ctx1.createLinearGradient(0, artY + artH * 0.45, 0, artY + artH);
+    const scrim = ctx1.createLinearGradient(0, artY + artH * 0.5, 0, artY + artH);
     scrim.addColorStop(0, 'rgba(12, 9, 20, 0)');
-    scrim.addColorStop(1, 'rgba(12, 9, 20, 0.88)');
+    scrim.addColorStop(1, 'rgba(12, 9, 20, 0.85)');
     ctx1.fillStyle = scrim;
     ctx1.fillRect(artX, artY, artW, artH);
     ctx1.restore();
@@ -575,71 +567,66 @@
     ctx1.lineWidth = 3;
     ctx1.strokeRect(artX, artY, artW, artH);
 
-    // Story Title
     ctx1.fillStyle = '#fdf8f2';
-    ctx1.font = '800 50px "Plus Jakarta Sans", Georgia, serif';
+    ctx1.font = '800 46px "Plus Jakarta Sans", Georgia, serif';
     const titleLines = wrapCanvasText(ctx1, book.storyTitle, W - 220);
-    let y = 795;
-    titleLines.forEach(line => {
+    let y = 765;
+    titleLines.slice(0, 2).forEach(line => {
       ctx1.fillText(line, W / 2, y);
-      y += 62;
+      y += 58;
     });
 
-    // Starring Partner A & Partner B
     ctx1.fillStyle = '#fda4af';
     ctx1.font = '700 34px "Plus Jakarta Sans", sans-serif';
-    ctx1.fillText(`Starring  ${book.partnerAName}  &  ${book.partnerBName}`, W / 2, y + 26);
+    ctx1.fillText(`Starring  ${book.partnerAName}  &  ${book.partnerBName}`, W / 2, y + 20);
 
     ctx1.fillStyle = 'rgba(246, 241, 234, 0.72)';
     ctx1.font = '600 22px "Plus Jakarta Sans", sans-serif';
-    ctx1.fillText(`${book.genre}  ·  Completed ${book.completedDate}`, W / 2, y + 70);
+    ctx1.fillText(`${book.genre}  ·  Completed ${book.completedDate}`, W / 2, y + 62);
 
-    // Unlocked Ending Seal Box
-    const sealY = y + 118;
+    const sealY = y + 102;
     ctx1.fillStyle = 'rgba(201, 51, 91, 0.16)';
-    ctx1.fillRect(130, sealY, W - 260, 146);
+    ctx1.fillRect(130, sealY, W - 260, 140);
     ctx1.strokeStyle = 'rgba(216, 163, 93, 0.65)';
     ctx1.lineWidth = 2;
-    ctx1.strokeRect(130, sealY, W - 260, 146);
+    ctx1.strokeRect(130, sealY, W - 260, 140);
 
     ctx1.fillStyle = '#fbbf24';
-    ctx1.font = '700 22px "Plus Jakarta Sans", sans-serif';
-    ctx1.fillText(book.endingBadge.toUpperCase(), W / 2, sealY + 46);
+    ctx1.font = '700 21px "Plus Jakarta Sans", sans-serif';
+    ctx1.fillText(book.endingBadge.toUpperCase(), W / 2, sealY + 44);
     ctx1.fillStyle = '#fffbeb';
     ctx1.font = '800 34px "Plus Jakarta Sans", Georgia, serif';
     const endTitleLines = wrapCanvasText(ctx1, book.endingTitle, W - 300);
     if (endTitleLines.length <= 1) {
-      ctx1.fillText(book.endingTitle, W / 2, sealY + 104);
+      ctx1.fillText(book.endingTitle, W / 2, sealY + 100);
     } else {
       ctx1.font = '800 28px "Plus Jakarta Sans", Georgia, serif';
-      ctx1.fillText(endTitleLines[0], W / 2, sealY + 90);
-      ctx1.fillText(endTitleLines.slice(1).join(' ').slice(0, 48), W / 2, sealY + 124);
+      ctx1.fillText(endTitleLines[0], W / 2, sealY + 86);
+      ctx1.fillText(endTitleLines.slice(1).join(' ').slice(0, 48), W / 2, sealY + 120);
     }
 
-    // Epilogue Prose
     ctx1.textAlign = 'left';
     ctx1.fillStyle = 'rgba(250, 245, 238, 0.92)';
-    ctx1.font = '500 26px "Plus Jakarta Sans", sans-serif';
+    ctx1.font = '500 24px "Plus Jakarta Sans", sans-serif';
     const epiLines = wrapCanvasText(ctx1, book.endingSummary, W - 260);
-    let ey = sealY + 212;
-    epiLines.slice(0, 7).forEach(line => {
+    let ey = sealY + 196;
+    epiLines.slice(0, 8).forEach(line => {
       ctx1.fillText(line, 130, ey);
-      ey += 40;
+      ey += 38;
     });
 
-    // Footer Stats
     ctx1.textAlign = 'center';
     ctx1.fillStyle = '#d8a35d';
-    ctx1.font = '700 22px "Plus Jakarta Sans", sans-serif';
+    ctx1.font = '700 21px "Plus Jakarta Sans", sans-serif';
     ctx1.fillText(
-      `Trust Bond: ${book.trustScore}   ·   Risk Taken: ${book.riskScore}   ·   Clues Uncovered: ${book.cluesFound.length}`,
+      `Trust: ${book.trustScore}   ·   Courage: ${book.courageScore}   ·   Sacrifice: ${book.sacrificeScore}   ·   Family: ${book.statusScore}`,
       W / 2,
-      H - 102
+      H - 96
     );
 
     pages.push({ dataUrl: c1.toDataURL('image/jpeg', 0.88), width: W, height: H });
 
-    // --- PAGE 2+: CHAPTER CHRONICLE (Choices & Key Moments) ---
+    // --- PAGE 2+: CHAPTER CHRONICLE (Split & Reunion Choices) ---
     const perPage = 4;
     const totalChapPages = Math.max(1, Math.ceil(book.chapters.length / perPage));
     for (let pIdx = 0; pIdx < totalChapPages; pIdx++) {
@@ -655,10 +642,9 @@
       ctx.lineWidth = 3;
       ctx.strokeRect(48, 48, W - 96, H - 96);
 
-      // Subtle top artwork ribbon on first chronicle page
       if (pIdx === 0 && endImg) {
         ctx.save();
-        ctx.globalAlpha = 0.16;
+        ctx.globalAlpha = 0.18;
         ctx.drawImage(endImg, 50, 50, W - 100, 180);
         ctx.restore();
       }
@@ -666,11 +652,11 @@
       ctx.textAlign = 'left';
       ctx.fillStyle = '#d8a35d';
       ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
-      ctx.fillText(`OUR JOURNEY  ·  ${book.partnerAName} & ${book.partnerBName}`, 104, 122);
+      ctx.fillText(`OUR LOVE STORY  ·  ${book.partnerAName} & ${book.partnerBName}`, 104, 122);
 
       ctx.fillStyle = '#fdf8f2';
       ctx.font = '800 38px "Plus Jakarta Sans", Georgia, serif';
-      ctx.fillText(pIdx === 0 ? 'Key Chapters & Choices' : 'Key Chapters (Continued)', 104, 178);
+      ctx.fillText(pIdx === 0 ? 'Chapters & Choices Made Together' : 'Chapters (Continued)', 104, 178);
 
       ctx.strokeStyle = 'rgba(216, 163, 93, 0.35)';
       ctx.beginPath();
@@ -690,22 +676,22 @@
           ? `Chapter ${ch.index}: ${ch.title}  /  ${ch.splitPartnerBTitle}`
           : `Chapter ${ch.index}: ${ch.title}`;
         ctx.fillStyle = '#f6d598';
-        ctx.font = '800 24px "Plus Jakarta Sans", sans-serif';
+        ctx.font = '800 23px "Plus Jakarta Sans", sans-serif';
         const headLine = wrapCanvasText(ctx, heading, W - 252)[0] || heading;
         ctx.fillText(headLine, 124, cy + 4);
 
-        ctx.fillStyle = '#fda4af';
-        ctx.font = '700 20px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#93c5fd';
+        ctx.font = '700 19px "Plus Jakarta Sans", sans-serif';
         const lineA = wrapCanvasText(ctx, `${book.partnerAName}: ${ch.choiceA}`, W - 252)[0] || '';
         ctx.fillText(lineA, 124, cy + 48);
 
-        ctx.fillStyle = '#93c5fd';
-        ctx.font = '700 20px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#fda4af';
+        ctx.font = '700 19px "Plus Jakarta Sans", sans-serif';
         const lineB = wrapCanvasText(ctx, `${book.partnerBName}: ${ch.choiceB}`, W - 252)[0] || '';
         ctx.fillText(lineB, 124, cy + 84);
 
         ctx.fillStyle = 'rgba(246, 241, 234, 0.88)';
-        ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
+        ctx.font = '500 19px "Plus Jakarta Sans", sans-serif';
         const outLines = wrapCanvasText(ctx, ch.outcome, W - 252);
         let oy = cy + 128;
         outLines.slice(0, 4).forEach(line => {
@@ -730,7 +716,7 @@
     const safeSlug = `${book.partnerAName}-${book.partnerBName}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'Couple';
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Couple-Chronicles-${safeSlug}.pdf`;
+    a.download = `Velvet-and-Rain-${safeSlug}.pdf`;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
@@ -861,6 +847,12 @@
   function openCoupleStoryReader(opts) {
     const Rules = getRules();
     const o = opts || {};
+    if (typeof window.guardVrBeforeGameLaunch === 'function') {
+      const blocked = window.guardVrBeforeGameLaunch('Couple Chronicles', () => {
+        openCoupleStoryReader({ ...o, bypassVrGuard: true });
+      }, o);
+      if (blocked) return null;
+    }
     const story = o.story || (typeof window.getChronicleStoryById === 'function' ? window.getChronicleStoryById(o.storyId) : getCatalog()[0]);
     if (!Rules || !story) return null;
 
@@ -873,7 +865,7 @@
       : Rules.createStorySessionState(story, {
           playMode: isCoop ? 'coop' : 'solo_duo',
           partnerAName: o.partnerAName || myProfile().name,
-          partnerBName: o.partnerBName || 'Partner B'
+          partnerBName: o.partnerBName || 'Meera'
         });
 
     const selfUid = getActiveUid();
@@ -882,13 +874,15 @@
     let lastRenderedSceneKey = '';
     let lastAudioSceneKey = '';
     let lastEndingUiSig = '';
-    let lastRenderedBg = '';
+    let lastRenderedTheme = '';
     let bgToggleIdx = 0;
     let busy = false;
 
+    const localizedTitle = Rules.pickLangText(story.titleLocalized || story.title, activeLang, state.partnerAName, state.partnerBName);
+
     const view = openFullScreenGameView({
       gameId: 'couple_chronicles_reader',
-      title: story.title,
+      title: localizedTitle,
       subMeta: isCoop ? `Room ${currentRoom.code} · Partner ${myRole}` : 'Solo / Test Duo',
       statusText: 'Story Live',
       statusTone: 'turn',
@@ -896,11 +890,12 @@
       html: `
         <div class="cc-reader-wrap" id="ccReaderWrap" data-testid="cc-story-reader">
           <div class="cc-scene-backdrop" aria-hidden="true">
-            <img class="cc-bg-layer" id="ccBg0" alt="" referrerpolicy="no-referrer">
-            <img class="cc-bg-layer" id="ccBg1" alt="" referrerpolicy="no-referrer">
+            <img class="cc-bg-layer" id="ccBg0" alt="">
+            <img class="cc-bg-layer" id="ccBg1" alt="">
             <div class="cc-bg-scrim"></div>
             <div class="cc-atmo-layer" id="ccAtmoLayer"></div>
           </div>
+          <div id="ccConnSlot"></div>
           <div class="cc-reader-content" id="ccReaderContent"></div>
         </div>
       `,
@@ -916,24 +911,25 @@
     activeReaderMode = 'reader';
     if (isCoop) activeRoomId = currentRoom.id;
 
-    function updateSceneBackdrop(bgUrl, fxName, artTheme, sceneLabel) {
+    function updateSceneBackdrop(artTheme, fxName, sceneLabel) {
       const img0 = $('#ccBg0', view);
       const img1 = $('#ccBg1', view);
       const atmo = $('#ccAtmoLayer', view);
       if (atmo) {
         atmo.className = 'cc-atmo-layer ' + (fxName ? 'fx-' + fxName : 'fx-rain-fog');
       }
-      if (!bgUrl || bgUrl === lastRenderedBg || !img0 || !img1) return;
-      lastRenderedBg = bgUrl;
+      const themeKey = `${artTheme || 'cover_divided'}|${sceneLabel || ''}`;
+      if (themeKey === lastRenderedTheme || !img0 || !img1) return;
+      lastRenderedTheme = themeKey;
       bgToggleIdx = bgToggleIdx === 0 ? 1 : 0;
       const incoming = bgToggleIdx === 0 ? img0 : img1;
       const outgoing = bgToggleIdx === 0 ? img1 : img0;
-      const targetBg = bgUrl;
-      applyChronicleImage(incoming, targetBg, artTheme || 'cover', sceneLabel || story.title, () => {
-        if (lastRenderedBg !== targetBg) return;
+      const svgUri = getSceneArtUri(artTheme || 'cover_divided', sceneLabel || '');
+      if (svgUri) {
+        incoming.src = svgUri;
         incoming.classList.add('active');
         outgoing.classList.remove('active');
-      });
+      }
     }
 
     function buildVoiceScript(scene, endingObj) {
@@ -1027,14 +1023,19 @@
         markEndingUnlocked(story.id, state.endingId);
         const unlockedCount = (getUnlockedMap()[story.id] || []).length;
         const totalEndings = Object.keys(story.endings || {}).length || 4;
-        const clueMap = window.CHRONICLE_CLUE_LABELS || {};
+        const memMap = window.CHRONICLE_MEMORY_LABELS || {};
+        const memories = Array.isArray(state.memoriesFound) ? state.memoriesFound : [];
 
-        updateSceneBackdrop(endingObj.bg || story.coverArt, 'rain-embers', endingObj.artTheme || 'bridge', Rules.pickLangText(endingObj.title, activeLang, state.partnerAName, state.partnerBName));
-        StoryBGM.startMood('ending_glow');
+        updateSceneBackdrop(
+          endingObj.artTheme || 'courtyard_climax',
+          'rain-embers',
+          Rules.pickLangText(endingObj.title, activeLang, state.partnerAName, state.partnerBName)
+        );
+        StoryBGM.startMood('ending_dawn');
 
         const sceneKey = 'ENDING_' + state.endingId;
         const audioMutedSig = StoryBGM.isMuted() && voiceMuted;
-        const endingUiSig = `${sceneKey}|${activeLang}|${audioMutedSig ? 1 : 0}`;
+        const endingUiSig = `${sceneKey}|${activeLang}|${audioMutedSig ? 1 : 0}|${state.partnerAName}|${state.partnerBName}`;
         const voiceScript = buildVoiceScript(null, endingObj);
         const isNewEnding = lastRenderedSceneKey !== sceneKey;
         if (isNewEnding) {
@@ -1053,24 +1054,35 @@
         }
         lastEndingUiSig = endingUiSig;
 
-        const clueListText = state.cluesFound.length
-          ? state.cluesFound.map(cid => Rules.pickLangText(clueMap[cid] || cid, activeLang, state.partnerAName, state.partnerBName)).join(' · ')
-          : 'No hidden clues recovered on this route';
+        const memListText = memories.length
+          ? memories.map(mid => Rules.pickLangText(memMap[mid] || mid, activeLang, state.partnerAName, state.partnerBName)).join(' · ')
+          : 'A quiet journey carried in your hearts';
 
         content.innerHTML = `
           ${renderToolbarHtml()}
-          <div class="cc-stage-window" style="min-height:90px;flex:0 0 80px"></div>
+          <div class="cc-stage-window cc-stage-window-compact"></div>
           <div class="cc-ending-card" data-testid="cc-ending-screen">
             <div class="cc-ending-kicker" data-testid="cc-ending-badge">${esc(Rules.pickLangText(endingObj.badge, activeLang, state.partnerAName, state.partnerBName))} · ${unlockedCount}/${totalEndings} Unlocked</div>
             <h2 class="cc-ending-title" data-testid="cc-ending-title">${esc(Rules.pickLangText(endingObj.title, activeLang, state.partnerAName, state.partnerBName))}</h2>
             <div class="cc-ending-names">${esc(state.partnerAName)} &amp; ${esc(state.partnerBName)}</div>
             <p class="cc-ending-epilogue">${esc(Rules.pickLangText(endingObj.epilogue, activeLang, state.partnerAName, state.partnerBName))}</p>
-            <div class="cc-ending-metrics">
-              <div class="cc-ending-metric"><b>${state.trustScore}</b><small>Trust Bond</small></div>
-              <div class="cc-ending-metric"><b>${state.riskScore}</b><small>Risk Taken</small></div>
-              <div class="cc-ending-metric"><b>${state.cluesFound.length}</b><small>Clues Found</small></div>
+            <div class="cc-ending-metrics cc-ending-metrics-4">
+              <div class="cc-ending-metric"><b>${state.trustScore || 0}</b><small>Trust</small></div>
+              <div class="cc-ending-metric"><b>${state.courageScore || 0}</b><small>Courage</small></div>
+              <div class="cc-ending-metric"><b>${state.sacrificeScore || 0}</b><small>Sacrifice</small></div>
+              <div class="cc-ending-metric"><b>${state.statusScore || 0}</b><small>Family</small></div>
             </div>
-            <div class="cc-ending-clues"><b>Recovered Evidence:</b> ${esc(clueListText)}</div>
+            <div class="cc-ending-clues"><b>Moments Kept:</b> ${esc(memListText)}</div>
+            <div class="cc-pdf-name-row">
+              <label class="cc-pdf-name-field">
+                <span>Partner A (Boy)</span>
+                <input id="ccPdfNameA" maxlength="28" value="${esc(state.partnerAName)}" aria-label="Partner A name for PDF Story Book">
+              </label>
+              <label class="cc-pdf-name-field">
+                <span>Partner B (Girl)</span>
+                <input id="ccPdfNameB" maxlength="28" value="${esc(state.partnerBName)}" aria-label="Partner B name for PDF Story Book">
+              </label>
+            </div>
             <div class="cc-ending-actions">
               <button type="button" class="cc-btn-gold" id="ccDownloadPdfBtn" data-testid="cc-download-pdf">Download Story Book PDF</button>
               <button type="button" class="cc-btn-crimson" id="ccReplayStoryBtn" data-testid="cc-replay-story">Replay for Another Ending</button>
@@ -1082,15 +1094,19 @@
 
         $('#ccDownloadPdfBtn', content).onclick = async (e) => {
           const btn = e.currentTarget;
+          const customA = String($('#ccPdfNameA', content)?.value || state.partnerAName).trim() || state.partnerAName;
+          const customB = String($('#ccPdfNameB', content)?.value || state.partnerBName).trim() || state.partnerBName;
+          state.partnerAName = customA;
+          state.partnerBName = customB;
           btn.disabled = true;
           btn.textContent = 'Generating PDF…';
           try {
             await generateAndDownloadStoryBookPdf(story, state);
             if (typeof playSfx === 'function') playSfx('clueFound');
-            toast('Custom Story Book PDF downloaded!');
+            if (typeof toast === 'function') toast(`Story Book PDF saved for ${customA} & ${customB}!`);
           } catch (err) {
             console.warn('PDF generation error:', err);
-            toast('Could not generate PDF right now');
+            if (typeof toast === 'function') toast('Could not generate PDF right now');
           } finally {
             btn.disabled = false;
             btn.textContent = 'Download Story Book PDF';
@@ -1108,6 +1124,7 @@
           soloActiveRole = 'A';
           lastRenderedSceneKey = '';
           lastAudioSceneKey = '';
+          lastEndingUiSig = '';
           if (isCoop && currentRoom) {
             currentRoom.storyState = freshState;
             await saveCoupleRoom(currentRoom);
@@ -1119,7 +1136,6 @@
       }
 
       // --- ACTIVE INTERACTIVE CHAPTER ---
-      // In Solo/Test Duo, automatically focus whichever partner hasn't locked yet
       if (!isCoop) {
         if (!state.pendingChoices.A) soloActiveRole = 'A';
         else if (!state.pendingChoices.B) soloActiveRole = 'B';
@@ -1135,8 +1151,12 @@
       const myName = viewRole === 'A' ? state.partnerAName : state.partnerBName;
       const otherPickedId = state.pendingChoices ? state.pendingChoices[otherRole] : null;
 
-      updateSceneBackdrop(scene.bg || story.coverArt, scene.fx, scene.artTheme || 'cover', Rules.pickLangText(scene.title, activeLang, state.partnerAName, state.partnerBName));
-      StoryBGM.startMood(scene.bgm || 'noir_train');
+      updateSceneBackdrop(
+        scene.artTheme || 'cover_divided',
+        scene.fx,
+        Rules.pickLangText(scene.title, activeLang, state.partnerAName, state.partnerBName)
+      );
+      StoryBGM.startMood(scene.bgm || 'monsoon_piano');
 
       const voiceScript = buildVoiceScript(scene, null);
       const sceneKey = `${scene.id}_${viewRole}_${state.stepIndex}`;
@@ -1155,22 +1175,23 @@
         speakStoryText(voiceScript, true);
       }
 
-      view.setStatus(`Ch. ${scene.chapterNo || (state.stepIndex + 1)}/${scene.totalChapters || 8}`, scene.isSplit ? 'warn' : 'turn');
-      view.setSubMeta(isCoop ? `Room ${currentRoom.code} · Partner ${myRole} (${myName})` : `Solo Duo · Playing ${myName} (${viewRole})`);
+      const totalCh = scene.totalChapters || 7;
+      view.setStatus(`Ch. ${scene.chapterNo || (state.stepIndex + 1)}/${totalCh}`, scene.isSplit ? 'warn' : 'turn');
+      view.setSubMeta(isCoop ? `Room ${currentRoom.code} · Partner ${myRole} (${myName})` : `Solo Duo · ${myName} (Partner ${viewRole})`);
 
       let syncBannerHtml = '';
       if (myPickedId && !otherPickedId) {
         syncBannerHtml = `<span class="cc-sync-msg waiting" data-testid="cc-waiting-partner">Choice locked · Waiting for ${esc(otherName)}…</span>`;
       } else if (!myPickedId && otherPickedId) {
-        syncBannerHtml = `<span class="cc-sync-msg" data-testid="cc-partner-locked">${esc(otherName)} locked choice… your turn!</span>`;
+        syncBannerHtml = `<span class="cc-sync-msg" data-testid="cc-partner-locked">${esc(otherName)} locked choice — now ${esc(myName)}’s turn</span>`;
       } else {
-        syncBannerHtml = `<span class="cc-sync-msg">Both partners choose together</span>`;
+        syncBannerHtml = `<span class="cc-sync-msg">Both partners choose from their worlds</span>`;
       }
 
       const splitBannerHtml = scene.isSplit
-        ? `<div class="cc-split-banner" data-testid="cc-split-banner"><span>SPLIT PATH · Partner ${viewRole} View</span><span>${esc(otherName)} is in another carriage</span></div>`
+        ? `<div class="cc-split-banner" data-testid="cc-split-banner"><span>SPLIT WORLD · ${viewRole === 'A' ? 'Partner A (Struggle & Rain)' : 'Partner B (Mansion & Walls)'}</span><span>${esc(otherName)} faces their own choice</span></div>`
         : (scene.isReunion
-          ? `<div class="cc-split-banner is-reunion" data-testid="cc-reunion-banner"><span>REUNION SCENE</span><span>${esc(state.partnerAName)} &amp; ${esc(state.partnerBName)} together again</span></div>`
+          ? `<div class="cc-split-banner is-reunion" data-testid="cc-reunion-banner"><span>REUNION SCENE</span><span>${esc(state.partnerAName)} &amp; ${esc(state.partnerBName)} face to face</span></div>`
           : '');
 
       const outcomeHtml = state.lastOutcome && state.lastOutcome.text
@@ -1180,8 +1201,8 @@
       content.innerHTML = `
         ${renderToolbarHtml()}
         <div class="cc-scene-meta-strip">
-          <span>Chapter ${scene.chapterNo || (state.stepIndex + 1)} of ${scene.totalChapters || 8}</span>
-          <span>Trust ${state.trustScore} · Risk ${state.riskScore} · Clues ${state.cluesFound.length}</span>
+          <span>Chapter ${scene.chapterNo || (state.stepIndex + 1)} of ${totalCh}</span>
+          <span>Trust ${state.trustScore || 0} · Courage ${state.courageScore || 0} · Sacrifice ${state.sacrificeScore || 0} · Family ${state.statusScore || 0}</span>
         </div>
         ${splitBannerHtml}
         <div class="cc-stage-window">${outcomeHtml}</div>
@@ -1224,12 +1245,10 @@
           busy = true;
           if (typeof playSfx === 'function') playSfx('choiceLock');
 
-          // Remember our choice for this step so simultaneous Firestore writes never drop it
           if (isCoop) {
             localLocksByStep.set(Number(state.stepIndex || 0), choiceId);
           }
 
-          // In Co-Op mode, pull the freshest room snapshot before locking to merge a partner's concurrent lock
           if (isCoop && currentRoom) {
             const canCloud = typeof F !== 'undefined' && F && typeof db !== 'undefined' && db && typeof online !== 'undefined' && online;
             if (canCloud && typeof F.getDoc === 'function') {
@@ -1265,7 +1284,11 @@
           state = res.state;
 
           if (res.resolved && state.lastOutcome && state.lastOutcome.sfx && typeof playSfx === 'function') {
-            setTimeout(() => playSfx(state.lastOutcome.sfx), 120);
+            const sfxName = state.lastOutcome.sfx;
+            const tId = setTimeout(() => {
+              if (activeReaderMode === 'reader') playSfx(sfxName);
+            }, 120);
+            pendingSfxTimers.push(tId);
           }
 
           if (isCoop && currentRoom) {
@@ -1279,10 +1302,8 @@
       });
     }
 
-    // Track our local choice per stepIndex so concurrent partner locks merge cleanly
     const localLocksByStep = new Map();
 
-    // Live Firestore & Cross-Tab sync for Co-Op Reader
     if (isCoop && currentRoom) {
       const applyIncomingCoopRoom = async (incomingRaw) => {
         if (!incomingRaw || incomingRaw.id !== activeRoomId || activeReaderMode !== 'reader') return;
@@ -1292,7 +1313,7 @@
         if (norm.status === 'closed') {
           teardownStorySession();
           view.close();
-          toast('Story session ended by Host');
+          if (typeof toast === 'function') toast('Story session ended by Host');
           return;
         }
         if (norm.storyState) {
@@ -1302,7 +1323,6 @@
           const otherRole = myRole === 'A' ? 'B' : 'A';
           const incPending = incomingState.pendingChoices || { A: null, B: null };
 
-          // Conflict self-heal: if partner's simultaneous write cleared our lock on this same step, re-apply & resolve!
           if (!incomingState.completed && mySavedLock && !incPending[myRole] && incPending[otherRole]) {
             const merged = Rules.lockPartnerChoice(story, incomingState, myRole, mySavedLock);
             if (merged.ok) {
@@ -1314,7 +1334,6 @@
             }
           }
 
-          // Ignore stale snapshot from an earlier stepIndex
           if (!incomingState.completed && incStep < Number(state.stepIndex || 0)) {
             return;
           }
@@ -1324,12 +1343,91 @@
         }
       };
 
-      const canCloud = typeof F !== 'undefined' && F && typeof db !== 'undefined' && db && typeof online !== 'undefined' && online;
-      if (canCloud && typeof F.onSnapshot === 'function') {
-        activeRoomUnsub = F.onSnapshot(F.doc(db, 'game_rooms', currentRoom.id), (snap) => {
-          if (snap && snap.exists()) applyIncomingCoopRoom({ id: snap.id, ...snap.data() });
-        }, () => {});
-      }
+      let snapError = false;
+      const updateCoopConnBanner = () => {
+        const slot = $('#ccConnSlot', view);
+        if (!slot) return;
+        const Pvp = window.PvpSyncRules;
+        const isBrowserOnline = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+        const conn = Pvp && typeof Pvp.evaluateConnectionState === 'function'
+          ? Pvp.evaluateConnectionState({
+              online: isBrowserOnline,
+              snapshotError: snapError,
+              roomStatus: (currentRoom && currentRoom.status) || 'playing'
+            })
+          : {
+              status: !isBrowserOnline ? 'offline' : (snapError ? 'reconnecting' : 'connected'),
+              healthy: isBrowserOnline && !snapError,
+              title: !isBrowserOnline ? 'Connection Lost' : 'Sync Interrupted',
+              detail: !isBrowserOnline
+                ? 'Connection lost. Waiting to reconnect with your partner (no bot takeover).'
+                : 'Reconnecting to partner room…',
+              showRejoin: true
+            };
+
+        if (conn.healthy) {
+          slot.innerHTML = '';
+          return;
+        }
+        slot.innerHTML = `
+          <div class="pvp-conn-banner is-${esc(conn.status)}" data-testid="pvp-connection-banner" role="status" aria-live="polite" style="position:relative;z-index:12;margin:8px 12px 0">
+            <div class="pvp-conn-text">
+              <span class="pvp-conn-dot"></span>
+              <span><b>${esc(conn.title || 'Reconnecting')}</b>${conn.detail ? ` — ${esc(conn.detail)}` : ''}</span>
+            </div>
+            <div class="pvp-conn-acts">
+              ${conn.showRejoin ? '<button type="button" class="btn sm ok" id="ccReconnBtn">Reconnect</button>' : ''}
+              <button type="button" class="btn sm ghost" id="ccLeaveConnBtn">Leave</button>
+            </div>
+          </div>
+        `;
+        const rBtn = $('#ccReconnBtn', slot);
+        if (rBtn) rBtn.onclick = () => subscribeCoopRoom(true);
+        const lBtn = $('#ccLeaveConnBtn', slot);
+        if (lBtn) lBtn.onclick = () => view.close();
+      };
+
+      const subscribeCoopRoom = async (isManualRetry) => {
+        if (typeof activeRoomUnsub === 'function') {
+          try { activeRoomUnsub(); } catch {}
+          activeRoomUnsub = null;
+        }
+        const canCloud = typeof F !== 'undefined' && F && typeof db !== 'undefined' && db && typeof online !== 'undefined' && online;
+        if (canCloud && typeof F.onSnapshot === 'function') {
+          if (isManualRetry && typeof F.getDoc === 'function') {
+            try {
+              const snap = await F.getDoc(F.doc(db, 'game_rooms', currentRoom.id));
+              if (snap && snap.exists()) {
+                snapError = false;
+                applyIncomingCoopRoom({ id: snap.id, ...snap.data() });
+              }
+            } catch {
+              snapError = true;
+            }
+          }
+          activeRoomUnsub = F.onSnapshot(F.doc(db, 'game_rooms', currentRoom.id), (snap) => {
+            snapError = false;
+            updateCoopConnBanner();
+            if (snap && snap.exists()) applyIncomingCoopRoom({ id: snap.id, ...snap.data() });
+          }, () => {
+            snapError = true;
+            updateCoopConnBanner();
+          });
+        }
+        updateCoopConnBanner();
+      };
+
+      subscribeCoopRoom(false);
+
+      const onOnline = () => { snapError = false; subscribeCoopRoom(true); };
+      const onOffline = () => { updateCoopConnBanner(); };
+      window.addEventListener('online', onOnline);
+      window.addEventListener('offline', onOffline);
+      activeNetCleanup = () => {
+        window.removeEventListener('online', onOnline);
+        window.removeEventListener('offline', onOffline);
+      };
+
       const ch = getChannel();
       if (ch) {
         ch.onmessage = (ev) => {
@@ -1357,9 +1455,15 @@
   /* ===================================================================
      2-SEAT COUPLE WAITING ROOM LOBBY (Partner A + Empty Partner B Slot)
      =================================================================== */
-  function openCoupleLobbyView(initialRoom) {
+  function openCoupleLobbyView(initialRoom, extraOpts) {
     const Rules = getRules();
     if (!Rules || !initialRoom) return null;
+    if (typeof window.guardVrBeforeGameLaunch === 'function') {
+      const blocked = window.guardVrBeforeGameLaunch('Couple Chronicles Lobby', () => {
+        openCoupleLobbyView(initialRoom, { ...(extraOpts || {}), bypassVrGuard: true });
+      }, extraOpts);
+      if (blocked) return null;
+    }
     teardownStorySession();
 
     let currentRoom = Rules.normalizeCoupleRoom(initialRoom);
@@ -1409,16 +1513,17 @@
       const avB = hasPartnerB && typeof av === 'function'
         ? av({ avatar: seatB.avatar || 'av_g2', frame: seatB.frame || 'none', name: seatB.name }, 52)
         : '';
+      const coverUri = getSceneArtUri(story.artTheme || 'cover_divided', story.title);
 
       shell.innerHTML = `
         <div class="cc-lobby-hero">
-          <img src="${esc(story.coverArt)}" data-cc-src="${esc(story.coverArt)}" data-cc-theme="cover" data-cc-label="${esc(story.title)}" alt="${esc(story.title)}" referrerpolicy="no-referrer" onerror="window.ccHandleImageError && window.ccHandleImageError(this)">
+          <img src="${coverUri}" alt="${esc(story.title)}">
           <div class="cc-lobby-hero-inner">
             <div>
-              <div class="cc-meta-line">${esc(story.genre)} <span class="cc-meta-sep">·</span> ${esc(story.duration)} <span class="cc-meta-sep">·</span> 2-Player Story</div>
+              <div class="cc-meta-line">${esc(story.genre)} <span class="cc-meta-sep">·</span> ${esc(story.duration)} <span class="cc-meta-sep">·</span> 2-Partner Love Story</div>
               <b style="font-size:17px;display:block;margin-top:3px">${esc(story.title)}</b>
             </div>
-            <div style="text-align:right">
+            <div class="cc-lobby-code-box">
               <small style="display:block;font-size:11px;color:rgba(246,241,234,0.72)">ROOM CODE</small>
               <span class="cc-lobby-code" data-testid="cc-room-code">${esc(currentRoom.code)}</span>
             </div>
@@ -1435,7 +1540,7 @@
         <div class="cc-couple-seats" data-testid="cc-couple-seats">
           <div class="cc-seat-card is-host" data-testid="cc-seat-0">
             <div class="cc-seat-top">
-              <span>Seat 1</span>
+              <span>Seat 1 · Boy</span>
               <span class="cc-seat-role">Partner A · HOST</span>
             </div>
             <div>${avA}</div>
@@ -1446,7 +1551,7 @@
           ${hasPartnerB ? `
             <div class="cc-seat-card ${seatB.ready ? 'is-ready' : ''}" data-testid="cc-seat-1">
               <div class="cc-seat-top">
-                <span>Seat 2</span>
+                <span>Seat 2 · Girl</span>
                 <span class="cc-seat-role">Partner B</span>
               </div>
               <div>${avB}</div>
@@ -1458,7 +1563,7 @@
           ` : `
             <button type="button" class="cc-seat-card is-empty" id="ccEmptyPartnerBtn" data-testid="cc-seat-1-empty" aria-label="Empty Seat 2 — Invite Partner">
               <div class="cc-seat-top">
-                <span>Seat 2</span>
+                <span>Seat 2 · Girl</span>
                 <span class="cc-seat-role">Partner B</span>
               </div>
               <div class="cc-empty-circle" aria-hidden="true">+</div>
@@ -1541,7 +1646,7 @@
           setTimeout(() => deleteCoupleRoom(rid), 1500);
           teardownStorySession();
           view.close();
-          toast('Couple room closed');
+          if (typeof toast === 'function') toast('Couple room closed');
           busy = false;
         };
       } else {
@@ -1565,7 +1670,7 @@
           if (res.ok) await saveCoupleRoom(res.room);
           teardownStorySession();
           view.close();
-          toast('Left Couple room');
+          if (typeof toast === 'function') toast('Left Couple room');
           busy = false;
         };
       }
@@ -1582,7 +1687,7 @@
         closedByEvent = true;
         teardownStorySession();
         view.close();
-        toast('Host closed the story room');
+        if (typeof toast === 'function') toast('Host closed the story room');
         return;
       }
       if (norm.status === 'playing') {
@@ -1611,7 +1716,7 @@
             closedByEvent = true;
             teardownStorySession();
             view.close();
-            toast('Story room is no longer active');
+            if (typeof toast === 'function') toast('Story room is no longer active');
           }
           return;
         }
@@ -1646,30 +1751,39 @@
 
   function openSoloDuoSetupOrStart(story) {
     if (!story) return;
-    const defaultA = myProfile().name || 'Partner A';
+    const Rules = getRules();
+    const defaultA = myProfile().name || 'Aarav';
+    const defaultB = 'Meera';
+    const roleALabel = Rules && story.roles && story.roles.A
+      ? Rules.pickLangText(story.roles.A.title, activeLang, defaultA, defaultB)
+      : 'Partner A (Struggling Background · Boy)';
+    const roleBLabel = Rules && story.roles && story.roles.B
+      ? Rules.pickLangText(story.roles.B.title, activeLang, defaultA, defaultB)
+      : 'Partner B (High-Society Background · Girl)';
+
     if (typeof modal !== 'function') {
-      openCoupleStoryReader({ playMode: 'solo_duo', story, partnerAName: defaultA, partnerBName: 'Aria' });
+      openCoupleStoryReader({ playMode: 'solo_duo', story, partnerAName: defaultA, partnerBName: defaultB });
       return;
     }
     const m = modal(`Solo / Test Duo · ${esc(story.title)}`, `
       <div style="display:flex;flex-direction:column;gap:12px">
         <p style="margin:0;font-size:13px;color:var(--mu);line-height:1.45">
-          Control both Partner A and Partner B choices on one screen—including both split paths and your custom named PDF Story Book.
+          Experience both worlds on one screen—take turns making choices for both partners through split chapters, reunions, and download your named Story Book PDF.
         </p>
         <label style="font-size:12px;font-weight:700;display:flex;flex-direction:column;gap:5px">
-          Partner A Name (The Shield)
+          ${esc(roleALabel)}
           <input id="ccSoloNameA" maxlength="28" value="${esc(defaultA)}" style="min-height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--bd);background:var(--s2);color:var(--tx)">
         </label>
         <label style="font-size:12px;font-weight:700;display:flex;flex-direction:column;gap:5px">
-          Partner B Name (The Cipher)
-          <input id="ccSoloNameB" maxlength="28" value="Aria" style="min-height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--bd);background:var(--s2);color:var(--tx)">
+          ${esc(roleBLabel)}
+          <input id="ccSoloNameB" maxlength="28" value="${esc(defaultB)}" style="min-height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--bd);background:var(--s2);color:var(--tx)">
         </label>
         <button type="button" class="cc-btn-crimson" id="ccStartSoloConfirm" data-testid="cc-confirm-solo-start">Begin Story</button>
       </div>
     `);
     $('#ccStartSoloConfirm', m).onclick = () => {
       const nameA = String($('#ccSoloNameA', m)?.value || defaultA).trim() || defaultA;
-      const nameB = String($('#ccSoloNameB', m)?.value || 'Aria').trim() || 'Aria';
+      const nameB = String($('#ccSoloNameB', m)?.value || defaultB).trim() || defaultB;
       m.close();
       openCoupleStoryReader({ playMode: 'solo_duo', story, partnerAName: nameA, partnerBName: nameB });
     };
@@ -1737,9 +1851,10 @@
   function renderCoupleChroniclesHub() {
     const root = document.getElementById('coupleChroniclesRoot');
     if (!root) return;
+    const Rules = getRules();
     const catalog = getCatalog();
     const unlockedMap = getUnlockedMap();
-    const genres = ['All', 'Dark Mystery', 'Midnight Thriller', 'Shadow Pact'];
+    const genres = ['All', 'Romantic Drama', 'Emotional'];
     const filtered = activeFilter === 'All'
       ? catalog
       : catalog.filter(s => String(s.genre || '').toLowerCase() === activeFilter.toLowerCase());
@@ -1751,7 +1866,7 @@
         <div class="cc-hub-header">
           <div class="cc-hub-title-wrap">
             <h2>Couple Chronicles</h2>
-            <p class="cc-hub-sub">Interactive 2-player dark mystery &amp; romance stories with split paths, live partner sync, Hindi/English/Bengali voice, and a personalized PDF storybook.</p>
+            <p class="cc-hub-sub">Interactive 2-partner emotional love stories with separate worlds, split &amp; reunion chapters, HI / EN / BN voice narration, and a custom named Story Book PDF.</p>
           </div>
           <form class="cc-join-inline" id="ccQuickJoinForm" autocomplete="off">
             <input id="ccQuickJoinInput" data-testid="cc-join-code-input" maxlength="10" placeholder="CC-XXXX" aria-label="Enter Couple Story Room Code">
@@ -1769,10 +1884,15 @@
 
         ${featured ? (() => {
           const uCount = (unlockedMap[featured.id] || []).length;
+          const coverUri = getSceneArtUri(featured.artTheme || 'cover_divided', 'Velvet & Rain');
+          const roleATitle = Rules && featured.roles?.A ? Rules.pickLangText(featured.roles.A.title, 'en') : 'Partner A · The Dreamer';
+          const roleADesc = Rules && featured.roles?.A ? Rules.pickLangText(featured.roles.A.desc, 'en') : 'Carry family pressure, self-respect, and dreams.';
+          const roleBTitle = Rules && featured.roles?.B ? Rules.pickLangText(featured.roles.B.title, 'en') : 'Partner B · The Heiress';
+          const roleBDesc = Rules && featured.roles?.B ? Rules.pickLangText(featured.roles.B.desc, 'en') : 'Choose between mansion walls, family status, and love.';
           return `
             <article class="cc-featured-card" data-testid="cc-featured-story" data-story-id="${esc(featured.id)}">
               <div class="cc-featured-media">
-                <img src="${esc(featured.coverArt)}" data-cc-src="${esc(featured.coverArt)}" data-cc-theme="cover" data-cc-label="${esc(featured.title)}" alt="${esc(featured.title)}" referrerpolicy="no-referrer" onerror="window.ccHandleImageError && window.ccHandleImageError(this)">
+                <img src="${coverUri}" alt="${esc(featured.title)}">
               </div>
               <div class="cc-featured-body">
                 <div>
@@ -1781,21 +1901,22 @@
                     <span class="cc-meta-sep" aria-hidden="true">·</span>
                     <span>${esc(featured.duration)}</span>
                     <span class="cc-meta-sep" aria-hidden="true">·</span>
-                    <span>${featured.scenesCount || 11} Scenes</span>
+                    <span>${featured.scenesCount || 10} Scenes</span>
                     <span class="cc-meta-sep" aria-hidden="true">·</span>
                     <span>${uCount}/${featured.endingsCount || 4} Endings Unlocked</span>
                   </div>
                   <h3 style="margin-top:8px">${esc(featured.title)}</h3>
+                  <p class="cc-featured-sub-hi">Ek Duniya, Do Kahaani · Rich Girl, Poor Boy</p>
                   <p class="cc-featured-tagline" style="margin-top:8px">${esc(featured.tagline)}</p>
                 </div>
                 <div class="cc-role-preview">
                   <div class="cc-role-col">
-                    <b>Partner A · The Shield</b>
-                    <small>Distract, unlock vaults, confront danger in split paths</small>
+                    <b>${esc(roleATitle)}</b>
+                    <small>${esc(roleADesc)}</small>
                   </div>
                   <div class="cc-role-col">
-                    <b>Partner B · The Cipher</b>
-                    <small>Decode secrets, protect clues, unlock the reunion gate</small>
+                    <b>${esc(roleBTitle)}</b>
+                    <small>${esc(roleBDesc)}</small>
                   </div>
                 </div>
                 <div class="cc-card-actions">
@@ -1807,7 +1928,7 @@
           `;
         })() : `
           <div class="cc-empty-filter">
-            No stories published in <b>${esc(activeFilter)}</b> yet — switch to <b>All</b> to play <b>The Midnight Express: Velvet &amp; Shadow</b>.
+            No stories published in <b>${esc(activeFilter)}</b> yet — switch to <b>All</b> to play <b>Velvet &amp; Rain: A Love Divided</b>.
           </div>
         `}
 
@@ -1819,10 +1940,11 @@
           <div class="cc-story-grid">
             ${rest.map(st => {
               const uCount = (unlockedMap[st.id] || []).length;
+              const thumbUri = getSceneArtUri(st.artTheme || 'cover_divided', st.title);
               return `
                 <article class="cc-story-tile" data-story-id="${esc(st.id)}">
                   <div class="cc-tile-thumb">
-                    <img src="${esc(st.coverArt)}" data-cc-src="${esc(st.coverArt)}" data-cc-theme="cover" data-cc-label="${esc(st.title)}" alt="${esc(st.title)}" referrerpolicy="no-referrer" onerror="window.ccHandleImageError && window.ccHandleImageError(this)">
+                    <img src="${thumbUri}" alt="${esc(st.title)}">
                   </div>
                   <div class="cc-tile-body">
                     <div class="cc-meta-line">

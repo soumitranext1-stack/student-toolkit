@@ -93,8 +93,16 @@ async function _msEnsureGameReady(gameId) {
 
 async function launchStandardizedGame(rawGameId, cfg) {
   const c = cfg || {};
+  if (typeof window.guardVrBeforeGameLaunch === 'function') {
+    const gMeta = (typeof ARENA_GAMES !== 'undefined' ? ARENA_GAMES.find(x => x.id === String(rawGameId || '').trim().toLowerCase()) : null);
+    const label = c.gameName || (gMeta && gMeta.name) || String(rawGameId || 'Game');
+    const blocked = window.guardVrBeforeGameLaunch(label, () => {
+      launchStandardizedGame(rawGameId, { ...c, bypassVrGuard: true });
+    }, c);
+    if (blocked) return false;
+  }
   let gameId = String(rawGameId || '').trim().toLowerCase();
-  let subMode = c.subMode || '';
+  let subMode = c.subMode || c.mode || '';
   if (gameId === 'couple_mind_sync') { gameId = 'couple_arena'; subMode = subMode || 'mind_sync'; }
   else if (gameId === 'couple_truth_dare') { gameId = 'couple_arena'; subMode = subMode || 'truth_dare'; }
   else if (gameId === 'couple_most_likely') { gameId = 'couple_arena'; subMode = subMode || 'most_likely'; }
@@ -103,11 +111,14 @@ async function launchStandardizedGame(rawGameId, cfg) {
   const stake = Math.max(0, Math.floor(Number(c.stake || 0)));
   const botTier = c.botTier || (stake > 0 ? 'pro' : 'standard');
   const roomCode = c.roomCode || genGameRoomCode(gameId);
+  const roomId = String(c.roomId || '').trim();
+  const isHost = typeof c.isHost === 'boolean' ? c.isHost : true;
   const rival = c.rival || null;
   const invitedFriends = Array.isArray(c.invitedFriends) ? c.invitedFriends : [];
   const seatRoster = Array.isArray(c.seatRoster) ? c.seatRoster : [];
   const modeType = c.modeType || 'bot';
   const stakeDeducted = Boolean(c.stakeDeducted);
+  const sharedSyncOpts = { modeType, botTier, stake, stakeDeducted, roomCode, roomId, isHost, rival, invitedFriends, seatRoster };
 
   const ready = await _msEnsureGameReady(gameId);
   if (!ready) {
@@ -118,37 +129,37 @@ async function launchStandardizedGame(rawGameId, cfg) {
   let launched = null;
   let matched = false;
   if (gameId === 'budget_clash' && typeof launchBudgetClash === 'function') {
-    matched = true; launched = launchBudgetClash({ modeType, botTier, stake, stakeDeducted, subMode: subMode || 'ten_vs_cr', roomCode, rival, invitedFriends });
+    matched = true; launched = launchBudgetClash({ ...sharedSyncOpts, subMode: subMode || 'ten_vs_cr' });
   } else if (gameId === 'couple_arena' && typeof launchCoupleArena === 'function') {
-    matched = true; launched = launchCoupleArena({ modeType, botTier, stake, stakeDeducted, subMode: subMode || 'mind_sync', roomCode, rival, invitedFriends });
+    matched = true; launched = launchCoupleArena({ ...sharedSyncOpts, subMode: subMode || 'mind_sync' });
   } else if (gameId === 'pool_8ball' && typeof launchPool8BallPro === 'function') {
-    matched = true; launched = launchPool8BallPro({ modeType, botTier, stake, roomCode, rival });
+    matched = true; launched = launchPool8BallPro(sharedSyncOpts);
   } else if (gameId === 'jackaroo' && typeof launchJackaroo === 'function') {
-    matched = true; launched = launchJackaroo(stake, rival, subMode === '2v2' ? '2v2' : '1v1', botTier, roomCode, seatRoster.length ? { seatRoster } : undefined);
+    matched = true; launched = launchJackaroo(stake, rival, subMode === '2v2' ? '2v2' : '1v1', botTier, roomCode, { modeType, roomId, isHost, seatRoster, invitedFriends });
   } else if (gameId === 'uno' && typeof launchUnoGame === 'function') {
-    matched = true; launched = launchUnoGame(stake, rival, subMode || (modeType === 'pvp' ? '1v1' : 'classic'), botTier, roomCode, invitedFriends.length ? { invitedFriends } : undefined);
+    matched = true; launched = launchUnoGame(stake, rival, subMode || (modeType === 'pvp' ? '1v1' : 'classic'), botTier, roomCode, { modeType, roomId, isHost, seatRoster, invitedFriends });
   } else if (gameId === 'chess_blitz' && typeof launchChessBlitzArena === 'function') {
-    matched = true; launched = launchChessBlitzArena({ modeType, botTier, stake, roomCode, rival });
+    matched = true; launched = launchChessBlitzArena(sharedSyncOpts);
   } else if (gameId === 'tile_race' && typeof launchTileRace === 'function') {
-    matched = true; launched = launchTileRace({ modeType, botTier, stake, roomCode, rival });
+    matched = true; launched = launchTileRace(sharedSyncOpts);
   } else if (gameId === 'trap_door' && typeof launchTrapDoorDuel === 'function') {
-    matched = true; launched = launchTrapDoorDuel({ modeType, botTier, stake, roomCode, rival });
+    matched = true; launched = launchTrapDoorDuel(sharedSyncOpts);
   } else if (gameId === 'mind_clash' && typeof launchMindClash === 'function') {
-    matched = true; launched = launchMindClash({ modeType, botTier, stake, roomCode, rival });
+    matched = true; launched = launchMindClash(sharedSyncOpts);
   } else if (gameId === 'pocket_territory' && typeof launchPocketTerritory === 'function') {
-    matched = true; launched = launchPocketTerritory({ modeType, botTier, stake, roomCode, rival });
+    matched = true; launched = launchPocketTerritory(sharedSyncOpts);
   } else if (gameId === 'ludo' && typeof launchLudoGame === 'function') {
-    matched = true; launched = launchLudoGame({ mode: subMode === '1v1' ? '1v1' : '4p', stake, botTier, roomCode, rival, invitedFriends });
+    matched = true; launched = launchLudoGame({ ...sharedSyncOpts, mode: subMode === '1v1' ? '1v1' : '4p' });
   } else if (gameId === 'number_match' && typeof launchNumberMatch === 'function') {
-    matched = true; launched = launchNumberMatch({ mode: subMode === 'duel' ? 'duel' : 'classic', stake, roomCode, rival });
+    matched = true; launched = launchNumberMatch({ ...sharedSyncOpts, mode: subMode === 'duel' ? 'duel' : 'classic' });
   } else if (gameId === 'blitz_dots' && typeof launchBlitzDots === 'function') {
-    matched = true; launched = launchBlitzDots(stake, rival, botTier);
+    matched = true; launched = launchBlitzDots(stake, rival, botTier, sharedSyncOpts);
   } else if (gameId === 'squad_arena' && typeof launchSquadTrivia === 'function') {
-    matched = true; launched = launchSquadTrivia(stake, rival, botTier);
+    matched = true; launched = launchSquadTrivia(stake, rival, botTier, sharedSyncOpts);
   } else if (gameId === 'undercover' && typeof launchUndercoverSpy === 'function') {
-    matched = true; launched = launchUndercoverSpy(stake, botTier);
+    matched = true; launched = launchUndercoverSpy(stake, botTier, sharedSyncOpts);
   } else if ((gameId === 'ludo_snakes' || gameId === 'ludo_express') && typeof launchLudoExpress === 'function') {
-    matched = true; launched = launchLudoExpress(stake, rival, botTier);
+    matched = true; launched = launchLudoExpress(stake, rival, botTier, sharedSyncOpts);
   }
   if (matched) return launched || true;
   if (typeof toast === 'function') toast('Could not start ' + (gameId || 'game') + '. Please refresh once.');
@@ -160,6 +171,12 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
   const AR = window.ArcadeRules;
   const g = (typeof ARENA_GAMES !== 'undefined' ? ARENA_GAMES.find(x => x.id === gameId) : null) || ARENA_GAMES[0];
   const o = extraOpts || {};
+  if (typeof window.guardVrBeforeGameLaunch === 'function') {
+    const blocked = window.guardVrBeforeGameLaunch((g && g.name) || String(gameId || 'Game'), () => {
+      openVisualModeSelect(gameId, rivalUid, { ...o, bypassVrGuard: true });
+    }, o);
+    if (blocked) return null;
+  }
   const rival = o.rival || (rivalUid && typeof allUsers === 'function' ? allUsers().find(u => u.uid === rivalUid) : null);
 
   let modeType = o.initialTab || (rival ? 'pvp' : 'bot'); // 'bot' | 'pvp' | 'invite'

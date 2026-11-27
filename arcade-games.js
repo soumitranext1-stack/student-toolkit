@@ -12,11 +12,17 @@ function launchTileRace(opts) {
   const AR = window.ArcadeRules;
   if (!AR) return;
   const o = opts || {};
-  const modeType = o.modeType || 'bot';
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
+  const myProfile = { uid: myUid, name: (typeof me !== 'undefined' && me?.name) || 'You', avatar: (typeof me !== 'undefined' && me?.avatar) || 'av_b1' };
+  const ctrl = window.PvpSyncRules ? window.PvpSyncRules.resolve2PControl(o, myUid, myProfile) : null;
+  const isLiveOnline = Boolean(ctrl && ctrl.isLiveOnline);
+  const botAllowed = ctrl ? ctrl.botAllowed : (o.modeType !== 'pvp' && o.modeType !== 'invite');
+  const modeType = ctrl ? ctrl.modeType : (o.modeType || 'bot');
   const botTier = o.botTier || (o.stake > 0 ? 'pro' : 'standard');
   const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
-  const roomCode = String(o.roomCode || ('TR' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
-  const oppName = o.rival?.name || (modeType === 'pvp' ? 'Rival Player' : (botTier === 'pro' ? 'Turbo Pro Bot' : 'Speed Bot'));
+  const roomId = String(o.roomId || (ctrl && ctrl.roomId) || '').trim();
+  const roomCode = String(o.roomCode || (ctrl && ctrl.roomCode) || ('TR' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
+  const oppName = (ctrl && ctrl.oppName) || o.rival?.name || (botTier === 'pro' ? 'Turbo Pro Bot' : 'Speed Bot');
   const pay = AR.calcMatchPayout(stake);
 
   if (typeof setMyLiveActivity === 'function') {
@@ -34,7 +40,7 @@ function launchTileRace(opts) {
     timeLeft: 60,
     over: false
   };
-  let clkId = 0, rivalId = 0, chatWidget = null;
+  let clkId = 0, rivalId = 0, chatWidget = null, liveSync = null;
 
   const view = openFullScreenGameView({
     gameId: 'tile_race',
@@ -120,6 +126,32 @@ function launchTileRace(opts) {
     }
   };
 
+  const syncTrScore = () => {
+    if (isLiveOnline && liveSync) {
+      liveSync.pushState({ senderUid: myUid, score: state.score, wave: state.wave, over: state.over });
+    }
+  };
+
+  if (isLiveOnline && roomId && typeof window.createLiveMatchSync === 'function') {
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'tile_race',
+      myUid,
+      myName: myProfile.name,
+      oppUids: ctrl && ctrl.oppUid ? [ctrl.oppUid] : [],
+      onLeaveRequest: () => view.close(),
+      onState: (payload) => {
+        if (!payload || payload.senderUid === myUid) return;
+        if (typeof payload.score === 'number') {
+          state.rivalScore = Math.max(state.rivalScore, payload.score);
+          if ($('#trRival', view)) $('#trRival', view).textContent = String(state.rivalScore);
+        }
+      }
+    });
+    liveSync.mountConnectionBanner($('#trStage', view));
+  }
+
   $('#trGrid', view).onclick = (e) => {
     if (state.over) return;
     const btn = e.target.closest('[data-tridx]');
@@ -130,6 +162,7 @@ function launchTileRace(opts) {
       if (typeof playSfx === 'function') playSfx(res.waveCleared ? 'rowClear' : 'pairMatch', { combo: state.streak });
       if (res.waveCleared) spawnArenaSparks($('#trGrid', view), '#38bdf8', 14);
       renderGrid();
+      syncTrScore();
     } else if (res.wrong) {
       if (typeof playSfx === 'function') playSfx('duelWrong');
       btn.classList.add('shake');
@@ -143,20 +176,27 @@ function launchTileRace(opts) {
     state.timeLeft--;
     if ($('#trTime', view)) $('#trTime', view).textContent = `${state.timeLeft}s`;
     view.setStatus(`${state.timeLeft}s`, state.timeLeft <= 10 ? 'bot' : 'turn');
-    if (state.timeLeft <= 0) finish();
+    if (state.timeLeft <= 0) {
+      syncTrScore();
+      finish();
+    }
   }, 1000);
 
-  rivalId = setInterval(() => {
-    if (state.over) return;
-    const gain = botTier === 'pro' ? (18 + Math.floor(Math.random() * 24)) : (10 + Math.floor(Math.random() * 14));
-    state.rivalScore += gain;
-    if ($('#trRival', view)) $('#trRival', view).textContent = String(state.rivalScore);
-  }, botTier === 'pro' ? 1900 : 2600);
+  // HARD BLOCK: Only run simulated bot score ticker in explicit Bot/Practice mode!
+  if (botAllowed && !isLiveOnline) {
+    rivalId = setInterval(() => {
+      if (state.over) return;
+      const gain = botTier === 'pro' ? (18 + Math.floor(Math.random() * 24)) : (10 + Math.floor(Math.random() * 14));
+      state.rivalScore += gain;
+      if ($('#trRival', view)) $('#trRival', view).textContent = String(state.rivalScore);
+    }, botTier === 'pro' ? 1900 : 2600);
+  }
 
   view.onclose = () => {
     state.over = true;
     clearInterval(clkId);
     clearInterval(rivalId);
+    if (liveSync) liveSync.destroy();
     if (chatWidget) chatWidget.destroy();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };
@@ -171,14 +211,31 @@ function launchTrapDoorDuel(opts) {
   const AR = window.ArcadeRules;
   if (!AR) return;
   const o = opts || {};
-  const modeType = o.modeType || 'bot';
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
+  const myProfile = { uid: myUid, name: (typeof me !== 'undefined' && me?.name) || 'You', avatar: (typeof me !== 'undefined' && me?.avatar) || 'av_b1' };
+  const ctrl = window.PvpSyncRules ? window.PvpSyncRules.resolve2PControl(o, myUid, myProfile) : null;
+  const isLiveOnline = Boolean(ctrl && ctrl.isLiveOnline);
+  const isLocalPvp = ctrl ? ctrl.isLocalPassAndPlay : (o.modeType === 'pvp' && !o.rivalBot);
+  const mySide = ctrl ? ctrl.mySide : 'p1';
+  const modeType = ctrl ? ctrl.modeType : (o.modeType || 'bot');
   const botTier = o.botTier || (o.stake > 0 ? 'pro' : 'standard');
   const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
-  const roomCode = String(o.roomCode || ('TD' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
-  const isLocalPvp = modeType === 'pvp' && !o.rivalBot;
-  const p1Name = (typeof me !== 'undefined' && me.name) ? me.name : 'You';
-  const p2Name = o.rival?.name || (isLocalPvp ? 'Player 2' : (botTier === 'pro' ? 'Shadow Pro Bot' : 'Vault Bot'));
+  const roomId = String(o.roomId || (ctrl && ctrl.roomId) || '').trim();
+  const roomCode = String(o.roomCode || (ctrl && ctrl.roomCode) || ('TD' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
+  const p1Name = (ctrl && ctrl.p1Name) || myProfile.name;
+  const p2Name = (ctrl && ctrl.p2Name) || o.rival?.name || (isLocalPvp ? 'Player 2' : (botTier === 'pro' ? 'Shadow Pro Bot' : 'Vault Bot'));
   const pay = AR.calcMatchPayout(stake);
+
+  const canActNow = () => {
+    if (over) return false;
+    if (window.PvpSyncRules && ctrl) return window.PvpSyncRules.canActOn2PTurn(state.turn, ctrl);
+    return state.turn === 'p1' || isLocalPvp;
+  };
+  const shouldRunBotNow = () => {
+    if (over) return false;
+    if (window.PvpSyncRules && ctrl) return window.PvpSyncRules.shouldRun2PBot(state.turn, ctrl);
+    return !isLocalPvp && !isLiveOnline && state.turn === 'p2';
+  };
 
   if (typeof setMyLiveActivity === 'function') {
     setMyLiveActivity({ type: 'playing', gameId: 'trap_door', gameName: 'Trap Door Duel', roomCode, mode: modeType });
@@ -188,14 +245,15 @@ function launchTrapDoorDuel(opts) {
   let sabotageMode = false;
   let botTimer = 0;
   let over = false;
-  let banner = 'Pick a door on Row 1 to reach the Golden Vault';
+  let banner = isLiveOnline && mySide !== 'p1' ? `Waiting for ${p1Name} to pick Row 1…` : 'Pick a door on Row 1 to reach the Golden Vault';
   let chatWidget = null;
+  let liveSync = null;
 
   const view = openFullScreenGameView({
     gameId: 'trap_door',
     title: 'Trap Door Duel',
     subMeta: stake > 0 ? `${stake} 🪙 · Pot ${fmtNum(pay.winnerPayout)}` : `Room ${roomCode}`,
-    statusText: 'Your Step',
+    statusText: isLiveOnline && mySide !== 'p1' ? `${p1Name}…` : 'Your Step',
     statusTone: 'turn',
     themeClass: 'gfs-theme-spy',
     html: `
@@ -242,16 +300,16 @@ function launchTrapDoorDuel(opts) {
     if (over) return;
     over = true;
     clearTimeout(botTimer);
-    const p1Won = state.winner === 'p1';
-    const outcome = isLocalPvp ? 'win' : (p1Won ? 'win' : 'lose');
+    const iWon = state.winner === mySide;
+    const outcome = isLocalPvp ? 'win' : (iWon ? 'win' : 'lose');
     const res = settleArenaMatchOutcome(outcome, stake, 48, 34, 12);
-    if (p1Won) spawnArenaSparks($('#tdStage', view), '#fde047', 16);
-    view.setStatus('Finished', p1Won ? 'ok' : 'bot');
+    if (iWon) spawnArenaSparks($('#tdStage', view), '#fde047', 16);
+    view.setStatus('Finished', iWon ? 'ok' : 'bot');
     const host = $('#tdResultHost', view);
     if (host) {
       host.innerHTML = `
         <div class="arena-result-card" data-testid="td-result-card">
-          <b>${isLocalPvp ? `🏆 ${esc(p1Won ? p1Name : p2Name)} Wins!` : esc(res.headline)}</b>
+          <b>${isLocalPvp ? `🏆 ${esc(state.winner === 'p1' ? p1Name : p2Name)} Wins!` : esc(res.headline)}</b>
           <small>${esc(state.reason)} · ${esc(res.detail)}</small>
           <div class="row" style="gap:8px;margin-top:10px;justify-content:center">
             <button type="button" class="btn ghost sm" id="tdExitBtn">Exit</button>
@@ -279,7 +337,7 @@ function launchTrapDoorDuel(opts) {
 
     const sabBtn = $('#tdSabotageBtn', view);
     const activeP = state.players[state.turn];
-    const canAct = !over && (state.turn === 'p1' || isLocalPvp);
+    const canAct = canActNow();
     if (sabBtn) {
       sabBtn.textContent = sabotageMode ? 'Cancel Trap' : `⚡ Plant Trap (${activeP.sabotages})`;
       sabBtn.disabled = !canAct || (!sabotageMode && activeP.sabotages <= 0);
@@ -306,7 +364,7 @@ function launchTrapDoorDuel(opts) {
               if (door.type === 'trap' || door.sabotagedBy) { glyph = '🕳️'; cls = 'trap'; }
               else if (door.type === 'shield') { glyph = '🛡️'; cls = 'shield'; }
               else { glyph = '💎'; cls = 'safe'; }
-            } else if (door.sabotagedBy === state.turn) {
+            } else if (door.sabotagedBy === mySide || (!isLiveOnline && door.sabotagedBy === state.turn)) {
               glyph = '⚡';
               cls = 'armed';
             }
@@ -323,14 +381,55 @@ function launchTrapDoorDuel(opts) {
     }
     ch.innerHTML = html;
     if (!over) {
-      view.setStatus(state.turn === 'p1' ? 'Your Step' : (isLocalPvp ? 'P2 Step' : `${p2Name}…`), state.turn === 'p1' ? 'turn' : 'bot');
+      const activeNm = state.turn === 'p1' ? p1Name : p2Name;
+      view.setStatus(canAct ? (isLocalPvp ? `${activeNm} Step` : 'Your Step') : `${activeNm}…`, canAct ? 'turn' : 'bot');
     }
   };
 
+  const pushTdSync = () => {
+    if (isLiveOnline && liveSync) {
+      liveSync.pushState({
+        rows: state.rows,
+        players: state.players,
+        turn: state.turn,
+        winner: state.winner,
+        reason: state.reason,
+        banner
+      });
+    }
+  };
+
+  if (isLiveOnline && roomId && typeof window.createLiveMatchSync === 'function') {
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'trap_door',
+      myUid,
+      myName: myProfile.name,
+      oppUids: ctrl && ctrl.oppUid ? [ctrl.oppUid] : [],
+      onLeaveRequest: () => view.close(),
+      onState: (snap) => {
+        if (over || !snap) return;
+        if (Array.isArray(snap.rows)) state.rows = snap.rows;
+        if (snap.players) state.players = snap.players;
+        if (snap.turn) state.turn = snap.turn;
+        state.winner = snap.winner || null;
+        state.reason = snap.reason || '';
+        if (snap.banner) banner = snap.banner;
+        sabotageMode = false;
+        if (typeof playSfx === 'function') playSfx('pawnStep');
+        renderChamber();
+        if (state.winner) finish();
+      }
+    });
+    liveSync.mountConnectionBanner($('#tdStage', view));
+    if (ctrl && ctrl.isHost) pushTdSync();
+  }
+
   const runBotMove = () => {
-    if (over || isLocalPvp || state.turn !== 'p2') return;
+    if (!shouldRunBotNow()) return; // HARD BLOCK: Never run bot AI in live PvP/invite rooms!
     botTimer = setTimeout(() => {
-      if (over || state.turn !== 'p2') return;
+      if (!shouldRunBotNow()) return;
       const p2 = state.players.p2;
       const row = state.rows[p2.row];
       if (!row) return;
@@ -355,9 +454,7 @@ function launchTrapDoorDuel(opts) {
   };
 
   $('#tdChamber', view).onclick = (e) => {
-    if (over) return;
-    const canAct = state.turn === 'p1' || isLocalPvp;
-    if (!canAct) return;
+    if (!canActNow()) return;
     const btn = e.target.closest('[data-tdr]');
     if (!btn) return;
     const r = Number(btn.dataset.tdr), c = Number(btn.dataset.tdc);
@@ -368,6 +465,7 @@ function launchTrapDoorDuel(opts) {
       if (ok.ok) {
         banner = `⚡ Secret trap armed on Row ${r + 1}! Now pick your door.`;
         if (typeof playSfx === 'function') playSfx('capture');
+        pushTdSync();
       }
       renderChamber();
       return;
@@ -390,13 +488,14 @@ function launchTrapDoorDuel(opts) {
       if (typeof playSfx === 'function') playSfx('duelCorrect');
     }
     renderChamber();
+    pushTdSync();
     if (res.winner) finish();
-    else if (state.turn === 'p2' && !isLocalPvp) runBotMove();
+    else if (shouldRunBotNow()) runBotMove();
   };
 
   if ($('#tdSabotageBtn', view)) {
     $('#tdSabotageBtn', view).onclick = () => {
-      if (over || (state.turn !== 'p1' && !isLocalPvp)) return;
+      if (!canActNow()) return;
       sabotageMode = !sabotageMode;
       banner = sabotageMode ? 'Tap any closed door to plant a hidden trap!' : 'Pick a door on your active row';
       if (typeof playSfx === 'function') playSfx('tap');
@@ -407,6 +506,7 @@ function launchTrapDoorDuel(opts) {
   view.onclose = () => {
     over = true;
     clearTimeout(botTimer);
+    if (liveSync) liveSync.destroy();
     if (chatWidget) chatWidget.destroy();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };
@@ -421,12 +521,18 @@ function launchMindClash(opts) {
   const AR = window.ArcadeRules;
   if (!AR) return;
   const o = opts || {};
-  const modeType = o.modeType || 'bot';
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
+  const myProfile = { uid: myUid, name: (typeof me !== 'undefined' && me?.name) || 'You', avatar: (typeof me !== 'undefined' && me?.avatar) || 'av_b1' };
+  const ctrl = window.PvpSyncRules ? window.PvpSyncRules.resolve2PControl(o, myUid, myProfile) : null;
+  const isLiveOnline = Boolean(ctrl && ctrl.isLiveOnline);
+  const botAllowed = ctrl ? ctrl.botAllowed : (o.modeType !== 'pvp' && o.modeType !== 'invite');
+  const modeType = ctrl ? ctrl.modeType : (o.modeType || 'bot');
   const botTier = o.botTier || (o.stake > 0 ? 'pro' : 'standard');
   const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
-  const roomCode = String(o.roomCode || ('MC' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
-  const p1Name = (typeof me !== 'undefined' && me.name) ? me.name : 'You';
-  const oppName = o.rival?.name || (modeType === 'pvp' ? 'Rival Player' : (botTier === 'pro' ? 'Apex Mind Bot' : 'Logic Bot'));
+  const roomId = String(o.roomId || (ctrl && ctrl.roomId) || '').trim();
+  const roomCode = String(o.roomCode || (ctrl && ctrl.roomCode) || ('MC' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
+  const p1Name = myProfile.name;
+  const oppName = (ctrl && ctrl.oppName) || o.rival?.name || (botTier === 'pro' ? 'Apex Mind Bot' : 'Logic Bot');
   const pay = AR.calcMatchPayout(stake);
 
   if (typeof setMyLiveActivity === 'function') {
@@ -435,7 +541,7 @@ function launchMindClash(opts) {
 
   const deck = AR.createMindClashDeck(7);
   let idx = 0, myScore = 0, oppScore = 0, secLeft = 10, locked = false, over = false;
-  let tickId = 0, nextId = 0, chatWidget = null;
+  let tickId = 0, nextId = 0, chatWidget = null, liveSync = null;
 
   const view = openFullScreenGameView({
     gameId: 'mind_clash',
@@ -542,9 +648,15 @@ function launchMindClash(opts) {
       const ok = pick === q.a;
       const pts = AR.scoreMindClashAnswer(ok, secLeft);
       myScore += pts;
-      const oppAcc = botTier === 'pro' ? 0.84 : 0.62;
-      if (Math.random() < oppAcc) {
-        oppScore += AR.scoreMindClashAnswer(true, botTier === 'pro' ? 6 + Math.random() * 3 : 3 + Math.random() * 4);
+      // HARD BLOCK: Only simulate bot score in explicit Bot/Practice mode!
+      if (botAllowed && !isLiveOnline) {
+        const oppAcc = botTier === 'pro' ? 0.84 : 0.62;
+        if (Math.random() < oppAcc) {
+          oppScore += AR.scoreMindClashAnswer(true, botTier === 'pro' ? 6 + Math.random() * 3 : 3 + Math.random() * 4);
+        }
+      }
+      if (isLiveOnline && liveSync) {
+        liveSync.pushState({ senderUid: myUid, score: myScore, round: idx + 1 });
       }
       if (pick >= 0) {
         const chosenBtn = body.querySelector(`[data-mca="${pick}"]`);
@@ -570,10 +682,31 @@ function launchMindClash(opts) {
     }, 1000);
   };
 
+  if (isLiveOnline && roomId && typeof window.createLiveMatchSync === 'function') {
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'mind_clash',
+      myUid,
+      myName: myProfile.name,
+      oppUids: ctrl && ctrl.oppUid ? [ctrl.oppUid] : [],
+      onLeaveRequest: () => view.close(),
+      onState: (payload) => {
+        if (!payload || payload.senderUid === myUid) return;
+        if (typeof payload.score === 'number') {
+          oppScore = Math.max(oppScore, payload.score);
+          syncTrack();
+        }
+      }
+    });
+    liveSync.mountConnectionBanner($('#mcStage', view));
+  }
+
   view.onclose = () => {
     over = true;
     clearInterval(tickId);
     clearTimeout(nextId);
+    if (liveSync) liveSync.destroy();
     if (window.VoiceNarrator) window.VoiceNarrator.stop();
     if (chatWidget) chatWidget.destroy();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
@@ -589,13 +722,19 @@ function launchPocketTerritory(opts) {
   const AR = window.ArcadeRules;
   if (!AR) return;
   const o = opts || {};
-  const modeType = o.modeType || 'bot';
+  const myUid = (typeof uid !== 'undefined' && uid) ? String(uid) : 'local_me';
+  const myProfile = { uid: myUid, name: (typeof me !== 'undefined' && me?.name) || 'You', avatar: (typeof me !== 'undefined' && me?.avatar) || 'av_b1' };
+  const ctrl = window.PvpSyncRules ? window.PvpSyncRules.resolve2PControl(o, myUid, myProfile) : null;
+  const isLiveOnline = Boolean(ctrl && ctrl.isLiveOnline);
+  const isLocalPvp = ctrl ? ctrl.isLocalPassAndPlay : (o.modeType === 'pvp' && !o.rivalBot);
+  const mySide = ctrl ? ctrl.mySide : 'p1';
+  const modeType = ctrl ? ctrl.modeType : (o.modeType || 'bot');
   const botTier = o.botTier || (o.stake > 0 ? 'pro' : 'standard');
   const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
-  const roomCode = String(o.roomCode || ('PT' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
-  const isLocalPvp = modeType === 'pvp' && !o.rivalBot;
-  const p1Name = (typeof me !== 'undefined' && me.name) ? me.name : 'You';
-  const p2Name = o.rival?.name || (isLocalPvp ? 'Player 2' : (botTier === 'pro' ? 'Pro Bot' : 'AI Bot'));
+  const roomId = String(o.roomId || (ctrl && ctrl.roomId) || '').trim();
+  const roomCode = String(o.roomCode || (ctrl && ctrl.roomCode) || ('PT' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
+  const p1Name = (ctrl && ctrl.p1Name) || myProfile.name;
+  const p2Name = (ctrl && ctrl.p2Name) || o.rival?.name || (isLocalPvp ? 'Player 2' : (botTier === 'pro' ? 'Pro Bot' : 'AI Bot'));
   const shortPt = (nm) => {
     const s = String(nm || '').trim();
     return s.length > 12 ? (s.slice(0, 11) + '…') : s;
@@ -603,6 +742,17 @@ function launchPocketTerritory(opts) {
   const p1Lbl = shortPt(p1Name);
   const p2Lbl = shortPt(p2Name);
   const pay = AR.calcMatchPayout(stake);
+
+  const canActNow = () => {
+    if (over) return false;
+    if (window.PvpSyncRules && ctrl) return window.PvpSyncRules.canActOn2PTurn(state.turn, ctrl);
+    return state.turn === 'p1' || isLocalPvp;
+  };
+  const shouldRunBotNow = () => {
+    if (over) return false;
+    if (window.PvpSyncRules && ctrl) return window.PvpSyncRules.shouldRun2PBot(state.turn, ctrl);
+    return !isLocalPvp && !isLiveOnline && state.turn === 'p2';
+  };
 
   if (typeof setMyLiveActivity === 'function') {
     setMyLiveActivity({ type: 'playing', gameId: 'pocket_territory', gameName: 'Pocket Territory', roomCode, mode: modeType });
@@ -613,12 +763,13 @@ function launchPocketTerritory(opts) {
   let botTimer = 0;
   let over = false;
   let chatWidget = null;
+  let liveSync = null;
 
   const view = openFullScreenGameView({
     gameId: 'pocket_territory',
     title: 'Pocket Territory',
     subMeta: stake > 0 ? `${stake} 🪙 · Pot ${fmtNum(pay.winnerPayout)}` : `Room ${roomCode}`,
-    statusText: 'Your Turn',
+    statusText: isLiveOnline && mySide !== 'p1' ? `${p1Name}…` : 'Your Turn',
     statusTone: 'turn',
     themeClass: 'gfs-theme-wood',
     html: `
@@ -660,9 +811,10 @@ function launchPocketTerritory(opts) {
     over = true;
     clearTimeout(botTimer);
     const counts = AR.countTerritory(state);
-    const outcome = state.winner === 'tie' ? 'tie' : (isLocalPvp ? 'win' : (state.winner === 'p1' ? 'win' : 'lose'));
+    const iWon = state.winner === mySide;
+    const outcome = state.winner === 'tie' ? 'tie' : (isLocalPvp ? 'win' : (iWon ? 'win' : 'lose'));
     const res = settleArenaMatchOutcome(outcome, stake, 52, 36, 14);
-    if (state.winner === 'p1') spawnArenaSparks($('#ptStage', view), '#38bdf8', 18);
+    if (iWon) spawnArenaSparks($('#ptStage', view), '#38bdf8', 18);
     view.setStatus('Finished', outcome === 'win' ? 'ok' : (outcome === 'tie' ? 'neutral' : 'bot'));
     const host = $('#ptResultHost', view);
     if (host) {
@@ -693,8 +845,8 @@ function launchPocketTerritory(opts) {
     if ($('#ptBarP1', view)) $('#ptBarP1', view).style.width = `${pct}%`;
 
     const curKey = state.turn;
-    const canAct = !over && (curKey === 'p1' || isLocalPvp);
-    const pows = state.powers[curKey];
+    const canAct = canActNow();
+    const pows = state.powers[isLiveOnline ? mySide : curKey];
 
     const bindPowBtn = (id, key) => {
       const btn = $(id, view);
@@ -729,14 +881,54 @@ function launchPocketTerritory(opts) {
     gridEl.innerHTML = html;
     if (!over) {
       const extraTag = state.extraMoves > 0 ? ' (2×!)' : '';
-      view.setStatus((curKey === 'p1' ? 'Your Turn' : (isLocalPvp ? 'P2 Turn' : `${p2Name}…`)) + extraTag, curKey === 'p1' ? 'turn' : 'bot');
+      const activeNm = curKey === 'p1' ? p1Name : p2Name;
+      view.setStatus((canAct ? (isLocalPvp ? `${activeNm} Turn` : 'Your Turn') : `${activeNm}…`) + extraTag, canAct ? 'turn' : 'bot');
     }
   };
 
+  const pushPtSync = () => {
+    if (isLiveOnline && liveSync) {
+      liveSync.pushState({
+        grid: state.grid,
+        powers: state.powers,
+        turn: state.turn,
+        turnsLeft: state.turnsLeft,
+        extraMoves: state.extraMoves,
+        winner: state.winner
+      });
+    }
+  };
+
+  if (isLiveOnline && roomId && typeof window.createLiveMatchSync === 'function') {
+    liveSync = window.createLiveMatchSync({
+      roomId,
+      roomCode,
+      gameId: 'pocket_territory',
+      myUid,
+      myName: myProfile.name,
+      oppUids: ctrl && ctrl.oppUid ? [ctrl.oppUid] : [],
+      onLeaveRequest: () => view.close(),
+      onState: (snap) => {
+        if (over || !snap) return;
+        if (Array.isArray(snap.grid)) state.grid = snap.grid;
+        if (snap.powers) state.powers = snap.powers;
+        if (snap.turn) state.turn = snap.turn;
+        if (snap.turnsLeft !== undefined) state.turnsLeft = Number(snap.turnsLeft);
+        if (snap.extraMoves !== undefined) state.extraMoves = Number(snap.extraMoves);
+        state.winner = snap.winner || null;
+        activePower = 'claim';
+        if (typeof playSfx === 'function') playSfx('pawnStep');
+        renderBoard();
+        if (state.winner) finish();
+      }
+    });
+    liveSync.mountConnectionBanner($('#ptStage', view));
+  }
+
   const runBotTurn = () => {
-    if (over || isLocalPvp || state.turn !== 'p2') return;
+    if (!shouldRunBotNow()) return; // HARD BLOCK: Never run bot AI in live PvP/invite rooms!
     botTimer = setTimeout(() => {
-      if (over || state.turn !== 'p2') return;
+      if (!shouldRunBotNow()) return;
       const mv = AR.chooseTerritoryBotMove(state, botTier);
       if (!mv) return;
       const res = AR.applyTerritoryMove(state, 'p2', mv.r, mv.c, mv.powerMode);
@@ -744,12 +936,13 @@ function launchPocketTerritory(opts) {
         if (typeof playSfx === 'function') playSfx(res.flipped > 0 ? 'capture' : 'tap');
         renderBoard();
         if (res.winner) finish();
-        else if (state.turn === 'p2') runBotTurn();
+        else if (shouldRunBotNow()) runBotTurn();
       }
     }, botTier === 'pro' ? 520 : 680);
   };
 
   $('#ptPowerDock', view).onclick = (e) => {
+    if (!canActNow()) return;
     const btn = e.target.closest('[data-ptpow]');
     if (!btn || btn.disabled) return;
     const p = btn.dataset.ptpow;
@@ -759,9 +952,8 @@ function launchPocketTerritory(opts) {
   };
 
   $('#ptGrid', view).onclick = (e) => {
-    if (over) return;
+    if (!canActNow()) return;
     const curKey = state.turn;
-    if (curKey !== 'p1' && !isLocalPvp) return;
     const btn = e.target.closest('[data-ptr]');
     if (!btn) return;
     const r = Number(btn.dataset.ptr), c = Number(btn.dataset.ptc);
@@ -771,18 +963,21 @@ function launchPocketTerritory(opts) {
     if (res.action === 'shield') {
       if (typeof playSfx === 'function') playSfx('rowClear');
       renderBoard();
+      pushPtSync();
       return;
     }
     if (typeof playSfx === 'function') playSfx(res.flipped > 0 ? 'capture' : 'pawnStep');
     if (res.flipped >= 2) spawnArenaSparks($('#ptGrid', view), curKey === 'p1' ? '#38bdf8' : '#f43f5e', 12);
     renderBoard();
+    pushPtSync();
     if (res.winner) finish();
-    else if (state.turn === 'p2' && !isLocalPvp) runBotTurn();
+    else if (shouldRunBotNow()) runBotTurn();
   };
 
   view.onclose = () => {
     over = true;
     clearTimeout(botTimer);
+    if (liveSync) liveSync.destroy();
     if (chatWidget) chatWidget.destroy();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };

@@ -1,9 +1,11 @@
 "use strict";
 /* =====================================================================
-   FULL-SCREEN VOICE / PARTY ROOMS (v16)
-   - Single Room Owner (hostUid) + Kick / Mute / Make-Remove Admin
-   - 4 Special Mic Seats (0..3) + Listener-Only Members + WebRTC Audio Mesh
-   - Synced YouTube Watch-Together State + Real HTML5 Audio Music Player
+   FULL-SCREEN VOICE / PARTY ROOMS (v36)
+   - Seat-Order Auto Host Transfer when current Owner disconnects/leaves
+   - Auto Room Leave on exit/tab-close/timeout + Empty Room Auto-Close
+   - Floating VR Icon Mode on Back + Clear Game Launch Guard Modal
+   - YouTube Watch-Together Play/Pause/Seek + Ad Delay Auto-Snap & Status
+   - Race-Free VR Chat & Floating Emoji Reactions Live Sync
    ===================================================================== */
 
 const PARTY_MODES_META = {
@@ -44,17 +46,30 @@ const PARTY_MUSIC_TRACKS = [
 
 const PARTY_REACTIONS = ['🔥', '❤️', '😂', '👏', '🎉', '💎', '👑', '😮'];
 
+function PRR() {
+  return window.PartyRoomRules || null;
+}
+
 function isMicSeatIndex(idx) {
   return Number(idx) >= 0 && Number(idx) < MIC_SEAT_LIMIT;
 }
 
+function getEffectiveOwnerUid(rm) {
+  return String((rm && (rm.activeHostUid || rm.hostUid)) || '').trim();
+}
+
+function getEffectiveOwnerName(rm) {
+  return String((rm && (rm.activeHostName || rm.hostName)) || 'Owner').trim() || 'Owner';
+}
+
 function isSingleOwner(rm, targetUid = uid) {
-  return Boolean(rm && rm.hostUid && rm.hostUid === targetUid);
+  const ownerUid = getEffectiveOwnerUid(rm);
+  return Boolean(ownerUid && targetUid && ownerUid === targetUid);
 }
 
 function isRoomAdmin(rm, targetUid = uid) {
   if (!rm || !targetUid) return false;
-  if (rm.hostUid === targetUid) return true;
+  if (getEffectiveOwnerUid(rm) === targetUid) return true;
   return Array.isArray(rm.admins) && rm.admins.includes(targetUid);
 }
 
@@ -101,13 +116,20 @@ function makeRoomShortId(idStr) {
 
 function normalizePartyRoom(rm) {
   if (!rm || typeof rm !== 'object') return null;
+  const now = Date.now();
   const mode = PARTY_MODES_META[rm.mode] ? rm.mode : (rm.youtubeId ? 'video' : 'normal');
   const background = PARTY_BG_META[rm.background] ? rm.background : 'club';
   const cover = PARTY_COVERS[rm.cover] ? rm.cover : 'cover_tensura';
   const seats = normalizePartySeats(rm.seats);
-  const hostUid = rm.hostUid || (seats['0'] && seats['0'].uid) || uid;
+  const rules = PRR();
+  const members = rules && typeof rules.normalizeMembersMap === 'function'
+    ? rules.normalizeMembersMap({ ...rm, seats }, now)
+    : (rm.members && typeof rm.members === 'object' ? { ...rm.members } : {});
+  const creatorUid = String(rm.creatorUid || rm.hostUid || (seats['0'] && seats['0'].uid) || uid);
+  const effectiveHostUid = String(rm.activeHostUid || rm.hostUid || (seats['0'] && seats['0'].uid) || uid);
+  const effectiveHostName = rm.activeHostName || rm.hostName || (seats['0'] && seats['0'].name) || (members[effectiveHostUid] && members[effectiveHostUid].name) || 'Owner';
   const admins = Array.isArray(rm.admins)
-    ? [...new Set(rm.admins.filter(x => x && x !== hostUid))]
+    ? [...new Set(rm.admins.filter(x => x && x !== effectiveHostUid))]
     : [];
   const videoSync = (window.ShowGamesRules && typeof window.ShowGamesRules.normalizeVideoSyncState === 'function')
     ? window.ShowGamesRules.normalizeVideoSyncState(rm.videoSync, rm.youtubeId || '')
@@ -119,7 +141,7 @@ function normalizePartyRoom(rm) {
         seekSec: Math.max(0, Number(rm.videoSync.seekSec || 0)),
         durationSec: Math.max(0, Number(rm.videoSync.durationSec || 0)),
         playbackRate: Math.min(2, Math.max(0.5, Number(rm.videoSync.playbackRate || 1))),
-        updatedAt: Number(rm.videoSync.updatedAt || Date.now()),
+        updatedAt: Number(rm.videoSync.updatedAt || now),
         updatedBy: String(rm.videoSync.updatedBy || ''),
         seq: Math.max(0, Math.floor(Number(rm.videoSync.seq || 0)))
       } : {
@@ -130,22 +152,30 @@ function normalizePartyRoom(rm) {
         seekSec: 0,
         durationSec: 0,
         playbackRate: 1,
-        updatedAt: Number(rm.updatedAt || Date.now()),
+        updatedAt: Number(rm.updatedAt || now),
         updatedBy: '',
         seq: 0
       });
 
+  const videoViewerStates = rm.videoViewerStates && typeof rm.videoViewerStates === 'object'
+    ? { ...rm.videoViewerStates }
+    : {};
+
   return {
     ...rm,
-    id: rm.id || ('pr_' + Date.now().toString(36)),
+    id: rm.id || ('pr_' + now.toString(36)),
     shortId: rm.shortId || makeRoomShortId(rm.id),
+    status: rm.status === 'closed' ? 'closed' : 'active',
     title: rm.title || 'Voice Lounge',
     tag: rm.tag || PARTY_MODES_META[mode].badge,
     cover,
     mode,
     background,
-    hostUid,
-    hostName: rm.hostName || (seats['0'] && seats['0'].name) || 'Owner',
+    creatorUid,
+    hostUid: effectiveHostUid,
+    hostName: effectiveHostName,
+    activeHostUid: effectiveHostUid,
+    activeHostName: effectiveHostName,
     admins,
     kickedUids: Array.isArray(rm.kickedUids) ? [...new Set(rm.kickedUids)] : [],
     announcement: typeof rm.announcement === 'string' && rm.announcement.trim()
@@ -157,7 +187,10 @@ function normalizePartyRoom(rm) {
     musicPlaying: Boolean(rm.musicPlaying),
     youtubeId: videoSync.videoId,
     videoSync,
+    videoViewerStates,
     seats,
+    members,
+    reactions: Array.isArray(rm.reactions) ? rm.reactions.slice(-24) : [],
     chat: Array.isArray(rm.chat) ? rm.chat.slice(-45) : []
   };
 }
@@ -168,6 +201,7 @@ function buildSeedPartyRooms() {
     normalizePartyRoom({
       id: 'pr_seed_tensura',
       shortId: '882410',
+      isSeed: true,
       title: 'Tensura Voice Lounge',
       tag: 'Friends',
       mode: 'normal',
@@ -176,7 +210,10 @@ function buildSeedPartyRooms() {
       hostName: 'Aria Nova',
       admins: [],
       seats: {
-        '0': { uid: 'bot_aria', name: 'Aria Nova', avatar: 'av_g1', frame: 'fx_gold', muted: false, speaking: true, joinedAt: now - 40000 }
+        '0': { uid: 'bot_aria', name: 'Aria Nova', avatar: 'av_g1', frame: 'fx_gold', muted: false, speaking: true, joinedAt: now - 40000, lastSeen: now }
+      },
+      members: {
+        bot_aria: { uid: 'bot_aria', name: 'Aria Nova', avatar: 'av_g1', frame: 'fx_gold', seatIdx: 0, joinedAt: now - 40000, lastSeen: now, connected: true }
       },
       chat: [{ id: 's1', type: 'sys', text: 'Seats 0-3 are Mic Seats (max 4). Other seats are Listeners.', ts: now - 30000 }],
       createdAt: now - 50000,
@@ -191,7 +228,9 @@ if (!Array.isArray(partyRooms)) {
   partyRooms = partySeedsCleared() ? [] : buildSeedPartyRooms();
   ls.set('sg_party_rooms', partyRooms);
 } else {
-  partyRooms = partyRooms.map(normalizePartyRoom).filter(Boolean);
+  partyRooms = partyRooms
+    .map(normalizePartyRoom)
+    .filter(r => r && r.status !== 'closed');
   if (!partyRooms.length && !partySeedsCleared()) {
     partyRooms = buildSeedPartyRooms();
     ls.set('sg_party_rooms', partyRooms);
@@ -200,6 +239,7 @@ if (!Array.isArray(partyRooms)) {
 
 function isFakeOrStalePartyRoom(rm) {
   if (!rm || !rm.id) return true;
+  if (rm.status === 'closed') return true;
   const id = String(rm.id);
   const now = Date.now();
   if (id.startsWith('pr_seed_') || /^(seed_|fake_|test_)/i.test(id)) return true;
@@ -208,11 +248,13 @@ function isFakeOrStalePartyRoom(rm) {
   const hostUid = String(rm.hostUid || '');
   const isBotHost = /^(bot_|demo_|fake_)/i.test(hostUid);
   const seats = Object.values(normalizePartySeats(rm.seats)).filter(Boolean);
-  const realSeated = seats.filter(s => s && s.uid && !/^(bot_|demo_|fake_)/i.test(String(s.uid)));
-  if (isBotHost && realSeated.length === 0) return true;
-  if (seats.length === 0) return true;
+  const rules = PRR();
+  const activeMembers = rules ? rules.getOrderedActiveMembers(rm, now, rules.DEFAULT_STALE_MS) : seats;
+  const realActive = activeMembers.filter(m => m && m.uid && !/^(bot_|demo_|fake_)/i.test(String(m.uid)));
+  if (isBotHost && realActive.length === 0) return true;
+  if (activeMembers.length === 0) return true;
   const ageMs = now - Number(rm.updatedAt || rm.createdAt || 0);
-  if (ageMs > 2 * 60 * 60 * 1000 && realSeated.length === 0) return true;
+  if (ageMs > 2 * 60 * 60 * 1000 && realActive.length === 0) return true;
   return false;
 }
 window.isFakeOrStalePartyRoom = isFakeOrStalePartyRoom;
@@ -235,7 +277,6 @@ async function clearFakeVoiceRooms() {
     }
   });
 
-  // Also scan Firestore party_rooms for any stale/seed/fake rooms
   if (typeof online !== 'undefined' && online && typeof db !== 'undefined' && db && typeof F !== 'undefined' && F && typeof F.getDocs === 'function') {
     try {
       const snap = await F.getDocs(F.collection(db, 'party_rooms'));
@@ -252,7 +293,7 @@ async function clearFakeVoiceRooms() {
 
   for (const rid of toDeleteIds) {
     if (activePartyRoomId === rid || minimizedPartyRoomId === rid) {
-      if (typeof closePartyRoom === 'function') closePartyRoom();
+      if (typeof closePartyRoom === 'function') closePartyRoom({ skipLeavePersist: true });
     }
     if (typeof dbOp === 'function' && typeof db !== 'undefined' && db && typeof F !== 'undefined' && F) {
       dbOp(() => F.deleteDoc(F.doc(db, 'party_rooms', rid)));
@@ -274,6 +315,130 @@ window.clearFakeVoiceRooms = clearFakeVoiceRooms;
 let activePartyRoomId = null;
 let minimizedPartyRoomId = null;
 let partySpeakerOn = true;
+
+function getCurrentVrRoomId() {
+  return activePartyRoomId || minimizedPartyRoomId || null;
+}
+
+function isVrSessionActive() {
+  const rules = PRR();
+  if (rules && typeof rules.shouldBlockGameLaunchForVr === 'function') {
+    return rules.shouldBlockGameLaunchForVr({ activePartyRoomId, minimizedPartyRoomId, bypassVrGuard: false });
+  }
+  return Boolean(activePartyRoomId || minimizedPartyRoomId);
+}
+window.isVrSessionActive = isVrSessionActive;
+
+/* ===== Cross-Tab & Multi-Window Live Room Sync Channel (Chat + Reactions + Lifecycle) ===== */
+let partyRoomBc = null;
+const partyBcMsgsByRoom = new Map();
+const partyBcReactionsByRoom = new Map();
+const seenPartyReactionIds = new Set();
+const activeSeatReactions = new Map(); // uid -> { emoji, expiresAt }
+
+function postPartyRoomBroadcast(payload) {
+  if (!payload || !payload.roomId) return;
+  const wrapped = { ...payload, fromUid: uid, ts: Date.now() };
+  try {
+    if (partyRoomBc) partyRoomBc.postMessage(wrapped);
+    localStorage.setItem('sg_party_room_ping', JSON.stringify(wrapped));
+  } catch {}
+}
+
+function initPartyRoomBroadcastChannel() {
+  if (!partyRoomBc && typeof BroadcastChannel !== 'undefined') {
+    try {
+      partyRoomBc = new BroadcastChannel('sg_party_room_sync');
+      partyRoomBc.onmessage = ev => handleIncomingPartyRoomBroadcast(ev?.data);
+    } catch {}
+  }
+  if (!window.__sgPartyRoomStorageBound) {
+    window.__sgPartyRoomStorageBound = true;
+    window.addEventListener('storage', ev => {
+      if (ev.key !== 'sg_party_room_ping' || !ev.newValue) return;
+      try { handleIncomingPartyRoomBroadcast(JSON.parse(ev.newValue)); } catch {}
+    });
+  }
+}
+
+function handleIncomingPartyRoomBroadcast(payload) {
+  if (!payload || !payload.roomId) return;
+  const rid = String(payload.roomId);
+  const kind = payload.kind || '';
+
+  if (kind === 'room_closed') {
+    partyRooms = partyRooms.filter(r => r && r.id !== rid);
+    savePartyRoomsLocal();
+    if (activePartyRoomId === rid || minimizedPartyRoomId === rid) {
+      closePartyRoom({ skipLeavePersist: true });
+      if (typeof toast === 'function') toast('Voice room closed (no active members)');
+    }
+    renderPartyHub();
+    return;
+  }
+
+  let rm = partyRooms.find(r => r && r.id === rid);
+
+  if (kind === 'chat' && payload.message && payload.message.id) {
+    const list = partyBcMsgsByRoom.get(rid) || [];
+    if (!list.some(m => m && m.id === payload.message.id)) {
+      partyBcMsgsByRoom.set(rid, [...list, payload.message].slice(-60));
+    }
+    if (rm) {
+      const rules = PRR();
+      rm.chat = rules
+        ? rules.mergeRoomChatMessages([rm.chat, [payload.message]], Array.from(partyDeletedMsgIds), 45)
+        : [...(rm.chat || []).filter(m => m && m.id !== payload.message.id), payload.message].slice(-45);
+      savePartyRoomsLocal();
+      if (activePartyRoomId === rid) renderFullScreenPartyRoom();
+    }
+    return;
+  }
+
+  if (kind === 'reaction' && payload.reaction && payload.reaction.id) {
+    const rx = payload.reaction;
+    const list = partyBcReactionsByRoom.get(rid) || [];
+    if (!list.some(r => r && r.id === rx.id)) {
+      partyBcReactionsByRoom.set(rid, [...list, rx].slice(-30));
+    }
+    if (rm) {
+      const rules = PRR();
+      rm.reactions = rules
+        ? rules.mergeRoomReactions([rm.reactions, [rx]], 24)
+        : [...(rm.reactions || []).filter(r => r && r.id !== rx.id), rx].slice(-24);
+      savePartyRoomsLocal();
+      if (activePartyRoomId === rid) {
+        triggerPartyReactionFx(rm, rx);
+      }
+    }
+    return;
+  }
+
+  if (kind === 'room_update' && payload.room) {
+    const incoming = normalizePartyRoom(payload.room);
+    if (!incoming) return;
+    if (incoming.status === 'closed') {
+      handleIncomingPartyRoomBroadcast({ kind: 'room_closed', roomId: rid });
+      return;
+    }
+    const rules = PRR();
+    if (rm && rules) {
+      incoming.chat = rules.mergeRoomChatMessages([rm.chat, incoming.chat], Array.from(partyDeletedMsgIds), 45);
+      incoming.reactions = rules.mergeRoomReactions([rm.reactions, incoming.reactions], 24);
+    }
+    const idx = partyRooms.findIndex(r => r && r.id === rid);
+    if (idx >= 0) partyRooms[idx] = incoming;
+    else partyRooms = [incoming, ...partyRooms].slice(0, 24);
+    savePartyRoomsLocal();
+    if (activePartyRoomId === rid) {
+      syncReactionsFromList(incoming, incoming.reactions);
+      renderFullScreenPartyRoom();
+    } else if (minimizedPartyRoomId === rid) {
+      renderFloatingVrPill();
+    }
+    renderPartyHub();
+  }
+}
 
 /* ===== Real HTML5 Audio Player (Persists Across Views/Tabs) ===== */
 const PartyAudioPlayer = (() => {
@@ -316,7 +481,7 @@ const PartyAudioPlayer = (() => {
   return { playUrl, setPlaying, syncSpeaker, stop };
 })();
 
-/* ===== Live Watch-Together Video Sync Controller (YouTube IFrame API + HTML5 <video>) ===== */
+/* ===== Live Watch-Together Video Sync Controller (YouTube IFrame API + Ad Delay Sync + HTML5 <video>) ===== */
 const PartyVideoSync = (() => {
   let ytApiPromise = null;
   let activeRoomId = '';
@@ -335,6 +500,15 @@ const PartyVideoSync = (() => {
   let currentSyncState = null;
   let slotElRef = null;
   let bc = null;
+
+  // YouTube Ad & Buffering Recovery State
+  let localViewerStatus = 'synced'; // 'synced' | 'ad' | 'buffering' | 'behind'
+  let wasInAd = false;
+  let lastSeekIssuedAt = 0;
+  let lastSeekTargetSec = 0;
+  let lastStatusReportAt = 0;
+  let lastReportedStatus = 'synced';
+  let forcedLocalAdSim = false;
 
   const SGR = () => window.ShowGamesRules || null;
 
@@ -440,16 +614,82 @@ const PartyVideoSync = (() => {
     return currentSyncState && currentSyncState.durationSec > 0 ? currentSyncState.durationSec : 0;
   }
 
+  function reportLocalViewerState(rm, status, driftSec = 0, force = false) {
+    if (!rm || !rm.id || !uid) return;
+    const now = Date.now();
+    if (!force && status === lastReportedStatus && now - lastStatusReportAt < 5000) return;
+    lastReportedStatus = status;
+    lastStatusReportAt = now;
+    const entry = {
+      uid,
+      name: (typeof me !== 'undefined' && me?.name) || 'Viewer',
+      status,
+      driftSec: Math.round(Number(driftSec || 0) * 10) / 10,
+      ts: now
+    };
+    rm.videoViewerStates = { ...(rm.videoViewerStates || {}), [uid]: entry };
+    try {
+      if (bc) bc.postMessage({ roomId: rm.id, viewerState: entry, fromUid: uid });
+      localStorage.setItem('sg_party_video_sync_ping', JSON.stringify({ roomId: rm.id, viewerState: entry, ts: now }));
+    } catch {}
+    if (!String(rm.id).startsWith('pr_seed_') && online && db && F && typeof F.updateDoc === 'function') {
+      Promise.resolve(F.updateDoc(F.doc(db, 'party_rooms', rm.id), { [`videoViewerStates.${uid}`]: entry })).catch(() => {});
+    }
+    updateControlsUI();
+  }
+
+  function evaluateYouTubeAdState(rm) {
+    const vs = currentSyncState;
+    if (!vs) return { status: 'synced', inAd: false, isBuffering: false, needsSnapAfterAd: false, driftSec: 0 };
+    const now = Date.now();
+    const targetSec = computeTarget(vs, now);
+    if (forcedLocalAdSim) {
+      return { status: 'ad', inAd: true, isBuffering: false, needsSnapAfterAd: true, driftSec: targetSec };
+    }
+    if (mountedKind !== 'youtube' || !ytPlayer || !ytReady) {
+      return { status: 'synced', inAd: false, isBuffering: false, needsSnapAfterAd: false, driftSec: 0 };
+    }
+    let playerState = -1;
+    let currentVideoId = '';
+    let localSec = targetSec;
+    let localDur = 0;
+    try {
+      playerState = typeof ytPlayer.getPlayerState === 'function' ? ytPlayer.getPlayerState() : -1;
+      currentVideoId = typeof ytPlayer.getVideoData === 'function' ? String(ytPlayer.getVideoData()?.video_id || '') : '';
+      localSec = Number(ytPlayer.getCurrentTime?.() || 0);
+      localDur = Number(ytPlayer.getDuration?.() || 0);
+    } catch {}
+    const seekFailedRecently = (now - lastSeekIssuedAt) < 4500 && lastSeekTargetSec > 15 && Math.abs(localSec - lastSeekTargetSec) > 6;
+    const rules = PRR();
+    if (rules && typeof rules.detectYouTubeAdOrBuffer === 'function') {
+      return rules.detectYouTubeAdOrBuffer({
+        playerState,
+        currentVideoId,
+        expectedVideoId: vs.videoId,
+        localSec,
+        localDur,
+        expectedDur: vs.durationSec || 0,
+        targetSec,
+        seekFailedRecently
+      });
+    }
+    const videoIdMismatch = Boolean(currentVideoId && vs.videoId && currentVideoId !== vs.videoId);
+    if (videoIdMismatch) return { status: 'ad', inAd: true, isBuffering: false, needsSnapAfterAd: true, driftSec: targetSec - localSec };
+    if (playerState === 3) return { status: 'buffering', inAd: false, isBuffering: true, needsSnapAfterAd: false, driftSec: targetSec - localSec };
+    return { status: 'synced', inAd: false, isBuffering: false, needsSnapAfterAd: false, driftSec: targetSec - localSec };
+  }
+
   function applyRemoteState(sync, forceSeek = false) {
     const vs = normSync(sync);
     currentSyncState = vs;
-    const targetSec = computeTarget(vs, Date.now());
+    const now = Date.now();
+    const targetSec = computeTarget(vs, now);
     const sig = `${vs.kind}:${vs.videoId || vs.videoUrl}:${vs.seq}:${vs.playing ? 1 : 0}:${Math.round(vs.seekSec * 10)}:${vs.updatedAt}`;
     const isNewUpdate = forceSeek || sig !== lastAppliedSig;
     lastAppliedSig = sig;
 
     if (mountedKind === 'direct' && htmlVideoEl) {
-      suppressUntil = Date.now() + 900;
+      suppressUntil = now + 900;
       const cur = Number.isFinite(htmlVideoEl.currentTime) ? htmlVideoEl.currentTime : 0;
       if (isNewUpdate || needsResync(cur, targetSec, 1.5)) {
         try { htmlVideoEl.currentTime = targetSec; } catch {}
@@ -463,13 +703,15 @@ const PartyVideoSync = (() => {
         }
       } catch {}
     } else if (mountedKind === 'youtube' && ytPlayer && ytReady) {
-      suppressUntil = Date.now() + 1200;
+      suppressUntil = now + 1300;
       let cur = targetSec;
       try { cur = Number(ytPlayer.getCurrentTime()) || 0; } catch {}
       if (isNewUpdate || needsResync(cur, targetSec, 1.5)) {
+        lastSeekIssuedAt = now;
+        lastSeekTargetSec = targetSec;
         try { ytPlayer.seekTo(targetSec, true); } catch {}
         lastExpectedYtSec = targetSec;
-        lastExpectedYtTs = Date.now();
+        lastExpectedYtTs = now;
       }
       try {
         if (!partySpeakerOn && typeof ytPlayer.mute === 'function') ytPlayer.mute();
@@ -488,6 +730,7 @@ const PartyVideoSync = (() => {
   function updateControlsUI() {
     const slot = slotElRef;
     if (!slot || !currentSyncState) return;
+    const rm = partyRooms.find(r => r.id === activeRoomId);
     const vs = currentSyncState;
     const cur = getLocalTime();
     const dur = Math.max(getDuration(), vs.durationSec || 0, cur > 0 ? Math.ceil(cur + 30) : 600);
@@ -504,9 +747,18 @@ const PartyVideoSync = (() => {
     const stText = slot.querySelector('[data-vid-status-txt]');
     const stDot = slot.querySelector('[data-vid-status-dot]');
     if (stText) {
-      stText.textContent = vs.playing ? 'Live Sync · Playing' : 'Live Sync · Paused';
+      if (localViewerStatus === 'ad') {
+        stText.textContent = 'YouTube Ad · Auto-syncing after ad';
+      } else if (localViewerStatus === 'buffering') {
+        stText.textContent = 'Buffering · Holding live sync';
+      } else {
+        stText.textContent = vs.playing ? 'Live Sync · Playing' : 'Live Sync · Paused';
+      }
     }
-    if (stDot) stDot.classList.toggle('live', Boolean(vs.playing));
+    if (stDot) {
+      stDot.classList.toggle('live', Boolean(vs.playing) && localViewerStatus !== 'ad');
+      stDot.classList.toggle('ad', localViewerStatus === 'ad' || localViewerStatus === 'buffering');
+    }
     const toggleBtn = slot.querySelector('[data-vid-act="toggle"]');
     if (toggleBtn) {
       toggleBtn.textContent = vs.playing ? '⏸ Pause All' : '▶ Play All';
@@ -515,6 +767,29 @@ const PartyVideoSync = (() => {
     if (card) card.classList.toggle('theater', theaterMode);
     const thBtn = slot.querySelector('[data-vid-act="theater"]');
     if (thBtn) thBtn.textContent = theaterMode ? '🗗 Fit' : '⛶ Theater';
+
+    // Live Ad / Buffering viewer status strip visible to Host & viewers
+    const adStrip = slot.querySelector('[data-vid-ad-strip]');
+    if (adStrip) {
+      const rules = PRR();
+      const summary = rm && rules && typeof rules.summarizeViewerSyncIssues === 'function'
+        ? rules.summarizeViewerSyncIssues(rm.videoViewerStates, uid, Date.now(), 20000)
+        : { inAd: [], buffering: [], hasIssues: false };
+      if (summary.hasIssues) {
+        const parts = [];
+        if (summary.inAd.length) {
+          parts.push(`📺 Ad playing: ${summary.inAd.map(x => esc(x.name)).join(', ')} (auto-syncs when ad ends)`);
+        }
+        if (summary.buffering.length) {
+          parts.push(`⏳ Buffering: ${summary.buffering.map(x => esc(x.name)).join(', ')}`);
+        }
+        adStrip.innerHTML = `<span class="pfs-vid-ad-txt">${parts.join(' · ')}</span>`;
+        adStrip.hidden = false;
+      } else {
+        adStrip.innerHTML = '';
+        adStrip.hidden = true;
+      }
+    }
   }
 
   function broadcastSyncUpdate(rm, patch, chatNote) {
@@ -543,9 +818,17 @@ const PartyVideoSync = (() => {
   }
 
   function handleIncomingCrossTabSync(payload) {
-    if (!payload || !payload.roomId || !payload.videoSync) return;
+    if (!payload || !payload.roomId) return;
     const rm = partyRooms.find(r => r.id === payload.roomId);
     if (!rm) return;
+
+    if (payload.viewerState && payload.viewerState.uid) {
+      rm.videoViewerStates = { ...(rm.videoViewerStates || {}), [payload.viewerState.uid]: payload.viewerState };
+      if (activePartyRoomId === rm.id) updateControlsUI();
+      return;
+    }
+
+    if (!payload.videoSync) return;
     const incoming = normSync(payload.videoSync, rm.youtubeId || '');
     const cur = normSync(rm.videoSync, rm.youtubeId || '');
     if (incoming.seq < cur.seq && incoming.updatedAt <= cur.updatedAt) return;
@@ -585,7 +868,38 @@ const PartyVideoSync = (() => {
       }
       const vs = currentSyncState;
       const now = Date.now();
-      // Detect direct native YouTube scrubber jumps by the local user
+
+      // 1) Detect YouTube Ad / Buffering before touching room broadcast
+      const adCheck = evaluateYouTubeAdState(rm);
+      localViewerStatus = adCheck.status;
+
+      if (adCheck.inAd) {
+        wasInAd = true;
+        reportLocalViewerState(rm, 'ad', adCheck.driftSec);
+        updateControlsUI();
+        return; // Never broadcast ad timestamps or hijack host playback during an ad!
+      }
+
+      if (wasInAd && !adCheck.inAd) {
+        wasInAd = false;
+        reportLocalViewerState(rm, 'synced', 0, true);
+        const liveSec = computeTarget(vs, now);
+        applyRemoteState(vs, true);
+        if (typeof toast === 'function') toast(`⏩ Ad finished — snapped to live ${fmtClock(liveSec)}`);
+        return;
+      }
+
+      if (adCheck.isBuffering) {
+        reportLocalViewerState(rm, 'buffering', adCheck.driftSec);
+        updateControlsUI();
+        return;
+      }
+
+      if (lastReportedStatus !== 'synced') {
+        reportLocalViewerState(rm, 'synced', 0, true);
+      }
+
+      // 2) Detect direct native YouTube scrubber jumps by the local user (only when not in ad/buffering)
       if (mountedKind === 'youtube' && ytPlayer && ytReady && now > suppressUntil && typeof ytPlayer.getCurrentTime === 'function') {
         try {
           const cur = Number(ytPlayer.getCurrentTime());
@@ -606,7 +920,8 @@ const PartyVideoSync = (() => {
           }
         } catch {}
       }
-      // Periodic drift correction toward authoritative room clock
+
+      // 3) Periodic drift correction toward authoritative room clock
       if (now > suppressUntil && vs.playing) {
         const localSec = getLocalTime();
         const targetSec = computeTarget(vs, now);
@@ -625,6 +940,9 @@ const PartyVideoSync = (() => {
     ytReady = false;
     lastExpectedYtSec = -1;
     lastExpectedYtTs = 0;
+    localViewerStatus = 'synced';
+    wasInAd = false;
+    forcedLocalAdSim = false;
     if (ytPlayer) {
       try { if (typeof ytPlayer.destroy === 'function') ytPlayer.destroy(); } catch {}
       ytPlayer = null;
@@ -683,6 +1001,7 @@ const PartyVideoSync = (() => {
             }
           </div>
         </div>
+        <div class="pfs-vid-ad-strip" data-vid-ad-strip data-testid="vr-video-ad-strip" hidden></div>
         <div class="pfs-vid-controls">
           <div class="pfs-vid-scrub-row">
             <input type="range" class="pfs-vid-scrubber" data-vid-scrub min="0" max="${initDur}" value="${Math.min(initDur, Math.round(targetSec))}" step="1" aria-label="Video timestamp scrubber">
@@ -700,7 +1019,7 @@ const PartyVideoSync = (() => {
               <button type="button" class="btn sm ghost" data-vid-act="back10" title="Back 10 seconds">⏪ -10s</button>
               <button type="button" class="btn sm ok" data-vid-act="toggle" data-vid-sync="toggle">${vs.playing ? '⏸ Pause All' : '▶ Play All'}</button>
               <button type="button" class="btn sm ghost" data-vid-act="fwd10" title="Forward 10 seconds">+10s ⏩</button>
-              <button type="button" class="btn sm ghost" data-vid-act="resync" title="Jump to room timestamp">⟳ Sync</button>
+              <button type="button" class="btn sm ghost" data-vid-act="resync" data-testid="vr-video-sync-now" title="Snap to live room timestamp">⟳ Sync Now</button>
               <button type="button" class="btn sm ghost" data-vid-act="theater">${theaterMode ? '🗗 Fit' : '⛶ Theater'}</button>
             </div>
           </div>
@@ -784,6 +1103,24 @@ const PartyVideoSync = (() => {
                   if (Date.now() < suppressUntil) return;
                   const curRm = partyRooms.find(r => r.id === activeRoomId);
                   if (!curRm) return;
+                  const adCheck = evaluateYouTubeAdState(curRm);
+                  localViewerStatus = adCheck.status;
+                  if (adCheck.inAd) {
+                    wasInAd = true;
+                    reportLocalViewerState(curRm, 'ad', adCheck.driftSec, true);
+                    return;
+                  }
+                  if (ev.data === YT.PlayerState.BUFFERING) {
+                    reportLocalViewerState(curRm, 'buffering', adCheck.driftSec);
+                    return;
+                  }
+                  if (wasInAd && ev.data === YT.PlayerState.PLAYING) {
+                    wasInAd = false;
+                    reportLocalViewerState(curRm, 'synced', 0, true);
+                    applyRemoteState(currentSyncState || vs, true);
+                    if (typeof toast === 'function') toast(`⏩ Ad finished — snapped to live ${fmtClock(computeTarget(currentSyncState || vs, Date.now()))}`);
+                    return;
+                  }
                   const curT = Math.max(0, Math.round((Number(ytPlayer?.getCurrentTime?.() || 0)) * 10) / 10);
                   if (ev.data === YT.PlayerState.PLAYING && !curRm.videoSync?.playing) {
                     lastExpectedYtSec = curT;
@@ -800,17 +1137,16 @@ const PartyVideoSync = (() => {
             return;
           } catch {}
         }
-        // Resilient iframe fallback if YouTube IFrame API is unavailable/offline
         const startSec = Math.floor(computeTarget(currentSyncState || vs, Date.now()));
         targetNode.innerHTML = `<iframe src="https://www.youtube.com/embed/${esc(vidId)}?autoplay=${vs.playing ? 1 : 0}&start=${startSec}&rel=0&playsinline=1&enablejsapi=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="Synced Room Video"></iframe>`;
       });
       if (mountNode && !window.YT) {
-        // Immediate visual placeholder until YT API attaches
         mountNode.style.background = '#000';
       }
     }
 
     startSyncLoop();
+    updateControlsUI();
   }
 
   function syncRoom(rm, slotEl) {
@@ -853,8 +1189,13 @@ const PartyVideoSync = (() => {
       const target = dur > 0 ? Math.min(dur, raw) : raw;
       broadcastSyncUpdate(rm, { seekSec: Math.round(target * 10) / 10 }, `${me.name} skipped +10s (${fmtClock(target)})`);
     } else if (act === 'resync') {
+      forcedLocalAdSim = false;
+      wasInAd = false;
+      localViewerStatus = 'synced';
+      reportLocalViewerState(rm, 'synced', 0, true);
       applyRemoteState(vs, true);
-      if (typeof toast === 'function') toast(`Synced to ${fmtClock(computeTarget(vs, Date.now()))}`);
+      const liveSec = computeTarget(vs, Date.now());
+      if (typeof toast === 'function') toast(`Synced to live ${fmtClock(liveSec)}`);
     }
   }
 
@@ -868,13 +1209,33 @@ const PartyVideoSync = (() => {
     } catch {}
   }
 
+  function setLocalAdStateForTest(inAd) {
+    forcedLocalAdSim = Boolean(inAd);
+    const rm = partyRooms.find(r => r.id === activeRoomId);
+    if (!rm) return;
+    if (forcedLocalAdSim) {
+      wasInAd = true;
+      localViewerStatus = 'ad';
+      reportLocalViewerState(rm, 'ad', 15, true);
+    } else {
+      wasInAd = false;
+      localViewerStatus = 'synced';
+      reportLocalViewerState(rm, 'synced', 0, true);
+      if (currentSyncState) applyRemoteState(currentSyncState, true);
+    }
+    updateControlsUI();
+  }
+
   return {
     syncRoom,
     handleAction,
     broadcastSyncUpdate,
     syncSpeaker,
     destroy,
-    getCurrentState: () => currentSyncState
+    updateControlsUI,
+    setLocalAdStateForTest,
+    getCurrentState: () => currentSyncState,
+    getLocalViewerStatus: () => localViewerStatus
   };
 })();
 window.PartyVideoSync = PartyVideoSync;
@@ -885,8 +1246,8 @@ const PartyWebRtcMesh = (() => {
   let roomKey = '';
   let signalUnsub = null;
   const seenSignalIds = new Set();
-  const peers = new Map(); // remoteUid -> RTCPeerConnection
-  const remoteAudios = new Map(); // remoteUid -> HTMLAudioElement
+  const peers = new Map();
+  const remoteAudios = new Map();
   const iceConfig = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
   };
@@ -916,7 +1277,6 @@ const PartyWebRtcMesh = (() => {
           seenSignalIds.add(d.id);
           const sig = d.data();
           handleSignalDoc(currentRoomId, sig);
-          // Clean up consumed signaling doc so subcollection stays tiny
           dbOp(() => F.deleteDoc(F.doc(db, 'party_rooms', currentRoomId, 'webrtc_signals', d.id)));
         });
       }, () => {});
@@ -1000,7 +1360,6 @@ const PartyWebRtcMesh = (() => {
       setMicMuted(true);
     }
 
-    // Close connections for users no longer on active mic seats
     [...peers.keys()].forEach(pUid => {
       if (!micUids.includes(pUid)) {
         try { peers.get(pUid).close(); } catch {}
@@ -1010,7 +1369,6 @@ const PartyWebRtcMesh = (() => {
 
     if (!online || !db || !F || String(rm.id).startsWith('pr_seed_')) return;
 
-    // Speakers initiate mesh with other speakers (lexicographic tie-break); Listeners initiate recv-only offer to active speakers
     for (const targetUid of micUids) {
       if (targetUid === uid || peers.has(targetUid)) continue;
       const shouldOffer = iAmActiveMic ? (String(uid) < String(targetUid)) : true;
@@ -1073,70 +1431,337 @@ const PartyWebRtcMesh = (() => {
   return { enableMic, setMicMuted, syncSpeaker, syncMicPeers, subscribeSignals, unsubscribeSignals, handleSignalDoc, cleanup };
 })();
 
-/* ===== Persistence & Hub Rendering ===== */
-function savePartyRoomsLocal() {
-  ls.set('sg_party_rooms', (partyRooms || []).slice(0, 24));
+/* ===== Presence Heartbeat, Seat-Order Host Handoff & Auto-Close Engine ===== */
+let partyPresenceIv = 0;
+let partySweepIv = 0;
+let partyDocUnsub = null;
+let partyDocRoomId = '';
+
+function touchMyMemberInRoom(rm, nowMs = Date.now()) {
+  if (!rm || !uid) return;
+  const seatKey = findUserSeatKeyInRoom(rm, uid);
+  const seatIdx = seatKey != null ? Number(seatKey) : null;
+  const existing = rm.members && rm.members[uid] ? rm.members[uid] : null;
+  rm.members = {
+    ...(rm.members || {}),
+    [uid]: {
+      uid,
+      name: (typeof me !== 'undefined' && me?.name) || existing?.name || 'Player',
+      avatar: (typeof me !== 'undefined' && me?.avatar) || existing?.avatar || 'av_b1',
+      frame: (typeof me !== 'undefined' && me?.frame) || existing?.frame || 'none',
+      seatIdx,
+      joinedAt: Number(existing?.joinedAt || nowMs),
+      lastSeen: nowMs,
+      connected: true
+    }
+  };
+  if (seatKey != null && rm.seats && rm.seats[seatKey]) {
+    rm.seats[seatKey] = {
+      ...rm.seats[seatKey],
+      lastSeen: nowMs,
+      connected: true
+    };
+  }
 }
 
-function persistPartyRoom(room) {
+function stopPartyPresenceLoop() {
+  if (partyPresenceIv) { clearInterval(partyPresenceIv); partyPresenceIv = 0; }
+  if (partySweepIv) { clearInterval(partySweepIv); partySweepIv = 0; }
+}
+
+function runRoomLifecycleSweep(roomOrId, opts) {
+  const rid = typeof roomOrId === 'string' ? roomOrId : (roomOrId && roomOrId.id);
+  const rm = typeof roomOrId === 'object' && roomOrId ? roomOrId : partyRooms.find(r => r && r.id === rid);
+  if (!rm) return null;
+  const rules = PRR();
+  if (!rules || typeof rules.reconcileRoomLifecycle !== 'function') return null;
+
+  const now = Number((opts && opts.nowMs) || Date.now());
+  const res = rules.reconcileRoomLifecycle(rm, {
+    nowMs: now,
+    staleMs: (opts && opts.staleMs) || rules.DEFAULT_STALE_MS,
+    leavingUid: opts && opts.leavingUid ? opts.leavingUid : ''
+  });
+  if (!res || !res.changed) return res;
+
+  if (res.closed) {
+    partyRooms = partyRooms.filter(r => r && r.id !== rm.id);
+    savePartyRoomsLocal();
+    postPartyRoomBroadcast({ kind: 'room_closed', roomId: rm.id });
+    if (!String(rm.id).startsWith('pr_seed_') && online && db && F) {
+      F.deleteDoc(F.doc(db, 'party_rooms', rm.id)).catch(() => {
+        const closedPayload = {
+          ...res.room,
+          hostUid: rm.creatorUid || rm.hostUid,
+          status: 'closed',
+          seats: {},
+          members: {},
+          expiresAt: now,
+          updatedAt: now
+        };
+        if (typeof F.setDoc === 'function') {
+          F.setDoc(F.doc(db, 'party_rooms', rm.id), closedPayload, { merge: true }).catch(() => {});
+        }
+      });
+    }
+    if ((activePartyRoomId === rm.id || minimizedPartyRoomId === rm.id) && !(opts && opts.skipCloseUi)) {
+      closePartyRoom({ skipLeavePersist: true });
+      if (!(opts && opts.silent) && typeof toast === 'function') {
+        toast('Voice room closed (empty)');
+      }
+    }
+    renderPartyHub();
+    return res;
+  }
+
+  const nextRoom = normalizePartyRoom(res.room);
+  const idx = partyRooms.findIndex(r => r && r.id === nextRoom.id);
+  if (idx >= 0) partyRooms[idx] = nextRoom;
+  else partyRooms = [nextRoom, ...partyRooms].slice(0, 24);
+  savePartyRoomsLocal();
+
+  if (res.hostTransferred && res.newHost && !(opts && opts.silent) && typeof toast === 'function') {
+    toast(`👑 ${res.newHost.name} is now the Room Owner!`);
+  }
+
+  if (!(opts && opts.skipPersist)) {
+    persistPartyRoom(nextRoom, { fullReplace: true, silentRender: Boolean(opts && opts.silent) });
+  }
+  return res;
+}
+window.runPartyRoomLifecycleSweep = runRoomLifecycleSweep;
+
+function startPartyPresenceLoop(roomId) {
+  stopPartyPresenceLoop();
+  if (!roomId) return;
+
+  partyPresenceIv = setInterval(() => {
+    const curId = getCurrentVrRoomId();
+    if (!curId || curId !== roomId) {
+      stopPartyPresenceLoop();
+      return;
+    }
+    const rm = partyRooms.find(r => r && r.id === curId);
+    if (!rm) return;
+    const now = Date.now();
+    touchMyMemberInRoom(rm, now);
+    rm.updatedAt = now;
+    savePartyRoomsLocal();
+    if (!String(rm.id).startsWith('pr_seed_') && online && db && F && typeof F.updateDoc === 'function') {
+      const seatKey = findUserSeatKeyInRoom(rm, uid);
+      const patch = { updatedAt: now, [`members.${uid}`]: rm.members[uid] };
+      if (seatKey != null && rm.seats[seatKey]) {
+        patch[`seats.${seatKey}`] = rm.seats[seatKey];
+      }
+      Promise.resolve(F.updateDoc(F.doc(db, 'party_rooms', rm.id), patch)).catch(() => {});
+    }
+    if (minimizedPartyRoomId === curId) renderFloatingVrPill();
+  }, 6000);
+
+  partySweepIv = setInterval(() => {
+    const curId = getCurrentVrRoomId();
+    if (!curId || curId !== roomId) return;
+    const rm = partyRooms.find(r => r && r.id === curId);
+    if (!rm) return;
+    runRoomLifecycleSweep(rm);
+  }, 8000);
+}
+
+function unsubscribeActiveRoomDoc() {
+  if (partyDocUnsub) {
+    try { partyDocUnsub(); } catch {}
+    partyDocUnsub = null;
+  }
+  partyDocRoomId = '';
+}
+
+function subscribeActiveRoomDoc(roomId) {
+  if (!roomId || String(roomId).startsWith('pr_seed_')) {
+    unsubscribeActiveRoomDoc();
+    return;
+  }
+  if (partyDocRoomId === roomId && partyDocUnsub) return;
+  unsubscribeActiveRoomDoc();
+  partyDocRoomId = roomId;
+  if (!online || !db || !F || typeof F.onSnapshot !== 'function') return;
+  try {
+    partyDocUnsub = F.onSnapshot(F.doc(db, 'party_rooms', roomId), snap => {
+      if (!snap.exists()) {
+        if (getCurrentVrRoomId() === roomId) {
+          partyRooms = partyRooms.filter(r => r && r.id !== roomId);
+          savePartyRoomsLocal();
+          closePartyRoom({ skipLeavePersist: true });
+          renderPartyHub();
+          if (typeof toast === 'function') toast('Voice room has ended');
+        }
+        return;
+      }
+      const data = normalizePartyRoom({ id: snap.id, ...(snap.data() || {}) });
+      if (!data) return;
+      if (data.status === 'closed') {
+        handleIncomingPartyRoomBroadcast({ kind: 'room_closed', roomId });
+        return;
+      }
+      const prev = partyRooms.find(r => r && r.id === roomId);
+      const rules = PRR();
+      const snapNow = Date.now();
+      if (prev) {
+        if (rules) {
+          data.chat = rules.mergeRoomChatMessages([prev.chat, data.chat], Array.from(partyDeletedMsgIds), 45);
+          data.reactions = rules.mergeRoomReactions([prev.reactions, data.reactions], 24);
+        }
+        // Preserve recent local viewer ad/buffering states across concurrent snapshots
+        const mergedViewerStates = { ...(data.videoViewerStates || {}) };
+        Object.entries(prev.videoViewerStates || {}).forEach(([k, v]) => {
+          if (!v || !v.ts) return;
+          if (snapNow - Number(v.ts) < 18000 && (!mergedViewerStates[k] || Number(v.ts) > Number(mergedViewerStates[k].ts || 0))) {
+            mergedViewerStates[k] = v;
+          }
+        });
+        data.videoViewerStates = mergedViewerStates;
+      }
+      const idx = partyRooms.findIndex(r => r && r.id === roomId);
+      if (idx >= 0) partyRooms[idx] = data;
+      else partyRooms = [data, ...partyRooms].slice(0, 24);
+      savePartyRoomsLocal();
+
+      if (data.kickedUids && data.kickedUids.includes(uid) && !isSingleOwner(data, uid)) {
+        closePartyRoom({ skipLeavePersist: true });
+        if (typeof toast === 'function') toast('You were removed from the room by Owner');
+        return;
+      }
+
+      PartyWebRtcMesh.syncMicPeers(data);
+      if (activePartyRoomId === roomId) {
+        syncReactionsFromList(data, data.reactions);
+        renderFullScreenPartyRoom();
+      } else if (minimizedPartyRoomId === roomId) {
+        renderFloatingVrPill();
+      }
+      renderPartyHub();
+    }, () => {});
+  } catch {}
+}
+
+/* ===== Persistence & Hub Rendering ===== */
+function savePartyRoomsLocal() {
+  ls.set('sg_party_rooms', (partyRooms || []).filter(r => r && r.status !== 'closed').slice(0, 24));
+}
+
+function writePartyRoomToFirestore(room, fullReplace) {
+  if (!room || !room.id || String(room.id).startsWith('pr_seed_')) return;
+  if (!online || !db || !F || typeof F.setDoc !== 'function') return;
+  const ref = F.doc(db, 'party_rooms', room.id);
+  const op = fullReplace ? F.setDoc(ref, room) : F.setDoc(ref, room, { merge: true });
+  Promise.resolve(op).catch(() => {
+    // Graceful compatibility fallback if remote Firebase rules haven't redeployed hostUid transfer yet:
+    // Keep original creatorUid in hostUid while persisting activeHostUid/activeHostName + seats + members!
+    if (room.creatorUid && room.hostUid !== room.creatorUid) {
+      const compatDoc = {
+        ...room,
+        hostUid: room.creatorUid,
+        activeHostUid: room.activeHostUid || room.hostUid,
+        activeHostName: room.activeHostName || room.hostName
+      };
+      const retry = fullReplace ? F.setDoc(ref, compatDoc) : F.setDoc(ref, compatDoc, { merge: true });
+      Promise.resolve(retry).catch(() => {});
+    }
+  });
+}
+
+function persistPartyRoom(room, opts) {
   if (!room || !room.id) return;
+  const o = opts || {};
   room.seats = normalizePartySeats(room.seats);
+  const rules = PRR();
+  if (rules && typeof rules.normalizeMembersMap === 'function') {
+    room.members = rules.normalizeMembersMap(room, Date.now());
+  }
+  room.activeHostUid = room.activeHostUid || room.hostUid;
+  room.activeHostName = room.activeHostName || room.hostName;
   room.updatedAt = Date.now();
   const idx = partyRooms.findIndex(r => r.id === room.id);
   if (idx >= 0) partyRooms[idx] = room;
   else partyRooms = [room, ...partyRooms].slice(0, 24);
   savePartyRoomsLocal();
-  if (!String(room.id).startsWith('pr_seed_')) {
-    dbOp(() => F.setDoc(F.doc(db, 'party_rooms', room.id), room, { merge: true }));
+
+  writePartyRoomToFirestore(room, Boolean(o.fullReplace));
+
+  postPartyRoomBroadcast({ kind: 'room_update', roomId: room.id, room });
+
+  if (!o.silentRender) {
+    PartyWebRtcMesh.syncMicPeers(room);
+    renderPartyHub();
+    if (activePartyRoomId === room.id) renderFullScreenPartyRoom();
+    else if (minimizedPartyRoomId === room.id) renderFloatingVrPill();
   }
-  PartyWebRtcMesh.syncMicPeers(room);
-  renderPartyHub();
-  if (activePartyRoomId === room.id) renderFullScreenPartyRoom();
 }
 
 function ingestPartyRooms(list) {
   const now = Date.now();
+  const rules = PRR();
   const prevById = new Map((partyRooms || []).filter(r => r && r.id).map(r => [r.id, r]));
   const live = (Array.isArray(list) ? list : [])
-    .filter(r => r && r.id && (!r.expiresAt || Number(r.expiresAt) > now))
+    .filter(r => r && r.id && r.status !== 'closed' && (!r.expiresAt || Number(r.expiresAt) > now))
     .map(normalizePartyRoom)
     .filter(Boolean)
+    .filter(r => r.status !== 'closed')
     .filter(r => !(partySeedsCleared() && isFakeOrStalePartyRoom(r)))
     .map(rm => {
       const prev = prevById.get(rm.id);
-      if (prev && prev.videoSync && rm.videoSync) {
-        const pSeq = Number(prev.videoSync.seq || 0);
-        const rSeq = Number(rm.videoSync.seq || 0);
-        const pTs = Number(prev.videoSync.updatedAt || 0);
-        const rTs = Number(rm.videoSync.updatedAt || 0);
-        if ((pSeq > rSeq && now - pTs < 15000) || (pSeq === rSeq && pTs > rTs && now - pTs < 6000)) {
-          rm.videoSync = prev.videoSync;
-          rm.youtubeId = prev.youtubeId;
+      if (prev) {
+        if (prev.videoSync && rm.videoSync) {
+          const pSeq = Number(prev.videoSync.seq || 0);
+          const rSeq = Number(rm.videoSync.seq || 0);
+          const pTs = Number(prev.videoSync.updatedAt || 0);
+          const rTs = Number(rm.videoSync.updatedAt || 0);
+          if ((pSeq > rSeq && now - pTs < 15000) || (pSeq === rSeq && pTs > rTs && now - pTs < 6000)) {
+            rm.videoSync = prev.videoSync;
+            rm.youtubeId = prev.youtubeId;
+          }
         }
+        if (rules) {
+          rm.chat = rules.mergeRoomChatMessages([prev.chat, rm.chat], Array.from(partyDeletedMsgIds), 45);
+          rm.reactions = rules.mergeRoomReactions([prev.reactions, rm.reactions], 24);
+        }
+        const mergedViewerStates = { ...(rm.videoViewerStates || {}) };
+        Object.entries(prev.videoViewerStates || {}).forEach(([k, v]) => {
+          if (!v || !v.ts) return;
+          if (now - Number(v.ts) < 18000 && (!mergedViewerStates[k] || Number(v.ts) > Number(mergedViewerStates[k].ts || 0))) {
+            mergedViewerStates[k] = v;
+          }
+        });
+        rm.videoViewerStates = mergedViewerStates;
       }
       return rm;
     });
+
+  const curVrId = getCurrentVrRoomId();
   if (live.length) {
     const liveIds = new Set(live.map(l => l.id));
-    const activeLocal = activePartyRoomId ? prevById.get(activePartyRoomId) : null;
-    const keptActive = (activeLocal && !liveIds.has(activeLocal.id) && now - Number(activeLocal.updatedAt || 0) < 12000) ? [activeLocal] : [];
+    const activeLocal = curVrId ? prevById.get(curVrId) : null;
+    const keptActive = (activeLocal && activeLocal.status !== 'closed' && !liveIds.has(activeLocal.id) && now - Number(activeLocal.updatedAt || 0) < 12000) ? [activeLocal] : [];
     const seeds = partySeedsCleared() ? [] : buildSeedPartyRooms().filter(s => !liveIds.has(s.id));
     partyRooms = [...keptActive, ...live, ...seeds].slice(0, 24);
   } else if (partySeedsCleared()) {
     partyRooms = (partyRooms || []).filter(r => !isFakeOrStalePartyRoom(r));
   }
   savePartyRoomsLocal();
-  const curRoom = partyRooms.find(r => r.id === (activePartyRoomId || minimizedPartyRoomId));
+  const curRoom = partyRooms.find(r => r.id === curVrId);
   if (curRoom) {
     if (curRoom.kickedUids && curRoom.kickedUids.includes(uid) && !isSingleOwner(curRoom, uid)) {
-      closePartyRoom();
+      closePartyRoom({ skipLeavePersist: true });
       toast('You were removed from the room by Owner');
       return;
     }
     PartyWebRtcMesh.syncMicPeers(curRoom);
+    if (activePartyRoomId === curRoom.id) {
+      syncReactionsFromList(curRoom, curRoom.reactions);
+    }
   }
   renderPartyHub();
   if (activePartyRoomId) renderFullScreenPartyRoom();
+  else if (minimizedPartyRoomId) renderFloatingVrPill();
 }
 
 function parseYouTubeVideoId(input) {
@@ -1150,9 +1775,11 @@ function parseYouTubeVideoId(input) {
   return m ? m[1] : '';
 }
 
+/* ===== VR Chat & Emoji Reactions Live Sync (Firestore Subcollection + Doc + BroadcastChannel) ===== */
 let partyMsgUnsub = null;
 let partyMsgRoomId = '';
 let partySubcolMsgs = [];
+let partySubcolReactions = [];
 const partyDeletedMsgIds = new Set();
 
 function unsubscribeRoomMessages() {
@@ -1162,6 +1789,7 @@ function unsubscribeRoomMessages() {
   }
   partyMsgRoomId = '';
   partySubcolMsgs = [];
+  partySubcolReactions = [];
 }
 
 function subscribeRoomMessages(roomId) {
@@ -1176,16 +1804,27 @@ function subscribeRoomMessages(roomId) {
   try {
     const col = F.collection(db, 'party_rooms', roomId, 'messages');
     const q = (typeof F.query === 'function' && typeof F.orderBy === 'function' && typeof F.limit === 'function')
-      ? F.query(col, F.orderBy('ts', 'asc'), F.limit(60))
+      ? F.query(col, F.orderBy('ts', 'asc'), F.limit(80))
       : col;
     partyMsgUnsub = F.onSnapshot(q, snap => {
-      const next = [];
+      const nextMsgs = [];
+      const nextRx = [];
       snap.docs.forEach(d => {
         const data = d.data() || {};
-        next.push({ ...data, id: data.id || d.id });
+        const item = { ...data, id: data.id || d.id };
+        if (item.type === 'reaction' && (item.emoji || item.text)) {
+          nextRx.push({ ...item, emoji: item.emoji || item.text });
+        } else {
+          nextMsgs.push(item);
+        }
       });
-      partySubcolMsgs = next;
-      if (activePartyRoomId === roomId) renderFullScreenPartyRoom();
+      partySubcolMsgs = nextMsgs;
+      partySubcolReactions = nextRx;
+      const rm = partyRooms.find(r => r && r.id === roomId);
+      if (rm && activePartyRoomId === roomId) {
+        syncReactionsFromList(rm, nextRx);
+        renderFullScreenPartyRoom();
+      }
     }, () => {});
   } catch {}
 }
@@ -1193,13 +1832,18 @@ function subscribeRoomMessages(roomId) {
 function getMergedPartyMessages(rm) {
   const inlineMsgs = Array.isArray(rm?.chat) ? rm.chat : [];
   const subMsgs = (rm && rm.id === partyMsgRoomId) ? partySubcolMsgs : [];
+  const bcMsgs = (rm && partyBcMsgsByRoom.get(rm.id)) || [];
   const deletedList = Array.from(partyDeletedMsgIds);
+  const rules = PRR();
+  if (rules && typeof rules.mergeRoomChatMessages === 'function') {
+    return rules.mergeRoomChatMessages([inlineMsgs, subMsgs, bcMsgs], deletedList, 40);
+  }
   if (window.ShowGamesRules && typeof window.ShowGamesRules.mergeRoomMessages === 'function') {
-    return window.ShowGamesRules.mergeRoomMessages(inlineMsgs, subMsgs, deletedList).slice(-35);
+    return window.ShowGamesRules.mergeRoomMessages(inlineMsgs, [...subMsgs, ...bcMsgs], deletedList).slice(-35);
   }
   const byId = new Map();
-  [...inlineMsgs, ...subMsgs].forEach(m => {
-    if (!m || !m.id || partyDeletedMsgIds.has(m.id)) return;
+  [...inlineMsgs, ...subMsgs, ...bcMsgs].forEach(m => {
+    if (!m || !m.id || m.type === 'reaction' || partyDeletedMsgIds.has(m.id)) return;
     byId.set(m.id, m);
   });
   return Array.from(byId.values()).sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0)).slice(-35);
@@ -1216,18 +1860,28 @@ function canDeletePartyMessage(msg) {
 
 function sendPartyChatMessage(rm, txt) {
   if (!rm || !txt) return;
+  const cleanText = String(txt).trim().slice(0, 160);
+  if (!cleanText) return;
+  const now = Date.now();
   const msg = {
-    id: 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+    id: 'c_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 6),
     type: 'text',
     uid,
     name: me.name || 'Player',
-    text: String(txt).slice(0, 160),
-    ts: Date.now()
+    text: cleanText,
+    ts: now
   };
-  rm.chat = [...(rm.chat || []), msg].slice(-45);
+  const rules = PRR();
+  rm.chat = rules
+    ? rules.mergeRoomChatMessages([rm.chat, [msg]], Array.from(partyDeletedMsgIds), 45)
+    : [...(rm.chat || []), msg].slice(-45);
   if (rm.id === partyMsgRoomId) {
     partySubcolMsgs = [...partySubcolMsgs.filter(m => m.id !== msg.id), msg].slice(-60);
   }
+  const bcList = partyBcMsgsByRoom.get(rm.id) || [];
+  partyBcMsgsByRoom.set(rm.id, [...bcList.filter(m => m.id !== msg.id), msg].slice(-60));
+
+  postPartyRoomBroadcast({ kind: 'chat', roomId: rm.id, message: msg });
   if (!String(rm.id).startsWith('pr_seed_') && online && db && F && typeof F.setDoc === 'function') {
     dbOp(() => F.setDoc(F.doc(db, 'party_rooms', rm.id, 'messages', msg.id), msg));
   }
@@ -1246,12 +1900,256 @@ function deletePartyChatMessage(rm, msgId) {
   if (rm.id === partyMsgRoomId) {
     partySubcolMsgs = partySubcolMsgs.filter(m => m && m.id !== msgId);
   }
+  const bcList = partyBcMsgsByRoom.get(rm.id) || [];
+  partyBcMsgsByRoom.set(rm.id, bcList.filter(m => m && m.id !== msgId));
   if (!String(rm.id).startsWith('pr_seed_') && online && db && F && typeof F.deleteDoc === 'function') {
     dbOp(() => F.deleteDoc(F.doc(db, 'party_rooms', rm.id, 'messages', msgId)));
   }
-  persistPartyRoom(rm);
+  persistPartyRoom(rm, { fullReplace: true });
   toast('Message deleted');
 }
+
+function triggerPartyReactionFx(rm, rx) {
+  if (!rm || !rx || !rx.id || !rx.emoji) return;
+  if (seenPartyReactionIds.has(rx.id)) return;
+  seenPartyReactionIds.add(rx.id);
+  if (seenPartyReactionIds.size > 160) {
+    const first = seenPartyReactionIds.values().next().value;
+    if (first) seenPartyReactionIds.delete(first);
+  }
+
+  // Only animate fresh reactions (< 12s old) so old history doesn't burst on room enter
+  const now = Date.now();
+  if (now - Number(rx.ts || now) > 12000) return;
+
+  if (rx.uid) {
+    activeSeatReactions.set(rx.uid, { emoji: rx.emoji, expiresAt: now + 3200 });
+    setTimeout(() => {
+      const cur = activeSeatReactions.get(rx.uid);
+      if (cur && cur.expiresAt <= Date.now()) {
+        activeSeatReactions.delete(rx.uid);
+        if (activePartyRoomId === rm.id) renderFullScreenPartyRoom();
+      }
+    }, 3300);
+  }
+
+  const root = document.getElementById('partyFsRoot');
+  if (!root || activePartyRoomId !== rm.id) return;
+
+  const fxLayer = root.querySelector('#pfsFxLayer');
+  if (fxLayer) {
+    const el = document.createElement('div');
+    el.className = 'pfs-rx-float';
+    el.dataset.testid = 'vr-floating-emoji';
+    const leftPct = 14 + Math.floor(Math.random() * 72);
+    el.style.left = `${leftPct}%`;
+    el.innerHTML = `<span class="pfs-rx-em">${esc(rx.emoji)}</span><span class="pfs-rx-who">${esc(rx.name || 'Player')}</span>`;
+    fxLayer.appendChild(el);
+    setTimeout(() => { try { el.remove(); } catch {} }, 2300);
+  }
+
+  const ticker = root.querySelector('#pfsRxTicker');
+  if (ticker) {
+    ticker.innerHTML = `<span class="pfs-rx-chip">${esc(rx.emoji)} <b>${esc(rx.name || 'Player')}</b> reacted</span>`;
+    ticker.hidden = false;
+    clearTimeout(ticker._hideTimer);
+    ticker._hideTimer = setTimeout(() => {
+      if (ticker) ticker.hidden = true;
+    }, 3400);
+  }
+
+  // Refresh seat stage so sender's seat avatar shows live reaction bubble
+  const stage = root.querySelector('#pfsStageSlot');
+  if (stage) {
+    stage.innerHTML = `
+      <div class="pfs-owner-solo">${renderSeatTile(rm, 0)}</div>
+      <div class="pfs-seats-4col">
+        ${[1, 2, 3, 4, 5, 6, 7, 8].map(i => renderSeatTile(rm, i)).join('')}
+      </div>
+    `;
+  }
+}
+
+function syncReactionsFromList(rm, list) {
+  if (!rm || !Array.isArray(list) || !list.length) return;
+  list.slice(-8).forEach(rx => {
+    if (rx && rx.id && rx.emoji) triggerPartyReactionFx(rm, rx);
+  });
+}
+
+function sendPartyReaction(rm, emoji) {
+  if (!rm || !emoji) return;
+  const now = Date.now();
+  const seatKey = findUserSeatKeyInRoom(rm, uid);
+  const rx = {
+    id: 'rx_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+    type: 'reaction',
+    uid,
+    name: me.name || 'Player',
+    emoji: String(emoji).slice(0, 8),
+    text: String(emoji).slice(0, 8),
+    seatIdx: seatKey != null ? Number(seatKey) : null,
+    ts: now
+  };
+  const rules = PRR();
+  rm.reactions = rules
+    ? rules.mergeRoomReactions([rm.reactions, [rx]], 24)
+    : [...(rm.reactions || []), rx].slice(-24);
+  const bcRx = partyBcReactionsByRoom.get(rm.id) || [];
+  partyBcReactionsByRoom.set(rm.id, [...bcRx.filter(r => r.id !== rx.id), rx].slice(-30));
+
+  if (typeof playSfx === 'function') playSfx('tap');
+  triggerPartyReactionFx(rm, rx);
+  postPartyRoomBroadcast({ kind: 'reaction', roomId: rm.id, reaction: rx });
+
+  if (!String(rm.id).startsWith('pr_seed_') && online && db && F && typeof F.setDoc === 'function') {
+    dbOp(() => F.setDoc(F.doc(db, 'party_rooms', rm.id, 'messages', rx.id), rx));
+  }
+  persistPartyRoom(rm);
+}
+
+/* ===== Floating VR Icon Mode + Game Launch Guard ===== */
+function removeFloatingVrPill() {
+  const existing = document.getElementById('vrFloatingPill');
+  if (existing) existing.remove();
+}
+
+function renderFloatingVrPill() {
+  if (!minimizedPartyRoomId || activePartyRoomId) {
+    removeFloatingVrPill();
+    return;
+  }
+  const rm = partyRooms.find(r => r && r.id === minimizedPartyRoomId && r.status !== 'closed');
+  if (!rm) {
+    minimizedPartyRoomId = null;
+    removeFloatingVrPill();
+    return;
+  }
+  const rules = PRR();
+  const activeCount = rules
+    ? rules.getOrderedActiveMembers(rm, Date.now(), rules.DEFAULT_STALE_MS).length
+    : Object.keys(rm.seats || {}).length;
+  const mySeatKey = findUserSeatKeyInRoom(rm, uid);
+  const mySeat = mySeatKey != null ? rm.seats[mySeatKey] : null;
+  const micLive = mySeatKey != null && isMicSeatIndex(Number(mySeatKey)) && mySeat && !mySeat.muted;
+
+  let pill = document.getElementById('vrFloatingPill');
+  if (!pill) {
+    pill = document.createElement('div');
+    pill.id = 'vrFloatingPill';
+    pill.className = 'vr-floating-pill';
+    pill.dataset.testid = 'vr-floating-pill';
+    pill.setAttribute('role', 'region');
+    pill.setAttribute('aria-label', 'Active Voice Room');
+    document.body.appendChild(pill);
+  }
+
+  pill.innerHTML = `
+    <button type="button" class="vr-fp-main" data-testid="vr-floating-open" title="Return to VR Room">
+      <span class="vr-fp-orb" aria-hidden="true">
+        <span class="vr-fp-pulse"></span>
+        <span class="vr-fp-ico">${micLive ? '🎙️' : '🎧'}</span>
+      </span>
+      <span class="vr-fp-info">
+        <b class="vr-fp-title">${esc(rm.title)}</b>
+        <small class="vr-fp-sub">VR Live · ${Math.max(1, activeCount)} active</small>
+      </span>
+    </button>
+    <button type="button" class="vr-fp-exit" data-testid="vr-floating-exit" title="Leave VR Room" aria-label="Leave VR Room">✕</button>
+  `;
+
+  const openBtn = pill.querySelector('.vr-fp-main');
+  if (openBtn) {
+    openBtn.onclick = () => {
+      if (minimizedPartyRoomId) openPartyRoom(minimizedPartyRoomId);
+    };
+  }
+  const exitBtn = pill.querySelector('.vr-fp-exit');
+  if (exitBtn) {
+    exitBtn.onclick = (e) => {
+      e.stopPropagation();
+      closePartyRoom();
+    };
+  }
+}
+
+function minimizePartyRoom(opts) {
+  const rid = activePartyRoomId || minimizedPartyRoomId;
+  if (!rid) return false;
+  const rm = partyRooms.find(r => r && r.id === rid);
+  if (!rm) {
+    closePartyRoom({ skipLeavePersist: true });
+    return false;
+  }
+  minimizedPartyRoomId = rid;
+  activePartyRoomId = null;
+  // Keep presence heartbeat, WebRTC audio, and room/chat subscriptions alive while floating!
+  PartyVideoSync.destroy();
+  const root = document.getElementById('partyFsRoot');
+  if (root) {
+    root.dataset.mountedRoomId = '';
+    root.classList.remove('open');
+    root.hidden = true;
+    root.innerHTML = '';
+  }
+  document.body.classList.remove('party-fs-lock');
+  renderFloatingVrPill();
+  if (!(opts && opts.silent) && typeof toast === 'function') {
+    toast('VR room minimized to floating mode');
+  }
+  return true;
+}
+window.minimizePartyRoom = minimizePartyRoom;
+
+function guardVrBeforeGameLaunch(gameLabel, proceedFn, opts) {
+  const o = opts || {};
+  const rules = PRR();
+  const blocked = rules && typeof rules.shouldBlockGameLaunchForVr === 'function'
+    ? rules.shouldBlockGameLaunchForVr({ activePartyRoomId, minimizedPartyRoomId, bypassVrGuard: Boolean(o.bypassVrGuard) })
+    : (!o.bypassVrGuard && Boolean(activePartyRoomId || minimizedPartyRoomId));
+
+  if (!blocked) return false;
+
+  const vrRoomId = getCurrentVrRoomId();
+  const rm = partyRooms.find(r => r && r.id === vrRoomId);
+  const roomTitle = (rm && rm.title) || 'Voice Room';
+  const targetLabel = String(gameLabel || 'Game');
+  const amHost = Boolean(rm && rm.hostUid === uid);
+
+  const m = modal('VR Session Active', `
+    <div class="vr-guard-card" data-testid="vr-game-guard-modal">
+      <div class="vr-guard-badge">🎧 VR ROOM RUNNING${amHost ? ' · OWNER' : ''}</div>
+      <p class="vr-guard-msg">
+        Your VR session <b>"${esc(roomTitle)}"</b> is currently active in floating mode.
+        Exit VR first to open <b>${esc(targetLabel)}</b>, or return to your VR room.
+      </p>
+      <div class="vr-guard-actions">
+        <button type="button" class="btn ok full" id="vrGuardReturnBtn" data-testid="vr-guard-return">Return to VR</button>
+        <button type="button" class="btn red full" id="vrGuardExitOpenBtn" data-testid="vr-guard-exit-open">Exit VR &amp; Open ${esc(targetLabel)}</button>
+      </div>
+    </div>
+  `);
+
+  const retBtn = $('#vrGuardReturnBtn', m);
+  if (retBtn) {
+    retBtn.onclick = () => {
+      m.close();
+      if (vrRoomId) openPartyRoom(vrRoomId);
+    };
+  }
+  const exitBtn = $('#vrGuardExitOpenBtn', m);
+  if (exitBtn) {
+    exitBtn.onclick = () => {
+      m.close();
+      closePartyRoom();
+      if (typeof proceedFn === 'function') {
+        setTimeout(() => proceedFn(), 40);
+      }
+    };
+  }
+  return true;
+}
+window.guardVrBeforeGameLaunch = guardVrBeforeGameLaunch;
 
 function renderPartyHub() {
   if (typeof activeAppTab !== 'undefined' && activeAppTab !== 'tools') {
@@ -1260,7 +2158,11 @@ function renderPartyHub() {
   }
   const host = $('#homePartyRooms') || $('#partyRoomsHost');
   if (!host) return;
-  const rooms = (partyRooms || []).slice(0, 8);
+  const now = Date.now();
+  const rules = PRR();
+  const rooms = (partyRooms || [])
+    .filter(r => r && r.status !== 'closed' && (!r.expiresAt || Number(r.expiresAt) > now))
+    .slice(0, 8);
   const isDev = typeof isDevSession === 'function' ? isDevSession() : (typeof devMode !== 'undefined' && devMode);
   host.innerHTML = `
     <div class="wp-sec-bar">
@@ -1273,16 +2175,19 @@ function renderPartyHub() {
     ${rooms.length ? `<div class="party-grid">${rooms.map(rm => {
       const bgMeta = PARTY_BG_META[rm.background] || PARTY_BG_META.club;
       const modeMeta = PARTY_MODES_META[rm.mode] || PARTY_MODES_META.normal;
-      const seated = Object.values(normalizePartySeats(rm.seats)).filter(Boolean);
-      return `<button type="button" class="party-room-card glossy-card" data-openparty="${esc(rm.id)}" style="background:${bgMeta.css}">
+      const activeCount = rules
+        ? rules.getOrderedActiveMembers(rm, now, rules.DEFAULT_STALE_MS).length
+        : Object.values(normalizePartySeats(rm.seats)).filter(Boolean).length;
+      const isMinimizedHere = minimizedPartyRoomId === rm.id;
+      return `<button type="button" class="party-room-card glossy-card ${isMinimizedHere ? 'is-vr-floating' : ''}" data-openparty="${esc(rm.id)}" style="background:${bgMeta.css}">
         <div class="prc-top">
           <span class="prc-cat">${esc(rm.tag || modeMeta.badge)} · ${esc(modeMeta.name)}</span>
-          <span class="prc-live">● ${seated.length} seated</span>
+          <span class="prc-live">● ${activeCount} live</span>
         </div>
         <div class="prc-title">${esc(rm.title)}</div>
         <div class="prc-foot">
           <span class="prc-host-lbl">Owner: ${esc(rm.hostName || 'Owner')} · ID ${esc(rm.shortId)}</span>
-          <span class="prc-join">Enter →</span>
+          <span class="prc-join">${isMinimizedHere ? 'Resume →' : 'Enter →'}</span>
         </div>
       </button>`;
     }).join('')}</div>` : `<div class="mp-empty" style="margin-top:6px">No live voice rooms right now. Tap <b>+ Host Room</b> to start a real room!</div>`}`;
@@ -1327,6 +2232,7 @@ function openCreatePartyRoomModal() {
     const room = normalizePartyRoom({
       id,
       shortId: makeRoomShortId(id),
+      status: 'active',
       title,
       tag: PARTY_MODES_META[mode].badge,
       mode,
@@ -1335,25 +2241,55 @@ function openCreatePartyRoomModal() {
       hostName: me.name || 'Player',
       admins: [],
       seats: {
-        '0': { uid, name: me.name || 'Player', avatar: me.avatar || 'av_b1', frame: me.frame || 'fx_gold', muted: false, speaking: true, joinedAt: now }
+        '0': { uid, name: me.name || 'Player', avatar: me.avatar || 'av_b1', frame: me.frame || 'fx_gold', muted: false, speaking: true, joinedAt: now, lastSeen: now, connected: true }
       },
+      members: {
+        [uid]: { uid, name: me.name || 'Player', avatar: me.avatar || 'av_b1', frame: me.frame || 'fx_gold', seatIdx: 0, joinedAt: now, lastSeen: now, connected: true }
+      },
+      reactions: [],
+      videoViewerStates: {},
       chat: [{ id: 'sys_' + now, type: 'sys', text: `${me.name || 'Player'} opened room. Seats 0-3 = Mic (max 4), others = Listeners.`, ts: now }],
       createdAt: now,
       updatedAt: now
     });
-    persistPartyRoom(room);
+    if (getCurrentVrRoomId() && getCurrentVrRoomId() !== id) {
+      closePartyRoom({ silent: true });
+    }
+    persistPartyRoom(room, { fullReplace: true });
     m.close();
     openPartyRoom(id);
   };
 }
 
-function closePartyRoom() {
+function leavePartyRoomFully(roomId, opts) {
+  if (!roomId) return;
+  const rm = partyRooms.find(r => r && r.id === roomId);
+  if (!rm) return;
+  runRoomLifecycleSweep(rm, {
+    leavingUid: uid,
+    nowMs: Date.now(),
+    skipCloseUi: true,
+    silent: Boolean(opts && opts.silent)
+  });
+}
+
+function closePartyRoom(opts) {
+  const o = opts || {};
+  const prevRoomId = getCurrentVrRoomId();
   activePartyRoomId = null;
   minimizedPartyRoomId = null;
+  stopPartyPresenceLoop();
+  unsubscribeActiveRoomDoc();
   unsubscribeRoomMessages();
   PartyVideoSync.destroy();
   PartyWebRtcMesh.cleanup();
   PartyAudioPlayer.stop();
+  removeFloatingVrPill();
+
+  if (prevRoomId && !o.skipLeavePersist) {
+    leavePartyRoomFully(prevRoomId, { silent: Boolean(o.silent) });
+  }
+
   const root = document.getElementById('partyFsRoot');
   if (root) {
     root.dataset.mountedRoomId = '';
@@ -1365,31 +2301,68 @@ function closePartyRoom() {
   if (typeof setMyLiveActivity === 'function') {
     setMyLiveActivity({ type: 'online' });
   }
+  renderPartyHub();
 }
+window.closePartyRoom = closePartyRoom;
 
 function openPartyRoom(roomId) {
-  const room = partyRooms.find(r => r.id === roomId);
-  if (!room) return toast('Room not found');
+  initPartyRoomBroadcastChannel();
+  const room = partyRooms.find(r => r && r.id === roomId && r.status !== 'closed');
+  if (!room) return toast('Room not found or already closed');
   if (room.kickedUids && room.kickedUids.includes(uid) && !isSingleOwner(room, uid)) {
     return toast('You cannot re-enter this room');
   }
+  // If switching from another active/floating VR room, cleanly leave the previous room first
+  const prevId = getCurrentVrRoomId();
+  if (prevId && prevId !== roomId) {
+    closePartyRoom({ silent: true });
+  }
+
   activePartyRoomId = roomId;
   minimizedPartyRoomId = null;
+  removeFloatingVrPill();
+
+  const now = Date.now();
+  touchMyMemberInRoom(room, now);
+  // Seed reaction ids from history so entering a room doesn't replay old bursts
+  (room.reactions || []).forEach(r => { if (r && r.id) seenPartyReactionIds.add(r.id); });
+
   const root = document.getElementById('partyFsRoot');
   if (!root) return;
   bindPartyRootDelegation(root);
   root.hidden = false;
   document.body.classList.add('party-fs-lock');
   requestAnimationFrame(() => root.classList.add('open'));
+
+  if (typeof pushBackGuardState === 'function') {
+    pushBackGuardState('party:' + roomId);
+  }
+
+  subscribeActiveRoomDoc(roomId);
   subscribeRoomMessages(roomId);
+  startPartyPresenceLoop(roomId);
   PartyWebRtcMesh.syncMicPeers(room);
   if (room.musicUrl) PartyAudioPlayer.playUrl(room.musicUrl, room.musicTitle);
   if (typeof setMyLiveActivity === 'function') {
     setMyLiveActivity({ type: 'party', roomId: room.id, roomCode: room.shortId || room.id, gameName: room.title || 'Voice Room' });
   }
+  persistPartyRoom(room);
   renderFullScreenPartyRoom();
 }
 window.openPartyRoomModal = openPartyRoom;
+window.openPartyRoom = openPartyRoom;
+
+// Auto-leave VR room cleanly when user closes tab, refreshes, or backgrounds PWA exit
+if (!window.__sgPartyUnloadBound) {
+  window.__sgPartyUnloadBound = true;
+  const handlePageLeave = () => {
+    const curId = getCurrentVrRoomId();
+    if (!curId) return;
+    leavePartyRoomFully(curId, { silent: true });
+  };
+  window.addEventListener('pagehide', handlePageLeave);
+  window.addEventListener('beforeunload', handlePageLeave);
+}
 
 function renderSeatTile(rm, idx) {
   const seats = rm.seats || {};
@@ -1408,17 +2381,22 @@ function renderSeatTile(rm, idx) {
   const isOwnerSeat = s.uid === rm.hostUid;
   const isAdm = isRoomAdmin(rm, s.uid);
   const speaking = micEligible && !s.muted;
+  const seatRx = activeSeatReactions.get(s.uid);
+  const rxHtml = seatRx && seatRx.expiresAt > Date.now()
+    ? `<span class="pfs-seat-rx" data-testid="vr-seat-reaction">${esc(seatRx.emoji)}</span>`
+    : '';
 
   return `<div class="pfs-seat-wrap compact">
     <button type="button" class="pfs-seat occupied compact ${speaking ? 'is-speaking' : ''} ${s.uid === uid ? 'is-me' : ''}" data-seat-idx="${idx}" data-seat-uid="${esc(s.uid)}">
       <div class="pfs-seat-ring">
         ${speaking ? '<span class="pfs-wave w1"></span>' : ''}
         ${av(s, 44)}
+        ${rxHtml}
         <span class="pfs-mic-dot ${!micEligible ? 'muted' : (s.muted ? 'muted' : 'live')}">${!micEligible ? '👂' : (s.muted ? '🔇' : '🎙️')}</span>
       </div>
       <div class="pfs-seat-name">${esc(s.name || 'Player')}</div>
       <div class="pfs-seat-meta">
-        ${isOwnerSeat ? '<span class="pfs-owner-tag">OWNER</span>' : (isAdm ? '<span class="pfs-role-chip">ADMIN</span>' : `<span class="pfs-seat-role">${roleTag}</span>`)}
+        ${isOwnerSeat ? '<span class="pfs-owner-tag" data-testid="vr-owner-badge">OWNER</span>' : (isAdm ? '<span class="pfs-role-chip">ADMIN</span>' : `<span class="pfs-seat-role">${roleTag}</span>`)}
       </div>
     </button>
     ${s.uid === uid ? `<button type="button" class="pfs-quick-leave" data-pfs-act="leave-seat">Leave</button>` : ''}
@@ -1428,14 +2406,18 @@ function renderSeatTile(rm, idx) {
 function renderFullScreenPartyRoom() {
   const root = document.getElementById('partyFsRoot');
   if (!root || !activePartyRoomId) return;
-  const rm = partyRooms.find(r => r.id === activePartyRoomId);
-  if (!rm) { closePartyRoom(); return; }
+  const rm = partyRooms.find(r => r && r.id === activePartyRoomId && r.status !== 'closed');
+  if (!rm) { closePartyRoom({ skipLeavePersist: true }); return; }
 
   const bgMeta = PARTY_BG_META[rm.background] || PARTY_BG_META.club;
   const modeMeta = PARTY_MODES_META[rm.mode] || PARTY_MODES_META.normal;
   const mySeatKey = findUserSeatKeyInRoom(rm, uid);
   const mySeat = mySeatKey != null ? rm.seats[mySeatKey] : null;
   const canSpeak = mySeatKey != null && isMicSeatIndex(Number(mySeatKey));
+  const rules = PRR();
+  const activeCount = rules
+    ? rules.getOrderedActiveMembers(rm, Date.now(), rules.DEFAULT_STALE_MS).length
+    : Object.keys(rm.seats || {}).length;
 
   root.style.background = bgMeta.css;
 
@@ -1444,21 +2426,23 @@ function renderFullScreenPartyRoom() {
     root.dataset.mountedRoomId = rm.id;
     root.innerHTML = `
       <div class="pfs-shell pfs-v14">
+        <div class="pfs-fx-layer" id="pfsFxLayer" data-testid="vr-fx-layer" aria-live="polite"></div>
         <header class="pfs-top-v14" id="pfsHdrSlot"></header>
         <div class="pfs-subbar" id="pfsSubbarSlot"></div>
         <div class="pfs-main-scroll">
           <div class="pfs-video-slot" id="pfsVideoSlot"></div>
           <div class="pfs-stage" id="pfsStageSlot"></div>
-          <div class="pfs-react-dock">
-            ${PARTY_REACTIONS.map(em => `<button type="button" class="pfs-react-btn" data-react="${em}">${em}</button>`).join('')}
+          <div class="pfs-rx-ticker" id="pfsRxTicker" data-testid="vr-reaction-ticker" hidden></div>
+          <div class="pfs-react-dock" data-testid="vr-react-dock">
+            ${PARTY_REACTIONS.map(em => `<button type="button" class="pfs-react-btn" data-react="${em}" aria-label="React ${em}">${em}</button>`).join('')}
           </div>
-          <div class="pfs-chat-feed" id="pfsChatFeed"></div>
+          <div class="pfs-chat-feed" id="pfsChatFeed" data-testid="vr-chat-feed"></div>
         </div>
         <div class="pfs-dock pfs-dock-v14" id="pfsDockSlot">
           <button type="button" class="pfs-dock-ico ${partySpeakerOn ? 'on' : 'off'}" id="pfsSpkBtn" data-pfs-act="toggle-speaker">${partySpeakerOn ? '🔊' : '🔈'}</button>
           <button type="button" class="pfs-dock-ico ${canSpeak ? (mySeat.muted ? 'muted' : 'live') : 'muted'}" id="pfsMicBtn" data-pfs-act="toggle-mic">${!canSpeak ? '👂' : (mySeat.muted ? '🔇' : '🎙️')}</button>
           <input id="pfsChatIn" maxlength="160" placeholder="Type message..." autocomplete="off">
-          <button type="button" class="pfs-dock-send" data-pfs-act="send-chat">➤</button>
+          <button type="button" class="pfs-dock-send" data-pfs-act="send-chat" data-testid="vr-chat-send">➤</button>
           <button type="button" class="pfs-dock-ico gift" data-pfs-act="open-gift">🎁</button>
           <button type="button" class="pfs-dock-ico apps" data-pfs-act="open-music">♪</button>
         </div>
@@ -1470,22 +2454,22 @@ function renderFullScreenPartyRoom() {
   if (hdr) {
     hdr.innerHTML = `
       <div class="pfs-hdr-left">
-        <button type="button" class="pfs-hdr-btn" data-pfs-act="close" aria-label="Exit Room">←</button>
+        <button type="button" class="pfs-hdr-btn" data-pfs-act="minimize" data-testid="vr-back-btn" title="Minimize to Floating VR" aria-label="Back to Floating VR">←</button>
         <div class="pfs-hdr-meta">
           <div class="pfs-hdr-title-row">
             <b class="pfs-title">${esc(rm.title)}</b>
             <span class="pfs-tag-txt">· ${esc(modeMeta.name)}</span>
           </div>
           <div class="pfs-hdr-id-row">
-            <span class="pfs-id-btn">Owner: ${esc(rm.hostName)} · ID ${esc(rm.shortId)}</span>
+            <span class="pfs-id-btn" data-testid="vr-owner-header">Owner: ${esc(rm.hostName)} · ${Math.max(1, activeCount)} live · ID ${esc(rm.shortId)}</span>
           </div>
         </div>
       </div>
       <div class="pfs-hdr-right">
         <button type="button" class="pfs-hdr-btn" data-pfs-act="open-invite" title="Invite Friends to Voice Room" aria-label="Invite to Room">👥</button>
-        <button type="button" class="pfs-hdr-btn" data-pfs-act="minimize" title="Minimize">−</button>
         <button type="button" class="pfs-hdr-btn" data-pfs-act="open-music" title="Music">♪</button>
         <button type="button" class="pfs-hdr-btn" data-pfs-act="open-modes" title="Modes">⊞</button>
+        <button type="button" class="pfs-hdr-btn exit" data-pfs-act="exit-room" data-testid="vr-exit-btn" title="Leave VR Room" aria-label="Leave VR Room">✕</button>
       </div>
     `;
   }
@@ -1504,7 +2488,6 @@ function renderFullScreenPartyRoom() {
     `;
   }
 
-  // Non-destructive live video sync update
   const videoSlot = $('#pfsVideoSlot', root);
   if (videoSlot) {
     PartyVideoSync.syncRoom(rm, videoSlot);
@@ -1522,7 +2505,7 @@ function renderFullScreenPartyRoom() {
 
   const feed = $('#pfsChatFeed', root);
   if (feed) {
-    const msgsHtml = getMergedPartyMessages(rm).slice(-24).map(c => {
+    const msgsHtml = getMergedPartyMessages(rm).slice(-28).map(c => {
       if (c.type === 'sys') return `<div class="pfs-msg sys">${esc(c.text)}</div>`;
       const canDel = canDeletePartyMessage(c);
       return `<div class="pfs-msg pfs-msg-row" data-pmsg-id="${esc(c.id)}">
@@ -1561,6 +2544,7 @@ function partyTakeSeat(rm, idx) {
   if (rm.seats[key] && rm.seats[key].uid !== uid) {
     return toast('Seat already taken');
   }
+  const now = Date.now();
   const nextSeats = {};
   Object.keys(rm.seats || {}).forEach(k => {
     if (rm.seats[k] && rm.seats[k].uid !== uid) nextSeats[k] = rm.seats[k];
@@ -1573,12 +2557,15 @@ function partyTakeSeat(rm, idx) {
     frame: me.frame || 'none',
     muted: !canSpeak,
     speaking: canSpeak,
-    joinedAt: Date.now()
+    joinedAt: now,
+    lastSeen: now,
+    connected: true
   };
   rm.seats = nextSeats;
+  touchMyMemberInRoom(rm, now);
   if (canSpeak) PartyWebRtcMesh.enableMic(true);
   else PartyWebRtcMesh.setMicMuted(true);
-  persistPartyRoom(rm);
+  persistPartyRoom(rm, { fullReplace: true });
 }
 
 function partyLeaveSeat(rm) {
@@ -1588,8 +2575,9 @@ function partyLeaveSeat(rm) {
     if (rm.seats[k] && rm.seats[k].uid !== uid) nextSeats[k] = rm.seats[k];
   });
   rm.seats = nextSeats;
+  touchMyMemberInRoom(rm, Date.now());
   PartyWebRtcMesh.setMicMuted(true);
-  persistPartyRoom(rm);
+  persistPartyRoom(rm, { fullReplace: true });
 }
 
 function openSeatModModal(rm, seatIdx) {
@@ -1630,9 +2618,10 @@ function openSeatModModal(rm, seatIdx) {
   };
   if ($('#smKick', m)) $('#smKick', m).onclick = () => {
     delete rm.seats[String(seatIdx)];
+    if (rm.members && rm.members[s.uid]) delete rm.members[s.uid];
     rm.kickedUids = [...new Set([...(rm.kickedUids || []), s.uid])];
     rm.chat = [...(rm.chat || []), { id: 'k_' + Date.now().toString(36), type: 'sys', text: `${s.name} was removed by ${me.name}`, ts: Date.now() }].slice(-45);
-    persistPartyRoom(rm);
+    persistPartyRoom(rm, { fullReplace: true });
     m.close();
   };
   if ($('#smAdmin', m)) $('#smAdmin', m).onclick = () => {
@@ -1715,7 +2704,7 @@ function openPartyVideoModal(rm) {
   const m = modal('Synced Room Video (Same Time)', `
     <label for="pvIn">YouTube Link / Video ID or Direct .mp4 / .webm URL</label>
     <input id="pvIn" placeholder="https://youtu.be/... or https://.../video.mp4" value="${esc(curVal)}">
-    <small style="display:block;color:var(--mu);margin-top:5px">Play, pause, and skip/seek stay synced live for everyone in the room.</small>
+    <small style="display:block;color:var(--mu);margin-top:5px">Play, pause, and skip/seek stay synced live for everyone in the room (with YouTube ad auto-recovery).</small>
     <button type="button" class="btn gold full" id="pvGo" style="margin-top:10px">Sync Video For Room</button>
   `);
   $('#pvGo', m).onclick = () => {
@@ -1767,6 +2756,12 @@ function bindPartyRootDelegation(root) {
     const rm = partyRooms.find(r => r.id === activePartyRoomId);
     if (!rm) return;
 
+    const reactBtn = e.target.closest('[data-react]');
+    if (reactBtn && reactBtn.dataset.react) {
+      sendPartyReaction(rm, reactBtn.dataset.react);
+      return;
+    }
+
     const sit = e.target.closest('[data-sit]');
     if (sit) { partyTakeSeat(rm, Number(sit.dataset.sit)); return; }
 
@@ -1795,18 +2790,10 @@ function bindPartyRootDelegation(root) {
     if (!actBtn) return;
     const act = actBtn.dataset.pfsAct;
 
-    if (act === 'close') {
+    if (act === 'exit-room' || act === 'close') {
       closePartyRoom();
     } else if (act === 'minimize') {
-      minimizedPartyRoomId = rm.id;
-      activePartyRoomId = null;
-      unsubscribeRoomMessages();
-      PartyVideoSync.destroy();
-      root.dataset.mountedRoomId = '';
-      root.classList.remove('open');
-      root.hidden = true;
-      document.body.classList.remove('party-fs-lock');
-      toast('Room minimized');
+      minimizePartyRoom();
     } else if (act === 'open-invite') {
       openPartyInviteModal(rm);
     } else if (act === 'open-music') {
@@ -1937,3 +2924,14 @@ function openPartyInviteModal(rm) {
   }
 }
 window.openPartyInviteModal = openPartyInviteModal;
+
+window.PartyRoomController = {
+  getRooms: () => partyRooms,
+  getActiveRoomId: () => activePartyRoomId,
+  getMinimizedRoomId: () => minimizedPartyRoomId,
+  runLifecycleSweep: runRoomLifecycleSweep,
+  sendReaction: sendPartyReaction,
+  sendChat: sendPartyChatMessage,
+  minimize: minimizePartyRoom,
+  close: closePartyRoom
+};

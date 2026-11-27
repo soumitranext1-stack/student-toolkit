@@ -429,7 +429,9 @@ async function initFirebase(){
       const rooms=[];
       snap.docs.forEach(d=>{
         const rm={id:d.id,...d.data()};
-        if(rm.expiresAt&&Number(rm.expiresAt)<=now){
+        const isClosed=rm.status==='closed';
+        const isExpired=Boolean(rm.expiresAt&&Number(rm.expiresAt)<=now);
+        if(isClosed||isExpired){
           dbOp(()=>F.deleteDoc(F.doc(db,'party_rooms',d.id)));
         }else{
           rooms.push(rm);

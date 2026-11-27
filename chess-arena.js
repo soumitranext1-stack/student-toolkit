@@ -260,13 +260,32 @@
 
   function launchChessBlitzArena(opts) {
     const o = opts || {};
-    const modeType = o.modeType || 'bot';
+    const PvpRules = global.PvpSyncRules;
+    const myUid = (typeof uid !== 'undefined' && uid) ? uid : 'local_me';
+    const meProfile = (typeof me !== 'undefined' && me) ? { uid: myUid, name: me.name, avatar: me.avatar } : { uid: myUid, name: 'You', avatar: 'av_b1' };
+    const control = PvpRules
+      ? PvpRules.resolve2PControl(o, myUid, meProfile)
+      : {
+          modeType: o.modeType || 'bot',
+          isLiveOnline: Boolean(o.roomId && (o.modeType === 'invite' || o.modeType === 'pvp')),
+          isLocalPassAndPlay: o.modeType === 'pvp' && !o.rivalBot && !o.roomId,
+          botAllowed: (o.modeType || 'bot') === 'bot' && !o.roomId,
+          mySide: o.isHost === false ? 'p2' : 'p1',
+          p1Name: meProfile.name,
+          p2Name: o.rival?.name || 'Chess Bot',
+          oppUid: o.rival?.uid || ''
+        };
+    const modeType = control.modeType || o.modeType || 'bot';
     const botTier = o.botTier || (o.stake > 0 ? 'pro' : 'standard');
     const stake = Math.max(0, Math.floor(Number(o.stake || 0)));
     const roomCode = String(o.roomCode || ('CH' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
-    const isLocalPvp = modeType === 'pvp' && !o.rivalBot;
-    const p1Name = (typeof me !== 'undefined' && me.name) ? me.name : 'You';
-    const p2Name = o.rival?.name || (isLocalPvp ? 'Player 2' : (botTier === 'pro' ? 'Grandmaster Bot' : 'Chess Bot'));
+    const roomId = String(o.roomId || '').trim();
+    const isLiveOnline = Boolean(control.isLiveOnline && roomId);
+    const isLocalPvp = Boolean(control.isLocalPassAndPlay);
+    const botAllowed = Boolean(control.botAllowed && !isLiveOnline && !isLocalPvp);
+    const myColor = control.mySide === 'p2' ? 'b' : 'w';
+    const p1Name = control.p1Name || meProfile.name || 'White';
+    const p2Name = control.p2Name || (botAllowed ? (botTier === 'pro' ? 'Grandmaster Bot' : 'Chess Bot') : 'Black');
     const pay = typeof calcArenaStakePayout === 'function' ? calcArenaStakePayout(stake) : { grossPot: stake * 2, winnerPayout: stake * 2 };
 
     if (typeof setMyLiveActivity === 'function') {
@@ -282,6 +301,7 @@
     let clkId = 0;
     let botTimer = 0;
     let chatWidget = null;
+    let liveSync = null;
 
     const fmtClk = sec => {
       const s = Math.max(0, Math.floor(sec));
@@ -291,8 +311,8 @@
     const view = openFullScreenGameView({
       gameId: 'chess_blitz',
       title: 'Chess Blitz',
-      subMeta: stake > 0 ? `${stake} 🪙 · Pot ${fmtNum(pay.winnerPayout)}` : (isLocalPvp ? `Player VS · ${roomCode}` : `3+0 Blitz · ${botTier === 'pro' ? 'Hard' : 'Normal'}`),
-      statusText: 'White Turn',
+      subMeta: stake > 0 ? `${stake} 🪙 · Pot ${fmtNum(pay.winnerPayout)}` : (isLiveOnline ? `Live PvP · ${roomCode}` : (isLocalPvp ? `Player VS · ${roomCode}` : `3+0 Blitz · ${botTier === 'pro' ? 'Hard' : 'Normal'}`)),
+      statusText: isLiveOnline ? (myColor === 'w' ? 'Your Turn (White)' : `Waiting for ${p1Name}…`) : 'White Turn',
       statusTone: 'turn',
       themeClass: 'gfs-theme-wood',
       html: `
@@ -335,15 +355,16 @@
       over = true;
       clearInterval(clkId);
       clearTimeout(botTimer);
-      const outcome = winnerSide === 'draw' ? 'tie' : (isLocalPvp ? 'win' : (winnerSide === 'w' ? 'win' : 'lose'));
+      const iWon = isLiveOnline ? (winnerSide === myColor) : (winnerSide === 'w');
+      const outcome = winnerSide === 'draw' ? 'tie' : (isLocalPvp ? 'win' : (iWon ? 'win' : 'lose'));
       const res = settleArenaMatchOutcome(outcome, stake, 55, 38, 14);
-      if (winnerSide === 'w') spawnArenaSparks($('#chBoardGrid', view), '#fde047', 16);
+      if (iWon) spawnArenaSparks($('#chBoardGrid', view), '#fde047', 16);
       view.setStatus('Finished', outcome === 'win' ? 'ok' : (outcome === 'tie' ? 'neutral' : 'bot'));
       const host = $('#chResultHost', view);
       if (host) {
         const title = winnerSide === 'draw'
           ? '🤝 Draw'
-          : (isLocalPvp ? `🏆 ${esc(winnerSide === 'w' ? p1Name : p2Name)} Wins!` : esc(res.headline));
+          : ((isLocalPvp || isLiveOnline) ? `🏆 ${esc(winnerSide === 'w' ? p1Name : p2Name)} Wins!` : esc(res.headline));
         host.innerHTML = `
           <div class="arena-result-card" data-testid="chess-result-card">
             <b>${title}</b>
@@ -395,17 +416,24 @@
       if ($('#chClkB', view)) { $('#chClkB', view).textContent = fmtClk(bClock); $('#chClkB', view).classList.toggle('active', !over && st.turn === 'b'); }
       if (!over) {
         const chkTxt = checkedKingSq >= 0 ? ' · Check!' : '';
-        view.setStatus((st.turn === 'w' ? 'White Turn' : (isLocalPvp ? 'Black Turn' : `${p2Name}…`)) + chkTxt, st.turn === 'w' ? 'turn' : 'bot');
+        const isMyTurn = isLiveOnline ? st.turn === myColor : st.turn === 'w';
+        const turnLbl = isLiveOnline
+          ? (isMyTurn ? `Your Turn (${myColor === 'w' ? 'White' : 'Black'})` : `${st.turn === 'w' ? p1Name : p2Name}…`)
+          : (st.turn === 'w' ? 'White Turn' : (isLocalPvp ? 'Black Turn' : `${p2Name}…`));
+        view.setStatus(turnLbl + chkTxt, isMyTurn ? 'turn' : 'bot');
       }
     };
 
-    const commitMove = (mv) => {
+    const commitMove = (mv, isRemote) => {
       const cap = Boolean(st.b[mv.t]);
       st = applyChessMove(st, mv);
       selSq = -1;
       legal = legalMoves(st);
       if (typeof playSfx === 'function') playSfx(cap ? 'capture' : 'pawnStep');
       renderBoard();
+      if (!isRemote && isLiveOnline && liveSync) {
+        liveSync.pushState({ mv, st, wClock, bClock });
+      }
       if (!legal.length) {
         if (inCheck(st, st.turn)) {
           endChess(st.turn === 'w' ? 'b' : 'w', 'Checkmate!');
@@ -414,24 +442,26 @@
         }
         return;
       }
-      if (!isLocalPvp && st.turn === 'b' && !over) {
+      // HARD BLOCK: Bot AI NEVER triggers when playing a real friend / live PvP
+      if (botAllowed && !isLiveOnline && !isLocalPvp && st.turn === 'b' && !over) {
         botTimer = setTimeout(() => {
-          if (over || st.turn !== 'b') return;
+          if (over || st.turn !== 'b' || !botAllowed || isLiveOnline) return;
           const bmv = pickBotChessMove(st, botTier);
-          if (bmv) commitMove(bmv);
+          if (bmv) commitMove(bmv, false);
         }, botTier === 'pro' ? 420 : 540);
       }
     };
 
     $('#chBoardGrid', view).onclick = (e) => {
       if (over) return;
-      if (!isLocalPvp && st.turn !== 'w') return;
+      if (isLiveOnline && st.turn !== myColor) return;
+      if (!isLiveOnline && !isLocalPvp && st.turn !== 'w') return;
       const btn = e.target.closest('[data-chsq]');
       if (!btn) return;
       const sq = Number(btn.dataset.chsq);
       if (selSq >= 0) {
         const mv = legal.find(m => m.f === selSq && m.t === sq);
-        if (mv) { commitMove(mv); return; }
+        if (mv) { commitMove(mv, false); return; }
       }
       const p = st.b[sq];
       if (p && (st.turn === 'w' ? isW(p) : !isW(p))) {
@@ -443,6 +473,33 @@
         renderBoard();
       }
     };
+
+    if (isLiveOnline && typeof global.createLiveMatchSync === 'function') {
+      liveSync = global.createLiveMatchSync({
+        roomId,
+        roomCode,
+        gameId: 'chess_blitz',
+        myUid,
+        myName: meProfile.name,
+        oppUids: [control.oppUid],
+        onLeaveRequest: () => view.close(),
+        onState: (remote) => {
+          if (over || !remote || !remote.st) return;
+          st = remote.st;
+          if (Number.isFinite(remote.wClock)) wClock = remote.wClock;
+          if (Number.isFinite(remote.bClock)) bClock = remote.bClock;
+          selSq = -1;
+          legal = legalMoves(st);
+          if (typeof playSfx === 'function') playSfx('pawnStep');
+          renderBoard();
+          if (!legal.length) {
+            if (inCheck(st, st.turn)) endChess(st.turn === 'w' ? 'b' : 'w', 'Checkmate!');
+            else endChess('draw', 'Stalemate');
+          }
+        }
+      });
+      liveSync.mountConnectionBanner($('#chessArWrap', view));
+    }
 
     clkId = setInterval(() => {
       if (over) return;
@@ -461,6 +518,7 @@
       over = true;
       clearInterval(clkId);
       clearTimeout(botTimer);
+      if (liveSync) liveSync.destroy();
       if (chatWidget) chatWidget.destroy();
       if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
     };
