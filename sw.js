@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v32';
+const CACHE_NAME = 'study-game-v33';
 const CORE_SHELL = [
   './',
   './index.html',
@@ -31,11 +31,11 @@ const CORE_SHELL = [
   './story-rules.js',
   './story-data.js',
   './story.js',
-  './assets/chronicles/velvet-cover.jpg',
-  './assets/chronicles/dining-car.jpg',
-  './assets/chronicles/engine-corridor.jpg',
-  './assets/chronicles/compartment-archive.jpg',
-  './assets/chronicles/bridge-finale.jpg',
+  './cc_velvet_express_cover_1795752308826.jpg',
+  './cc_dining_car_mystery_1795752310029.jpg',
+  './cc_compartment_archive_split_1795752310326.jpg',
+  './cc_engine_corridor_split_1795752309442.jpg',
+  './cc_bridge_reunion_finale_1795752313442.jpg',
   './core.js',
   './social.js',
   './party.js',

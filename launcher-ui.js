@@ -442,7 +442,7 @@
       ${renderCompactMpBarHtml()}
 
       <button type="button" class="gl-chronicles-strip" id="glOpenChroniclesBtn" data-testid="games-hub-chronicles-btn">
-        <span class="gl-ch-thumb" style="background-image:url('assets/chronicles/velvet-cover.jpg')" aria-hidden="true"></span>
+        <span class="gl-ch-thumb" style="background-image:url('./cc_velvet_express_cover_1795752308826.jpg'),radial-gradient(circle at 35% 25%,#7f1d3a 0%,#241026 55%,#0c0a14 100%)" aria-hidden="true"></span>
         <span class="gl-ch-copy">
           <span class="gl-ch-kicker">COUPLE CHRONICLES · 2-PARTNER STORY MODE</span>
           <b class="gl-ch-title">The Midnight Express: Velvet &amp; Shadow</b>

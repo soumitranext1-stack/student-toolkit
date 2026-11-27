@@ -2337,7 +2337,7 @@ async function ensureCoupleChroniclesLoaded(){
     return true;
   }
   if(_chroniclesLoadPromise)return _chroniclesLoadPromise;
-  const files=['voice-narrator.js?v=32','story-rules.js?v=32','story-data.js?v=32','story.js?v=32'];
+  const files=['voice-narrator.js?v=33','story-rules.js?v=33','story-data.js?v=33','story.js?v=33'];
   _chroniclesLoadPromise=(async ()=>{
     try{
       for(const f of files){

@@ -48,6 +48,14 @@
     }
   };
 
+  const CHRONICLE_ART = {
+    cover: './cc_velvet_express_cover_1795752308826.jpg',
+    dining: './cc_dining_car_mystery_1795752310029.jpg',
+    archive: './cc_compartment_archive_split_1795752310326.jpg',
+    corridor: './cc_engine_corridor_split_1795752309442.jpg',
+    bridge: './cc_bridge_reunion_finale_1795752313442.jpg'
+  };
+
   const MIDNIGHT_EXPRESS = {
     id: 'midnight_express_velvet_shadow',
     title: 'The Midnight Express: Velvet & Shadow',
@@ -64,7 +72,7 @@
     },
     genre: 'Dark Mystery',
     accent: '#c0395d',
-    coverArt: 'assets/chronicles/velvet-cover.jpg',
+    coverArt: CHRONICLE_ART.cover,
     duration: '12–15 min',
     endingsCount: 4,
     scenesCount: 11,
@@ -88,7 +96,8 @@
         isSplit: false,
         location: { en: 'Platform 13 · Midnight Departure', hi: 'प्लेटफॉर्म 13 · आधी रात की रवानगी', bn: 'প্ল্যাটফর্ম ১৩ · মধ্যরাতের যাত্রা' },
         title: { en: 'The Last Whistle in the Rain', hi: 'बारिश में आखिरी सीटी', bn: 'বৃষ্টিভেজা শেষ বাঁশি' },
-        bg: 'assets/chronicles/velvet-cover.jpg',
+        bg: CHRONICLE_ART.cover,
+        artTheme: 'cover',
         fx: 'rain-fog',
         bgm: 'noir_train',
         sfx: 'thunder',
@@ -161,7 +170,8 @@
         isSplit: false,
         location: { en: 'Carriage 4 · The Crimson Dining Car', hi: 'डिब्बा 4 · क्रिमसन डाइनिंग कार', bn: 'বগি ৪ · ক্রিমসন ডাইনিং কার' },
         title: { en: 'Velvet Booths & Watchful Eyes', hi: 'मखमली केबिन और घूरती निगाहें', bn: 'মখমলের আসন ও সতর্ক চোখ' },
-        bg: 'assets/chronicles/dining-car.jpg',
+        bg: CHRONICLE_ART.dining,
+        artTheme: 'dining',
         fx: 'rain-warm',
         bgm: 'velvet_mystery',
         sfx: 'doorCreak',
@@ -189,7 +199,7 @@
             id: 'a_confront_conductor',
             label: { en: 'Challenge him directly about Mile 44', hi: 'सीधे मील 44 के बारे में उससे सवाल करो', bn: 'মাইল ৪৪ নিয়ে সরাসরি তাকে প্রশ্ন করো' },
             hint: { en: 'Intense · +Risk', hi: 'तीखा · +जोखिम', bn: 'তীব্র · +ঝুঁকি' },
-            trust: 0, risk: 2
+            trust: -1, risk: 2
           }
         ],
         choicesB: [
@@ -234,7 +244,8 @@
         isSplit: false,
         location: { en: 'Mile 44 · Emergency Bulkhead', hi: 'मील 44 · इमरजेंसी दरवाज़ा', bn: 'মাইল ৪৪ · ইমার্জেন্সি দরজা' },
         title: { en: 'Separated in the Dark', hi: 'अंधेरे में बिछड़ाव', bn: 'অন্ধকারে বিচ্ছেদ' },
-        bg: 'assets/chronicles/engine-corridor.jpg',
+        bg: CHRONICLE_ART.corridor,
+        artTheme: 'corridor',
         fx: 'storm-flicker',
         bgm: 'tension_pulse',
         sfx: 'heartbeat',
@@ -301,7 +312,8 @@
         role: 'A',
         location: { en: 'SPLIT PATH · Partner A · Iron Baggage Corridor', hi: 'अलग रास्ता · पार्टनर A · लोहे का लगेज कॉरिडोर', bn: 'আলাদা পথ · পার্টনার A · লোহার লাগেজ করিডোর' },
         title: { en: 'The Locked Steamer Trunk', hi: 'बंद लोहे का संदूक', bn: 'তালাবদ্ধ লোহার ট্রাঙ্ক' },
-        bg: 'assets/chronicles/engine-corridor.jpg',
+        bg: CHRONICLE_ART.corridor,
+        artTheme: 'corridor',
         fx: 'storm-flicker',
         bgm: 'tension_pulse',
         sfx: 'thunder',
@@ -328,8 +340,8 @@
           {
             id: 'a_pry_trunk',
             label: { en: 'Force the latch open with an iron crowbar & grab everything', hi: 'लोहे की रॉड से ताला तोड़कर सब कुछ जल्दी निकाल लो', bn: 'লোহার রড দিয়ে তালা ভেঙে সব কিছু দ্রুত নিয়ে নাও' },
-            hint: { en: 'Loud · +Clue / +Risk', hi: 'तेज़ आवाज़ · +सुराग / +जोखिम', bn: 'জোরে শব্দ · +সূত্র / +ঝুঁকি' },
-            trust: 0, risk: 2, clue: 'broker_sigil'
+            hint: { en: 'Loud · +Risk', hi: 'तेज़ आवाज़ · +जोखिम', bn: 'জোরে শব্দ · +ঝুঁকি' },
+            trust: -1, risk: 2
           }
         ],
         outcomes: {
@@ -354,7 +366,8 @@
         role: 'B',
         location: { en: 'SPLIT PATH · Partner B · Sleeper Cabin 7', hi: 'अलग रास्ता · पार्टनर B · स्लीपर केबिन 7', bn: 'আলাদা পথ · পার্টনার B · স্লিপার কেবিন ৭' },
         title: { en: 'The Candlelit Brass Safe', hi: 'मोमबत्ती की रोशनी में पीतल की तिजोरी', bn: 'মোমবাতির আলোয় পিতলের সিন্দুক' },
-        bg: 'assets/chronicles/compartment-archive.jpg',
+        bg: CHRONICLE_ART.archive,
+        artTheme: 'archive',
         fx: 'candle-embers',
         bgm: 'velvet_mystery',
         sfx: 'lockClick',
@@ -381,8 +394,8 @@
           {
             id: 'b_tap_signal',
             label: { en: 'Tap a warning rhythm back on the pipe & lock the door', hi: 'पाइप पर चेतावनी का कोड बजाकर दरवाज़े की कुंडी लगाओ', bn: 'পাইপে সতর্কবার্তার ছন্দ বাজিয়ে দরজা শক্ত করে বন্ধ করো' },
-            hint: { en: 'Protect {A} · +Trust', hi: '{A} की रक्षा · +विश्वास', bn: '{A}-কে রক্ষা · +বিশ্বাস' },
-            trust: 1, risk: 1, clue: 'silver_locket'
+            hint: { en: 'Cautious · Guard Door', hi: 'सावधान · दरवाज़ा बंद', bn: 'সতর্ক · দরজা সুরক্ষিত' },
+            trust: 0, risk: 1
           }
         ],
         outcomes: {
@@ -407,7 +420,8 @@
         role: 'A',
         location: { en: 'SPLIT PATH · Partner A · The Storm Vestibule', hi: 'अलग रास्ता · पार्टनर A · तूफ़ानी वेस्टिब्यूल', bn: 'আলাদা পথ · পার্টনার A · ঝোড়ো ভেস্টিবিউল' },
         title: { en: 'Face to Face with the Broker', hi: 'शैडो ब्रोकर से आमना-सामना', bn: 'শ্যাডো ব্রোকারের মুখোমুখি' },
-        bg: 'assets/chronicles/engine-corridor.jpg',
+        bg: CHRONICLE_ART.corridor,
+        artTheme: 'corridor',
         fx: 'rain-fog',
         bgm: 'tension_pulse',
         sfx: 'dangerSting',
@@ -434,8 +448,8 @@
           {
             id: 'a_feint_pact',
             label: { en: 'Pretend to agree to learn the Collector’s true leverage', hi: 'कलेक्टर की कमज़ोरी जानने के लिए सौदे का नाटक करो', bn: 'কালেক্টরের দুর্বলতা জানতে চুক্তির ভান করো' },
-            hint: { en: 'Dangerous Bluff · +Risk', hi: 'खतरनाक चाल · +जोखिम', bn: 'বিপজ্জনক ছলনা · +ঝুঁকি' },
-            trust: -1, risk: 3, clue: 'viaduct_key'
+            hint: { en: 'Dangerous Bluff · -Trust / +Risk', hi: 'खतरनाक चाल · -विश्वास / +जोखिम', bn: 'বিপজ্জনক ছলনা · -বিশ্বাস / +ঝুঁকি' },
+            trust: -2, risk: 3, clue: 'viaduct_key'
           }
         ],
         outcomes: {
@@ -460,7 +474,8 @@
         role: 'B',
         location: { en: 'SPLIT PATH · Partner B · The Secret Ledger', hi: 'अलग रास्ता · पार्टनर B · गुप्त बहीखाता', bn: 'আলাদা পথ · পার্টনার B · গোপন খাতা' },
         title: { en: 'Pages Written in Velvet Ink', hi: 'मखमली स्याही के पन्ने', bn: 'মখমলের কালিতে লেখা পাতা' },
-        bg: 'assets/chronicles/compartment-archive.jpg',
+        bg: CHRONICLE_ART.archive,
+        artTheme: 'archive',
         fx: 'candle-embers',
         bgm: 'velvet_mystery',
         sfx: 'clueFound',
@@ -487,8 +502,8 @@
           {
             id: 'b_burn_decoy',
             label: { en: 'Burn a decoy page in the candle & slip out the window ledge', hi: 'मोमबत्ती में नकली पन्ना जलाकर खिड़की के रास्ते बाहर निकलो', bn: 'মোমবাতিতে নকল পাতা পুড়িয়ে জানালার কার্নিশ দিয়ে বেরিয়ে পড়ো' },
-            hint: { en: 'Daring · +Risk / +Clue', hi: 'साहसी · +जोखिम / +सुराग', bn: 'দুঃসাহসিক · +ঝুঁকি / +সূত্র' },
-            trust: 0, risk: 2, clue: 'heirloom_ledger'
+            hint: { en: 'Daring · +Risk', hi: 'साहसी · +जोखिम', bn: 'দুঃসাহসিক · +ঝুঁকি' },
+            trust: -1, risk: 2
           }
         ],
         outcomes: {
@@ -513,7 +528,8 @@
         isReunion: true,
         location: { en: 'REUNION · Blackthorn Stone Viaduct', hi: 'पुनर्मिलन · ब्लैकथॉर्न स्टोन वायाडक्ट', bn: 'পুনর্মিলন · ব্ল্যাকথর্ন পাথরের সেতু' },
         title: { en: 'Embers Under a Silver Moon', hi: 'चाँदनी के नीचे चिंगारियाँ', bn: 'রুপালি চাঁদের নিচে স্ফুলিঙ্গ' },
-        bg: 'assets/chronicles/bridge-finale.jpg',
+        bg: CHRONICLE_ART.bridge,
+        artTheme: 'bridge',
         fx: 'rain-embers',
         bgm: 'reunion_strings',
         sfx: 'sceneOpen',
@@ -540,8 +556,8 @@
           {
             id: 'a_keep_guard',
             label: { en: 'Hide the danger from {B} & prepare to fight alone', hi: '{B} से खतरा छिपाकर अकेले लड़ने की तैयारी करो', bn: '{B}-এর থেকে বিপদ লুকিয়ে একা লড়ার প্রস্তুতি নাও' },
-            hint: { en: 'Lone Wolf · +Risk', hi: 'अकेला कदम · +जोखिम', bn: 'একক ঝুঁকি · +ঝুঁকি' },
-            trust: -1, risk: 2
+            hint: { en: 'Lone Wolf · -Trust / +Risk', hi: 'अकेला कदम · -विश्वास / +जोखिम', bn: 'একক ঝুঁকি · -বিশ্বাস / +ঝুঁকি' },
+            trust: -2, risk: 2
           }
         ],
         choicesB: [
@@ -586,7 +602,8 @@
         isSplit: false,
         location: { en: 'Viaduct Center Span · 11:57 PM', hi: 'वायाडक्ट का मध्य भाग · रात 11:57', bn: 'ভায়াডাক্টের মাঝখান · রাত ১১:৫৭' },
         title: { en: 'The Collector’s Ultimatum', hi: 'कलेक्टर की आखिरी शर्त', bn: 'কালেক্টরের চূড়ান্ত শর্ত' },
-        bg: 'assets/chronicles/bridge-finale.jpg',
+        bg: CHRONICLE_ART.bridge,
+        artTheme: 'bridge',
         fx: 'storm-flicker',
         bgm: 'tension_pulse',
         sfx: 'dangerSting',
@@ -652,7 +669,8 @@
         isSplit: false,
         location: { en: 'Midnight Bell · The Final Decision', hi: 'आधी रात की घंटी · अंतिम फैसला', bn: 'মধ্যরাতের ঘণ্টা · শেষ সিদ্ধান্ত' },
         title: { en: 'Before the Twelfth Chime', hi: 'बारहवीं घंटी से पहले', bn: 'দ্বাদশ ঘণ্টার আগে' },
-        bg: 'assets/chronicles/bridge-finale.jpg',
+        bg: CHRONICLE_ART.bridge,
+        artTheme: 'bridge',
         fx: 'rain-embers',
         bgm: 'reunion_strings',
         sfx: 'heartbeat',
@@ -718,7 +736,8 @@
         tier: 'True Ending · 1 of 4',
         badge: { en: 'True Ending · The Velvet Vow', hi: 'सच्चा अंत · मखमली वादा', bn: 'আসল সমাপ্তি · মখমলের শপথ' },
         title: { en: 'The Velvet Vow at Dawn', hi: 'भोर का मखमली वादा', bn: 'ভোরের মখমলের শপথ' },
-        bg: 'assets/chronicles/bridge-finale.jpg',
+        bg: CHRONICLE_ART.bridge,
+        artTheme: 'bridge',
         accent: '#f59e0b',
         epilogue: {
           en: 'As gold breaks over the mountains, the Collector’s plot collapses in front of every witness. Hand in hand inside the sunlit dining car, {A} and {B} keep the twin halves of the silver locket—living proof that not even a midnight storm could sever the trust between you.',
@@ -731,7 +750,8 @@
         tier: 'Dark Ending · 2 of 4',
         badge: { en: 'Dark Ending · The Shadow Pact', hi: 'डार्क अंत · साये का सौदा', bn: 'ডার্ক সমাপ্তি · ছায়ার চুক্তি' },
         title: { en: 'Sovereigns of the Midnight Express', hi: 'मिडनाइट एक्सप्रेस के शासक', bn: 'মিডনাইট এক্সপ্রেসের অধিপতি' },
-        bg: 'assets/chronicles/dining-car.jpg',
+        bg: CHRONICLE_ART.dining,
+        artTheme: 'dining',
         accent: '#e11d48',
         epilogue: {
           en: 'Instead of surrendering to the Collector, {A} and {B} outplayed the shadows at their own game. With the Secret Ledger rewritten in both your names, the Velvet Express now rides only at your command—two fearless partners bound by a deliciously dangerous pact.',
@@ -744,7 +764,8 @@
         tier: 'Thriller Ending · 3 of 4',
         badge: { en: 'Thriller Ending · Crimson Escape', hi: 'थ्रिलर अंत · क्रिमसन फ़रार', bn: 'থ্রিলার সমাপ্তি · রক্তিম পলায়ন' },
         title: { en: 'Vanished Beyond the Viaduct', hi: 'वायाडक्ट के पार लापता', bn: 'ভায়াডাক্টের ওপারে নিরুদ্দেশ' },
-        bg: 'assets/chronicles/velvet-cover.jpg',
+        bg: CHRONICLE_ART.cover,
+        artTheme: 'cover',
         accent: '#a855f7',
         epilogue: {
           en: 'Before the bridge gates could lock, {A} and {B} leaped into the pine-scented mountain mist with the Master Key tucked safely away. By morning, only two warm footprints and a crimson ticket remained on Platform 13—your greatest adventure has only just begun.',
@@ -757,7 +778,8 @@
         tier: 'Mystery Ending · 4 of 4',
         badge: { en: 'Mystery Ending · Whispers in Fog', hi: 'रहस्यमय अंत · कोहरे की सरगोशी', bn: 'রহস্য সমাপ্তি · কুয়াশার ফিসফিসানি' },
         title: { en: 'Echoes of Cabin 7', hi: 'केबिन 7 की गूँज', bn: 'কেবিন ৭-এর প্রতিধ্বনি' },
-        bg: 'assets/chronicles/compartment-archive.jpg',
+        bg: CHRONICLE_ART.archive,
+        artTheme: 'archive',
         accent: '#38bdf8',
         epilogue: {
           en: 'The Express rolled into the dawn station with half its secrets still locked in shadow. Though {A} and {B} survived the night, the unanswered riddle of Cabin 7 lingers—calling you both back to replay and uncover the Velvet Vow.',
@@ -782,12 +804,13 @@
     return STORIES_CATALOG.find(s => s && s.id === storyId) || STORIES_CATALOG[0] || null;
   }
 
+  global.CHRONICLE_ART = CHRONICLE_ART;
   global.CHRONICLE_CLUE_LABELS = CLUE_LABELS;
   global.STORIES_CATALOG = STORIES_CATALOG;
   global.registerChronicleStory = registerChronicleStory;
   global.getChronicleStoryById = getChronicleStoryById;
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { STORIES_CATALOG, CLUE_LABELS, registerChronicleStory, getChronicleStoryById };
+    module.exports = { CHRONICLE_ART, STORIES_CATALOG, CLUE_LABELS, registerChronicleStory, getChronicleStoryById };
   }
 })(typeof window !== 'undefined' ? window : globalThis);

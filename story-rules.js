@@ -34,6 +34,84 @@
     return interpolateNames(raw, nameA, nameB);
   }
 
+  const LEGACY_ART_FILENAME_MAP = {
+    'velvet-cover.jpg': 'cc_velvet_express_cover_1795752308826.jpg',
+    'dining-car.jpg': 'cc_dining_car_mystery_1795752310029.jpg',
+    'compartment-archive.jpg': 'cc_compartment_archive_split_1795752310326.jpg',
+    'engine-corridor.jpg': 'cc_engine_corridor_split_1795752309442.jpg',
+    'bridge-finale.jpg': 'cc_bridge_reunion_finale_1795752313442.jpg'
+  };
+
+  function resolveChronicleImageCandidates(rawSrc) {
+    const clean = String(rawSrc || '').trim();
+    if (!clean) return [];
+    if (/^(data:|blob:|https?:\/\/)/i.test(clean)) return [clean];
+
+    const stripped = clean.replace(/^(\.\/|\/)+/, '');
+    const parts = stripped.split('/').filter(Boolean);
+    const rawFilename = parts[parts.length - 1] || stripped;
+    const canonicalName = LEGACY_ART_FILENAME_MAP[rawFilename] || rawFilename;
+
+    const list = [];
+    const add = (p) => {
+      if (p && !list.includes(p)) list.push(p);
+    };
+
+    // Prefer exact GitHub-Pages-safe relative path at app root first, then nested asset folders
+    add(`./${canonicalName}`);
+    if (stripped !== canonicalName) add(`./${stripped}`);
+    add(`./src/assets/images/${canonicalName}`);
+    add(`./assets/images/${canonicalName}`);
+    add(`./assets/chronicles/${canonicalName}`);
+    return list;
+  }
+
+  function buildFallbackArtworkDataUri(themeKey, labelText) {
+    const themes = {
+      cover: { c1: '#2d1124', c2: '#130d1e', c3: '#09070f', moon: '#f5d08a', glow: '#be123c' },
+      dining: { c1: '#3b1322', c2: '#1b0f1b', c3: '#0b0811', moon: '#fbbf24', glow: '#e11d48' },
+      archive: { c1: '#1e1633', c2: '#140f24', c3: '#090710', moon: '#fde68a', glow: '#9333ea' },
+      corridor: { c1: '#131d33', c2: '#0f1324', c3: '#070910', moon: '#bae6fd', glow: '#3b82f6' },
+      bridge: { c1: '#231630', c2: '#141126', c3: '#080712', moon: '#fef08a', glow: '#f59e0b' }
+    };
+    const t = themes[themeKey] || themes.cover;
+    const safeLabel = String(labelText || 'The Midnight Express')
+      .replace(/[<>&"']/g, '')
+      .slice(0, 42);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${t.c1}"/>
+          <stop offset="58%" stop-color="${t.c2}"/>
+          <stop offset="100%" stop-color="${t.c3}"/>
+        </linearGradient>
+        <radialGradient id="halo" cx="50%" cy="28%" r="48%">
+          <stop offset="0%" stop-color="${t.glow}" stop-opacity="0.34"/>
+          <stop offset="100%" stop-color="${t.c3}" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="1200" height="720" fill="url(#bg)"/>
+      <rect width="1200" height="720" fill="url(#halo)"/>
+      <circle cx="600" cy="195" r="76" fill="${t.moon}" opacity="0.22"/>
+      <circle cx="600" cy="195" r="54" fill="${t.moon}" opacity="0.62"/>
+      <path d="M0 520 Q300 445 600 495 T1200 470 L1200 720 L0 720 Z" fill="#090711" opacity="0.88"/>
+      <rect x="110" y="455" width="980" height="78" rx="14" fill="#140e1f" stroke="${t.moon}" stroke-opacity="0.38" stroke-width="2"/>
+      <g fill="${t.moon}" opacity="0.58">
+        <rect x="175" y="476" width="68" height="32" rx="6"/>
+        <rect x="285" y="476" width="68" height="32" rx="6"/>
+        <rect x="395" y="476" width="68" height="32" rx="6"/>
+        <rect x="505" y="476" width="68" height="32" rx="6"/>
+        <rect x="615" y="476" width="68" height="32" rx="6"/>
+        <rect x="725" y="476" width="68" height="32" rx="6"/>
+        <rect x="835" y="476" width="68" height="32" rx="6"/>
+        <rect x="945" y="476" width="68" height="32" rx="6"/>
+      </g>
+      <line x1="60" y1="548" x2="1140" y2="548" stroke="${t.moon}" stroke-opacity="0.25" stroke-width="3"/>
+      <text x="600" y="628" text-anchor="middle" font-family="Georgia,serif" font-size="22" letter-spacing="4" fill="${t.moon}" opacity="0.72">${safeLabel}</text>
+    </svg>`;
+    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  }
+
   function generateStoryRoomCode() {
     return 'CC' + String(Math.floor(1000 + Math.random() * 9000));
   }
@@ -280,16 +358,35 @@
     const trust = Number(state.trustScore || 0);
     const risk = Number(state.riskScore || 0);
     const clueCount = Array.isArray(state.cluesFound) ? state.cluesFound.length : 0;
+    const history = Array.isArray(state.history) ? state.history : [];
+    const lastEntry = history.length ? history[history.length - 1] : null;
+    const lastChoiceA = lastEntry ? lastEntry.choiceAId : '';
+    const lastChoiceB = lastEntry ? lastEntry.choiceBId : '';
 
-    if (trust >= 6 && clueCount >= 3 && risk <= 5 && endings.velvet_vow) {
+    // 1. True Ending: high bond, recovered key evidence, controlled risk, chose devotion & light
+    if (
+      trust >= 8 &&
+      clueCount >= 4 &&
+      risk <= 4 &&
+      lastChoiceA !== 'a_night_throne' &&
+      lastChoiceB !== 'b_vanish_mist' &&
+      endings.velvet_vow
+    ) {
       return 'velvet_vow';
     }
-    if (trust >= 4 && risk >= 5 && endings.shadow_pact) {
+    // 2. Dark Ending: seized power / shadow pact with high risk and key clues
+    if (
+      ((lastChoiceA === 'a_night_throne' && risk >= 5) ||
+        (risk >= 8 && trust >= 6 && clueCount >= 3 && lastChoiceB !== 'b_vanish_mist')) &&
+      endings.shadow_pact
+    ) {
       return 'shadow_pact';
     }
-    if (trust >= 4 && endings.crimson_escape) {
+    // 3. Thriller Ending: vanished into the mountain mist or escaped with steady trust & clues
+    if ((lastChoiceB === 'b_vanish_mist' || (trust >= 6 && clueCount >= 3)) && endings.crimson_escape) {
       return 'crimson_escape';
     }
+    // 4. Mystery Ending: fractured trust or unresolved clues left echoing in Cabin 7
     if (endings.midnight_ghost) {
       return 'midnight_ghost';
     }
@@ -558,6 +655,8 @@
   const api = {
     interpolateNames,
     pickLangText,
+    resolveChronicleImageCandidates,
+    buildFallbackArtworkDataUri,
     generateStoryRoomCode,
     createCoupleWaitingRoom,
     normalizeCoupleRoom,

@@ -1109,3 +1109,48 @@ body.light .cc-featured-card {
 
 .cc-btn-gold:hover { filter: brightness(1.07); }
 .cc-btn-gold:disabled { opacity: 0.6; cursor: wait; }
+
+/* On-demand loading shell & graceful dark-mystery artwork fallback */
+.cc-loading-shell {
+  min-height: 220px;
+  border-radius: 18px;
+  border: 1px solid rgba(216, 163, 93, 0.24);
+  background: radial-gradient(circle at 50% 25%, rgba(190, 18, 60, 0.16), rgba(14, 11, 24, 0.92) 72%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 18px;
+  text-align: center;
+  color: #f6f1ea;
+}
+
+.cc-loading-shell b {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.cc-loading-shell small {
+  font-size: 12.5px;
+  color: rgba(246, 241, 234, 0.72);
+}
+
+.cc-loading-ring {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(216, 163, 93, 0.22);
+  border-top-color: #d8a35d;
+  animation: ccSpin 0.85s linear infinite;
+}
+
+@keyframes ccSpin {
+  to { transform: rotate(360deg); }
+}
+
+.cc-img-fallback {
+  object-fit: cover;
+  filter: saturate(1.06) contrast(1.04);
+}
+

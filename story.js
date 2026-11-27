@@ -16,11 +16,87 @@
   let activeView = null;
   let activeReaderMode = null; // 'lobby' | 'reader'
   let voiceMuted = false;
+  let bgmUnlockAttached = false;
 
   try {
     const savedL = localStorage.getItem(LANG_KEY) || localStorage.getItem('sg_voice_lang');
     if (savedL === 'en' || savedL === 'hi' || savedL === 'bn') activeLang = savedL;
   } catch {}
+
+  function getImageCandidates(rawSrc) {
+    const Rules = getRules();
+    if (Rules && typeof Rules.resolveChronicleImageCandidates === 'function') {
+      return Rules.resolveChronicleImageCandidates(rawSrc);
+    }
+    const clean = String(rawSrc || '').trim();
+    return clean ? [clean] : [];
+  }
+
+  function getFallbackArtwork(theme, label) {
+    const Rules = getRules();
+    if (Rules && typeof Rules.buildFallbackArtworkDataUri === 'function') {
+      return Rules.buildFallbackArtworkDataUri(theme || 'cover', label || 'The Midnight Express');
+    }
+    return '';
+  }
+
+  function ccHandleImageError(imgEl) {
+    if (!imgEl || imgEl.dataset.ccFallbackApplied === '1') return;
+    const rawSrc = imgEl.dataset.ccSrc || imgEl.getAttribute('src') || '';
+    const candidates = getImageCandidates(rawSrc);
+    const nextIdx = Number(imgEl.dataset.ccTryIdx || '0') + 1;
+    if (nextIdx < candidates.length) {
+      imgEl.dataset.ccTryIdx = String(nextIdx);
+      imgEl.src = candidates[nextIdx];
+      return;
+    }
+    imgEl.dataset.ccFallbackApplied = '1';
+    imgEl.onerror = null;
+    const theme = imgEl.dataset.ccTheme || 'cover';
+    const label = imgEl.dataset.ccLabel || imgEl.alt || 'The Midnight Express';
+    const fallbackUri = getFallbackArtwork(theme, label);
+    if (imgEl.parentElement) imgEl.parentElement.classList.add('cc-has-fallback');
+    if (fallbackUri) {
+      imgEl.classList.add('cc-img-fallback');
+      imgEl.src = fallbackUri;
+    } else {
+      imgEl.style.display = 'none';
+    }
+  }
+  window.ccHandleImageError = ccHandleImageError;
+
+  function applyChronicleImage(imgEl, rawSrc, theme, label, onReady) {
+    if (!imgEl) return;
+    const candidates = getImageCandidates(rawSrc);
+    imgEl.dataset.ccSrc = String(rawSrc || '');
+    imgEl.dataset.ccTheme = String(theme || 'cover');
+    imgEl.dataset.ccLabel = String(label || 'The Midnight Express');
+    imgEl.dataset.ccTryIdx = '0';
+    imgEl.dataset.ccFallbackApplied = '0';
+    imgEl.classList.remove('cc-img-fallback');
+    imgEl.style.display = '';
+
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (typeof onReady === 'function') onReady(imgEl);
+    };
+
+    imgEl.onload = finish;
+    imgEl.onerror = () => {
+      ccHandleImageError(imgEl);
+      if (imgEl.dataset.ccFallbackApplied === '1') finish();
+    };
+
+    if (candidates.length) {
+      imgEl.src = candidates[0];
+      if (imgEl.complete && imgEl.naturalWidth > 0) finish();
+    } else {
+      ccHandleImageError(imgEl);
+      finish();
+    }
+  }
 
   function getRules() {
     return window.StoryRules || null;
@@ -109,7 +185,20 @@
           if (!AC) return null;
           ctx = new AC();
         }
-        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+          if (!bgmUnlockAttached && typeof window !== 'undefined') {
+            bgmUnlockAttached = true;
+            const resumeBgm = () => {
+              bgmUnlockAttached = false;
+              if (ctx && ctx.state === 'suspended' && !isGlobalMuted()) {
+                ctx.resume().catch(() => {});
+              }
+            };
+            window.addEventListener('pointerdown', resumeBgm, { once: true, passive: true });
+            window.addEventListener('keydown', resumeBgm, { once: true, passive: true });
+          }
+        }
         if (!masterGain) {
           masterGain = ctx.createGain();
           masterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
@@ -373,7 +462,7 @@
   /* ===================================================================
      LAZY CUSTOM NAMED STORY BOOK PDF GENERATOR (Runs ONLY on Ending Click)
      =================================================================== */
-  function loadImageSafe(src) {
+  function loadSingleImageSafe(src) {
     return new Promise((resolve) => {
       if (!src) return resolve(null);
       let settled = false;
@@ -386,10 +475,19 @@
       const timer = setTimeout(() => done(null), 3500);
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.onload = () => done(img);
+      img.onload = () => done(img.naturalWidth > 0 ? img : null);
       img.onerror = () => done(null);
       img.src = src;
     });
+  }
+
+  async function loadImageSafe(src) {
+    const candidates = getImageCandidates(src);
+    for (let i = 0; i < candidates.length; i++) {
+      const loaded = await loadSingleImageSafe(candidates[i]);
+      if (loaded) return loaded;
+    }
+    return null;
   }
 
   function wrapCanvasText(ctx, text, maxWidth) {
@@ -506,10 +604,17 @@
 
     ctx1.fillStyle = '#fbbf24';
     ctx1.font = '700 22px "Plus Jakarta Sans", sans-serif';
-    ctx1.fillText(book.endingBadge.toUpperCase(), W / 2, sealY + 48);
+    ctx1.fillText(book.endingBadge.toUpperCase(), W / 2, sealY + 46);
     ctx1.fillStyle = '#fffbeb';
-    ctx1.font = '800 36px "Plus Jakarta Sans", Georgia, serif';
-    ctx1.fillText(book.endingTitle, W / 2, sealY + 104);
+    ctx1.font = '800 34px "Plus Jakarta Sans", Georgia, serif';
+    const endTitleLines = wrapCanvasText(ctx1, book.endingTitle, W - 300);
+    if (endTitleLines.length <= 1) {
+      ctx1.fillText(book.endingTitle, W / 2, sealY + 104);
+    } else {
+      ctx1.font = '800 28px "Plus Jakarta Sans", Georgia, serif';
+      ctx1.fillText(endTitleLines[0], W / 2, sealY + 90);
+      ctx1.fillText(endTitleLines.slice(1).join(' ').slice(0, 48), W / 2, sealY + 124);
+    }
 
     // Epilogue Prose
     ctx1.textAlign = 'left';
@@ -550,7 +655,7 @@
       ctx.lineWidth = 3;
       ctx.strokeRect(48, 48, W - 96, H - 96);
 
-      // Subtle top artwork ribbon on last page
+      // Subtle top artwork ribbon on first chronicle page
       if (pIdx === 0 && endImg) {
         ctx.save();
         ctx.globalAlpha = 0.16;
@@ -585,24 +690,27 @@
           ? `Chapter ${ch.index}: ${ch.title}  /  ${ch.splitPartnerBTitle}`
           : `Chapter ${ch.index}: ${ch.title}`;
         ctx.fillStyle = '#f6d598';
-        ctx.font = '800 25px "Plus Jakarta Sans", sans-serif';
-        ctx.fillText(heading.slice(0, 74), 124, cy + 6);
+        ctx.font = '800 24px "Plus Jakarta Sans", sans-serif';
+        const headLine = wrapCanvasText(ctx, heading, W - 252)[0] || heading;
+        ctx.fillText(headLine, 124, cy + 4);
 
         ctx.fillStyle = '#fda4af';
-        ctx.font = '700 21px "Plus Jakarta Sans", sans-serif';
-        ctx.fillText(`${book.partnerAName}: ${ch.choiceA}`.slice(0, 86), 124, cy + 52);
+        ctx.font = '700 20px "Plus Jakarta Sans", sans-serif';
+        const lineA = wrapCanvasText(ctx, `${book.partnerAName}: ${ch.choiceA}`, W - 252)[0] || '';
+        ctx.fillText(lineA, 124, cy + 48);
 
         ctx.fillStyle = '#93c5fd';
-        ctx.font = '700 21px "Plus Jakarta Sans", sans-serif';
-        ctx.fillText(`${book.partnerBName}: ${ch.choiceB}`.slice(0, 86), 124, cy + 90);
+        ctx.font = '700 20px "Plus Jakarta Sans", sans-serif';
+        const lineB = wrapCanvasText(ctx, `${book.partnerBName}: ${ch.choiceB}`, W - 252)[0] || '';
+        ctx.fillText(lineB, 124, cy + 84);
 
         ctx.fillStyle = 'rgba(246, 241, 234, 0.88)';
-        ctx.font = '500 21px "Plus Jakarta Sans", sans-serif';
-        const outLines = wrapCanvasText(ctx, ch.outcome, W - 260);
-        let oy = cy + 136;
-        outLines.slice(0, 3).forEach(line => {
+        ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
+        const outLines = wrapCanvasText(ctx, ch.outcome, W - 252);
+        let oy = cy + 128;
+        outLines.slice(0, 4).forEach(line => {
           ctx.fillText(line, 124, oy);
-          oy += 34;
+          oy += 32;
         });
 
         cy += 336;
@@ -772,6 +880,7 @@
     const myRole = isCoop ? (currentRoom.hostUid === selfUid ? 'A' : 'B') : 'A';
     let soloActiveRole = 'A';
     let lastRenderedSceneKey = '';
+    let lastAudioSceneKey = '';
     let lastEndingUiSig = '';
     let lastRenderedBg = '';
     let bgToggleIdx = 0;
@@ -807,7 +916,7 @@
     activeReaderMode = 'reader';
     if (isCoop) activeRoomId = currentRoom.id;
 
-    function updateSceneBackdrop(bgUrl, fxName) {
+    function updateSceneBackdrop(bgUrl, fxName, artTheme, sceneLabel) {
       const img0 = $('#ccBg0', view);
       const img1 = $('#ccBg1', view);
       const atmo = $('#ccAtmoLayer', view);
@@ -819,9 +928,12 @@
       bgToggleIdx = bgToggleIdx === 0 ? 1 : 0;
       const incoming = bgToggleIdx === 0 ? img0 : img1;
       const outgoing = bgToggleIdx === 0 ? img1 : img0;
-      incoming.src = bgUrl;
-      incoming.classList.add('active');
-      outgoing.classList.remove('active');
+      const targetBg = bgUrl;
+      applyChronicleImage(incoming, targetBg, artTheme || 'cover', sceneLabel || story.title, () => {
+        if (lastRenderedBg !== targetBg) return;
+        incoming.classList.add('active');
+        outgoing.classList.remove('active');
+      });
     }
 
     function buildVoiceScript(scene, endingObj) {
@@ -886,6 +998,9 @@
         audioBtn.onclick = () => {
           const nextOff = !(StoryBGM.isMuted() && voiceMuted);
           voiceMuted = nextOff;
+          if (!nextOff && typeof SFX !== 'undefined' && typeof SFX.isMuted === 'function' && SFX.isMuted() && typeof SFX.setMuted === 'function') {
+            SFX.setMuted(false);
+          }
           StoryBGM.setMuted(nextOff);
           if (nextOff) stopStoryVoice();
           else if (currentVoiceScript) speakStoryText(currentVoiceScript, false);
@@ -914,7 +1029,7 @@
         const totalEndings = Object.keys(story.endings || {}).length || 4;
         const clueMap = window.CHRONICLE_CLUE_LABELS || {};
 
-        updateSceneBackdrop(endingObj.bg || story.coverArt, 'rain-embers');
+        updateSceneBackdrop(endingObj.bg || story.coverArt, 'rain-embers', endingObj.artTheme || 'bridge', Rules.pickLangText(endingObj.title, activeLang, state.partnerAName, state.partnerBName));
         StoryBGM.startMood('ending_glow');
 
         const sceneKey = 'ENDING_' + state.endingId;
@@ -924,6 +1039,7 @@
         const isNewEnding = lastRenderedSceneKey !== sceneKey;
         if (isNewEnding) {
           lastRenderedSceneKey = sceneKey;
+          lastAudioSceneKey = sceneKey;
           if (typeof playSfx === 'function') playSfx('endingReveal');
           speakStoryText(voiceScript, false);
         } else if (speakNow) {
@@ -991,6 +1107,7 @@
           state = freshState;
           soloActiveRole = 'A';
           lastRenderedSceneKey = '';
+          lastAudioSceneKey = '';
           if (isCoop && currentRoom) {
             currentRoom.storyState = freshState;
             await saveCoupleRoom(currentRoom);
@@ -1018,15 +1135,20 @@
       const myName = viewRole === 'A' ? state.partnerAName : state.partnerBName;
       const otherPickedId = state.pendingChoices ? state.pendingChoices[otherRole] : null;
 
-      updateSceneBackdrop(scene.bg || story.coverArt, scene.fx);
+      updateSceneBackdrop(scene.bg || story.coverArt, scene.fx, scene.artTheme || 'cover', Rules.pickLangText(scene.title, activeLang, state.partnerAName, state.partnerBName));
       StoryBGM.startMood(scene.bgm || 'noir_train');
 
       const voiceScript = buildVoiceScript(scene, null);
       const sceneKey = `${scene.id}_${viewRole}_${state.stepIndex}`;
+      const audioSceneKey = `${scene.id}_${state.stepIndex}`;
       const isNewScene = lastRenderedSceneKey !== sceneKey;
+      const isNewAudioScene = lastAudioSceneKey !== audioSceneKey;
       lastEndingUiSig = '';
       if (isNewScene) {
         lastRenderedSceneKey = sceneKey;
+      }
+      if (isNewAudioScene) {
+        lastAudioSceneKey = audioSceneKey;
         if (typeof playSfx === 'function') playSfx(scene.sfx || 'sceneOpen');
         speakStoryText(voiceScript, false);
       } else if (speakNow) {
@@ -1217,6 +1339,15 @@
           }
         };
       }
+      activeStorageHandler = (ev) => {
+        if (ev.key !== 'sg_mp_rooms' || !ev.newValue) return;
+        try {
+          const list = JSON.parse(ev.newValue);
+          const found = Array.isArray(list) ? list.find(r => r && r.id === activeRoomId) : null;
+          if (found) applyIncomingCoopRoom(found);
+        } catch {}
+      };
+      window.addEventListener('storage', activeStorageHandler);
     }
 
     renderReader(false);
@@ -1281,7 +1412,7 @@
 
       shell.innerHTML = `
         <div class="cc-lobby-hero">
-          <img src="${esc(story.coverArt)}" alt="${esc(story.title)}" referrerpolicy="no-referrer">
+          <img src="${esc(story.coverArt)}" data-cc-src="${esc(story.coverArt)}" data-cc-theme="cover" data-cc-label="${esc(story.title)}" alt="${esc(story.title)}" referrerpolicy="no-referrer" onerror="window.ccHandleImageError && window.ccHandleImageError(this)">
           <div class="cc-lobby-hero-inner">
             <div>
               <div class="cc-meta-line">${esc(story.genre)} <span class="cc-meta-sep">·</span> ${esc(story.duration)} <span class="cc-meta-sep">·</span> 2-Player Story</div>
@@ -1641,7 +1772,7 @@
           return `
             <article class="cc-featured-card" data-testid="cc-featured-story" data-story-id="${esc(featured.id)}">
               <div class="cc-featured-media">
-                <img src="${esc(featured.coverArt)}" alt="${esc(featured.title)}" referrerpolicy="no-referrer">
+                <img src="${esc(featured.coverArt)}" data-cc-src="${esc(featured.coverArt)}" data-cc-theme="cover" data-cc-label="${esc(featured.title)}" alt="${esc(featured.title)}" referrerpolicy="no-referrer" onerror="window.ccHandleImageError && window.ccHandleImageError(this)">
               </div>
               <div class="cc-featured-body">
                 <div>
@@ -1691,7 +1822,7 @@
               return `
                 <article class="cc-story-tile" data-story-id="${esc(st.id)}">
                   <div class="cc-tile-thumb">
-                    <img src="${esc(st.coverArt)}" alt="${esc(st.title)}" referrerpolicy="no-referrer">
+                    <img src="${esc(st.coverArt)}" data-cc-src="${esc(st.coverArt)}" data-cc-theme="cover" data-cc-label="${esc(st.title)}" alt="${esc(st.title)}" referrerpolicy="no-referrer" onerror="window.ccHandleImageError && window.ccHandleImageError(this)">
                   </div>
                   <div class="cc-tile-body">
                     <div class="cc-meta-line">
@@ -1745,6 +1876,12 @@
           : getCatalog()[0];
         openSoloDuoSetupOrStart(st);
       };
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', () => {
+      teardownStorySession();
     });
   }
 
