@@ -109,17 +109,31 @@ function normalizePartyRoom(rm) {
   const admins = Array.isArray(rm.admins)
     ? [...new Set(rm.admins.filter(x => x && x !== hostUid))]
     : [];
-  const videoSync = rm.videoSync && typeof rm.videoSync === 'object' ? {
-    videoId: String(rm.videoSync.videoId || rm.youtubeId || ''),
-    playing: Boolean(rm.videoSync.playing),
-    seekSec: Math.max(0, Number(rm.videoSync.seekSec || 0)),
-    updatedAt: Number(rm.videoSync.updatedAt || Date.now())
-  } : {
-    videoId: String(rm.youtubeId || ''),
-    playing: false,
-    seekSec: 0,
-    updatedAt: Number(rm.updatedAt || Date.now())
-  };
+  const videoSync = (window.ShowGamesRules && typeof window.ShowGamesRules.normalizeVideoSyncState === 'function')
+    ? window.ShowGamesRules.normalizeVideoSyncState(rm.videoSync, rm.youtubeId || '')
+    : (rm.videoSync && typeof rm.videoSync === 'object' ? {
+        kind: rm.videoSync.kind === 'direct' || (!rm.videoSync.videoId && rm.videoSync.videoUrl) ? 'direct' : 'youtube',
+        videoId: String(rm.videoSync.videoId || rm.youtubeId || ''),
+        videoUrl: String(rm.videoSync.videoUrl || ''),
+        playing: Boolean(rm.videoSync.playing),
+        seekSec: Math.max(0, Number(rm.videoSync.seekSec || 0)),
+        durationSec: Math.max(0, Number(rm.videoSync.durationSec || 0)),
+        playbackRate: Math.min(2, Math.max(0.5, Number(rm.videoSync.playbackRate || 1))),
+        updatedAt: Number(rm.videoSync.updatedAt || Date.now()),
+        updatedBy: String(rm.videoSync.updatedBy || ''),
+        seq: Math.max(0, Math.floor(Number(rm.videoSync.seq || 0)))
+      } : {
+        kind: 'youtube',
+        videoId: String(rm.youtubeId || ''),
+        videoUrl: '',
+        playing: false,
+        seekSec: 0,
+        durationSec: 0,
+        playbackRate: 1,
+        updatedAt: Number(rm.updatedAt || Date.now()),
+        updatedBy: '',
+        seq: 0
+      });
 
   return {
     ...rm,
@@ -301,6 +315,569 @@ const PartyAudioPlayer = (() => {
   }
   return { playUrl, setPlaying, syncSpeaker, stop };
 })();
+
+/* ===== Live Watch-Together Video Sync Controller (YouTube IFrame API + HTML5 <video>) ===== */
+const PartyVideoSync = (() => {
+  let ytApiPromise = null;
+  let activeRoomId = '';
+  let mountedSourceKey = '';
+  let mountedKind = '';
+  let ytPlayer = null;
+  let ytReady = false;
+  let htmlVideoEl = null;
+  let syncTickIv = 0;
+  let theaterMode = false;
+  let isScrubbing = false;
+  let suppressUntil = 0;
+  let lastAppliedSig = '';
+  let lastExpectedYtSec = -1;
+  let lastExpectedYtTs = 0;
+  let currentSyncState = null;
+  let slotElRef = null;
+  let bc = null;
+
+  const SGR = () => window.ShowGamesRules || null;
+
+  function normSync(raw, fallbackYt) {
+    const s = SGR();
+    if (s && typeof s.normalizeVideoSyncState === 'function') {
+      return s.normalizeVideoSyncState(raw, fallbackYt || '');
+    }
+    const r = raw && typeof raw === 'object' ? raw : {};
+    return {
+      kind: r.kind === 'direct' || (!r.videoId && r.videoUrl) ? 'direct' : 'youtube',
+      videoId: String(r.videoId || fallbackYt || ''),
+      videoUrl: String(r.videoUrl || ''),
+      playing: Boolean(r.playing),
+      seekSec: Math.max(0, Number(r.seekSec || 0)),
+      durationSec: Math.max(0, Number(r.durationSec || 0)),
+      playbackRate: Math.min(2, Math.max(0.5, Number(r.playbackRate || 1))),
+      updatedAt: Number(r.updatedAt || Date.now()),
+      updatedBy: String(r.updatedBy || ''),
+      seq: Math.max(0, Math.floor(Number(r.seq || 0)))
+    };
+  }
+
+  function computeTarget(sync, nowMs = Date.now()) {
+    const s = SGR();
+    if (s && typeof s.computeTargetVideoTime === 'function') {
+      return s.computeTargetVideoTime(sync, nowMs);
+    }
+    const vs = normSync(sync);
+    let t = vs.seekSec;
+    if (vs.playing) t += Math.max(0, (nowMs - vs.updatedAt) / 1000) * vs.playbackRate;
+    if (vs.durationSec > 0) t = Math.min(vs.durationSec, t);
+    return Math.max(0, Math.round(t * 100) / 100);
+  }
+
+  function needsResync(localSec, targetSec, threshold = 1.5) {
+    const s = SGR();
+    if (s && typeof s.shouldResyncVideoTime === 'function') {
+      return s.shouldResyncVideoTime(localSec, targetSec, threshold);
+    }
+    return Math.abs(Number(localSec || 0) - Number(targetSec || 0)) > threshold;
+  }
+
+  function fmtClock(sec) {
+    const s = SGR();
+    if (s && typeof s.formatVideoClock === 'function') return s.formatVideoClock(sec);
+    const total = Math.max(0, Math.floor(Number(sec) || 0));
+    const m = Math.floor(total / 60);
+    const r = total % 60;
+    return `${m}:${String(r).padStart(2, '0')}`;
+  }
+
+  function loadYouTubeApi() {
+    if (window.YT && typeof window.YT.Player === 'function') return Promise.resolve(window.YT);
+    if (ytApiPromise) return ytApiPromise;
+    ytApiPromise = new Promise(resolve => {
+      let done = false;
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        resolve(val || null);
+      };
+      const prevReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        try { if (typeof prevReady === 'function') prevReady(); } catch {}
+        finish(window.YT || null);
+      };
+      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        tag.async = true;
+        tag.onerror = () => finish(null);
+        document.head.appendChild(tag);
+      }
+      setTimeout(() => finish(window.YT && typeof window.YT.Player === 'function' ? window.YT : null), 4500);
+    });
+    return ytApiPromise;
+  }
+
+  function getLocalTime() {
+    try {
+      if (mountedKind === 'direct' && htmlVideoEl) {
+        return Number.isFinite(htmlVideoEl.currentTime) ? htmlVideoEl.currentTime : 0;
+      }
+      if (mountedKind === 'youtube' && ytPlayer && ytReady && typeof ytPlayer.getCurrentTime === 'function') {
+        const t = Number(ytPlayer.getCurrentTime());
+        if (Number.isFinite(t)) return t;
+      }
+    } catch {}
+    return currentSyncState ? computeTarget(currentSyncState, Date.now()) : 0;
+  }
+
+  function getDuration() {
+    try {
+      if (mountedKind === 'direct' && htmlVideoEl && Number.isFinite(htmlVideoEl.duration) && htmlVideoEl.duration > 0) {
+        return htmlVideoEl.duration;
+      }
+      if (mountedKind === 'youtube' && ytPlayer && ytReady && typeof ytPlayer.getDuration === 'function') {
+        const d = Number(ytPlayer.getDuration());
+        if (Number.isFinite(d) && d > 0) return d;
+      }
+    } catch {}
+    return currentSyncState && currentSyncState.durationSec > 0 ? currentSyncState.durationSec : 0;
+  }
+
+  function applyRemoteState(sync, forceSeek = false) {
+    const vs = normSync(sync);
+    currentSyncState = vs;
+    const targetSec = computeTarget(vs, Date.now());
+    const sig = `${vs.kind}:${vs.videoId || vs.videoUrl}:${vs.seq}:${vs.playing ? 1 : 0}:${Math.round(vs.seekSec * 10)}:${vs.updatedAt}`;
+    const isNewUpdate = forceSeek || sig !== lastAppliedSig;
+    lastAppliedSig = sig;
+
+    if (mountedKind === 'direct' && htmlVideoEl) {
+      suppressUntil = Date.now() + 900;
+      const cur = Number.isFinite(htmlVideoEl.currentTime) ? htmlVideoEl.currentTime : 0;
+      if (isNewUpdate || needsResync(cur, targetSec, 1.5)) {
+        try { htmlVideoEl.currentTime = targetSec; } catch {}
+      }
+      try {
+        htmlVideoEl.muted = !partySpeakerOn;
+        if (vs.playing) {
+          if (htmlVideoEl.paused) htmlVideoEl.play().catch(() => {});
+        } else if (!htmlVideoEl.paused) {
+          htmlVideoEl.pause();
+        }
+      } catch {}
+    } else if (mountedKind === 'youtube' && ytPlayer && ytReady) {
+      suppressUntil = Date.now() + 1200;
+      let cur = targetSec;
+      try { cur = Number(ytPlayer.getCurrentTime()) || 0; } catch {}
+      if (isNewUpdate || needsResync(cur, targetSec, 1.5)) {
+        try { ytPlayer.seekTo(targetSec, true); } catch {}
+        lastExpectedYtSec = targetSec;
+        lastExpectedYtTs = Date.now();
+      }
+      try {
+        if (!partySpeakerOn && typeof ytPlayer.mute === 'function') ytPlayer.mute();
+        else if (partySpeakerOn && typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+        const st = typeof ytPlayer.getPlayerState === 'function' ? ytPlayer.getPlayerState() : -1;
+        if (vs.playing) {
+          if (st !== 1 && st !== 3 && typeof ytPlayer.playVideo === 'function') ytPlayer.playVideo();
+        } else if (st === 1 || st === 3) {
+          if (typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo();
+        }
+      } catch {}
+    }
+    updateControlsUI();
+  }
+
+  function updateControlsUI() {
+    const slot = slotElRef;
+    if (!slot || !currentSyncState) return;
+    const vs = currentSyncState;
+    const cur = getLocalTime();
+    const dur = Math.max(getDuration(), vs.durationSec || 0, cur > 0 ? Math.ceil(cur + 30) : 600);
+    const scrub = slot.querySelector('[data-vid-scrub]');
+    if (scrub && !isScrubbing) {
+      scrub.max = String(Math.max(10, Math.round(dur)));
+      scrub.value = String(Math.min(Number(scrub.max), Math.max(0, Math.round(cur))));
+    }
+    const timeEl = slot.querySelector('[data-vid-time]');
+    if (timeEl) {
+      const realDur = getDuration() || vs.durationSec || 0;
+      timeEl.textContent = realDur > 0 ? `${fmtClock(cur)} / ${fmtClock(realDur)}` : fmtClock(cur);
+    }
+    const stText = slot.querySelector('[data-vid-status-txt]');
+    const stDot = slot.querySelector('[data-vid-status-dot]');
+    if (stText) {
+      stText.textContent = vs.playing ? 'Live Sync · Playing' : 'Live Sync · Paused';
+    }
+    if (stDot) stDot.classList.toggle('live', Boolean(vs.playing));
+    const toggleBtn = slot.querySelector('[data-vid-act="toggle"]');
+    if (toggleBtn) {
+      toggleBtn.textContent = vs.playing ? '⏸ Pause All' : '▶ Play All';
+    }
+    const card = slot.querySelector('.pfs-video-card');
+    if (card) card.classList.toggle('theater', theaterMode);
+    const thBtn = slot.querySelector('[data-vid-act="theater"]');
+    if (thBtn) thBtn.textContent = theaterMode ? '🗗 Fit' : '⛶ Theater';
+  }
+
+  function broadcastSyncUpdate(rm, patch, chatNote) {
+    if (!rm) return;
+    const prev = normSync(rm.videoSync, rm.youtubeId || '');
+    const dur = Math.max(0, Math.round(getDuration() || prev.durationSec || 0));
+    const next = normSync({
+      ...prev,
+      ...patch,
+      durationSec: patch.durationSec != null ? patch.durationSec : dur,
+      updatedAt: Date.now(),
+      updatedBy: uid,
+      seq: (prev.seq || 0) + 1
+    });
+    rm.videoSync = next;
+    rm.youtubeId = next.kind === 'youtube' ? next.videoId : '';
+    if (chatNote) {
+      rm.chat = [...(rm.chat || []), { id: 'vs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4), type: 'sys', text: chatNote, ts: Date.now() }].slice(-45);
+    }
+    applyRemoteState(next, true);
+    try {
+      if (bc) bc.postMessage({ roomId: rm.id, videoSync: next, fromUid: uid });
+      localStorage.setItem('sg_party_video_sync_ping', JSON.stringify({ roomId: rm.id, videoSync: next, ts: Date.now() }));
+    } catch {}
+    persistPartyRoom(rm);
+  }
+
+  function handleIncomingCrossTabSync(payload) {
+    if (!payload || !payload.roomId || !payload.videoSync) return;
+    const rm = partyRooms.find(r => r.id === payload.roomId);
+    if (!rm) return;
+    const incoming = normSync(payload.videoSync, rm.youtubeId || '');
+    const cur = normSync(rm.videoSync, rm.youtubeId || '');
+    if (incoming.seq < cur.seq && incoming.updatedAt <= cur.updatedAt) return;
+    rm.videoSync = incoming;
+    rm.youtubeId = incoming.kind === 'youtube' ? incoming.videoId : '';
+    if (activePartyRoomId === rm.id) {
+      const root = document.getElementById('partyFsRoot');
+      const slot = root ? root.querySelector('#pfsVideoSlot') : null;
+      if (slot) syncRoom(rm, slot);
+    }
+  }
+
+  function initCrossTabChannel() {
+    if (!bc && typeof BroadcastChannel !== 'undefined') {
+      try {
+        bc = new BroadcastChannel('sg_party_video_sync');
+        bc.onmessage = ev => handleIncomingCrossTabSync(ev?.data);
+      } catch {}
+    }
+    if (!window.__sgPartyVideoStorageBound) {
+      window.__sgPartyVideoStorageBound = true;
+      window.addEventListener('storage', ev => {
+        if (ev.key !== 'sg_party_video_sync_ping' || !ev.newValue) return;
+        try { handleIncomingCrossTabSync(JSON.parse(ev.newValue)); } catch {}
+      });
+    }
+  }
+
+  function startSyncLoop() {
+    clearInterval(syncTickIv);
+    syncTickIv = setInterval(() => {
+      if (document.hidden || !activeRoomId || !currentSyncState) return;
+      const rm = partyRooms.find(r => r.id === activeRoomId);
+      if (!rm || rm.mode !== 'video') {
+        destroy();
+        return;
+      }
+      const vs = currentSyncState;
+      const now = Date.now();
+      // Detect direct native YouTube scrubber jumps by the local user
+      if (mountedKind === 'youtube' && ytPlayer && ytReady && now > suppressUntil && typeof ytPlayer.getCurrentTime === 'function') {
+        try {
+          const cur = Number(ytPlayer.getCurrentTime());
+          const st = typeof ytPlayer.getPlayerState === 'function' ? ytPlayer.getPlayerState() : -1;
+          if (Number.isFinite(cur)) {
+            if (lastExpectedYtSec >= 0 && lastExpectedYtTs > 0) {
+              const dt = (now - lastExpectedYtTs) / 1000;
+              const expected = vs.playing ? (lastExpectedYtSec + dt * vs.playbackRate) : lastExpectedYtSec;
+              if (Math.abs(cur - expected) > 2.4 && (st === 1 || st === 2)) {
+                lastExpectedYtSec = cur;
+                lastExpectedYtTs = now;
+                broadcastSyncUpdate(rm, { seekSec: Math.max(0, Math.round(cur * 10) / 10), playing: st === 1 });
+                return;
+              }
+            }
+            lastExpectedYtSec = cur;
+            lastExpectedYtTs = now;
+          }
+        } catch {}
+      }
+      // Periodic drift correction toward authoritative room clock
+      if (now > suppressUntil && vs.playing) {
+        const localSec = getLocalTime();
+        const targetSec = computeTarget(vs, now);
+        if (needsResync(localSec, targetSec, 1.8)) {
+          applyRemoteState(vs, true);
+          return;
+        }
+      }
+      updateControlsUI();
+    }, 1000);
+  }
+
+  function destroyPlayerOnly() {
+    clearInterval(syncTickIv);
+    syncTickIv = 0;
+    ytReady = false;
+    lastExpectedYtSec = -1;
+    lastExpectedYtTs = 0;
+    if (ytPlayer) {
+      try { if (typeof ytPlayer.destroy === 'function') ytPlayer.destroy(); } catch {}
+      ytPlayer = null;
+    }
+    if (htmlVideoEl) {
+      try { htmlVideoEl.pause(); htmlVideoEl.removeAttribute('src'); htmlVideoEl.load(); } catch {}
+      htmlVideoEl = null;
+    }
+    mountedSourceKey = '';
+    mountedKind = '';
+    lastAppliedSig = '';
+  }
+
+  function destroy() {
+    destroyPlayerOnly();
+    activeRoomId = '';
+    currentSyncState = null;
+    if (slotElRef) slotElRef.innerHTML = '';
+    slotElRef = null;
+    isScrubbing = false;
+  }
+
+  function mountVideoCard(rm, slot, vs) {
+    destroyPlayerOnly();
+    activeRoomId = rm.id;
+    slotElRef = slot;
+    currentSyncState = vs;
+    const hasSrc = Boolean(vs.videoId || vs.videoUrl);
+    if (!hasSrc) {
+      slot.innerHTML = `
+        <div class="pfs-video-card" data-testid="pfs-video-card">
+          <div class="pfs-vid-empty">
+            <div class="pfs-vid-ico">🎬</div>
+            <b>Watch Together Stage</b>
+            <small>Add a YouTube link or direct .mp4 video — everyone watches at the exact same timestamp!</small>
+            <button type="button" class="btn gold sm" style="margin-top:6px" data-pfs-act="open-add-video">+ Add Video</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const mountId = 'pfsYtMount_' + rm.id.replace(/[^a-z0-9_]/gi, '');
+    const targetSec = computeTarget(vs, Date.now());
+    const initDur = Math.max(60, Math.round(vs.durationSec || 600));
+    mountedKind = vs.kind;
+    mountedSourceKey = `${vs.kind}:${vs.videoId || vs.videoUrl}`;
+
+    slot.innerHTML = `
+      <div class="pfs-video-card ${theaterMode ? 'theater' : ''}" data-testid="pfs-video-card">
+        <div class="pfs-video-stage-wrap">
+          <div class="pfs-yt-frame" data-testid="pfs-video-viewport">
+            ${vs.kind === 'direct'
+              ? `<video id="${mountId}" class="pfs-html-video" src="${esc(vs.videoUrl)}" controls playsinline preload="metadata"></video>`
+              : `<div id="${mountId}" class="pfs-yt-mount"></div>`
+            }
+          </div>
+        </div>
+        <div class="pfs-vid-controls">
+          <div class="pfs-vid-scrub-row">
+            <input type="range" class="pfs-vid-scrubber" data-vid-scrub min="0" max="${initDur}" value="${Math.min(initDur, Math.round(targetSec))}" step="1" aria-label="Video timestamp scrubber">
+            <span class="pfs-vid-time" data-vid-time>${fmtClock(targetSec)}</span>
+          </div>
+          <div class="pfs-vid-bar">
+            <div class="pfs-vid-meta-row">
+              <span class="pfs-vid-status">
+                <i class="pfs-vid-status-dot ${vs.playing ? 'live' : ''}" data-vid-status-dot></i>
+                <span data-vid-status-txt>${vs.playing ? 'Live Sync · Playing' : 'Live Sync · Paused'}</span>
+              </span>
+              <button type="button" class="btn sm gold pfs-vid-change-btn" data-pfs-act="open-add-video">Change</button>
+            </div>
+            <div class="pfs-vid-btns">
+              <button type="button" class="btn sm ghost" data-vid-act="back10" title="Back 10 seconds">⏪ -10s</button>
+              <button type="button" class="btn sm ok" data-vid-act="toggle" data-vid-sync="toggle">${vs.playing ? '⏸ Pause All' : '▶ Play All'}</button>
+              <button type="button" class="btn sm ghost" data-vid-act="fwd10" title="Forward 10 seconds">+10s ⏩</button>
+              <button type="button" class="btn sm ghost" data-vid-act="resync" title="Jump to room timestamp">⟳ Sync</button>
+              <button type="button" class="btn sm ghost" data-vid-act="theater">${theaterMode ? '🗗 Fit' : '⛶ Theater'}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const scrub = slot.querySelector('[data-vid-scrub]');
+    if (scrub) {
+      scrub.oninput = () => {
+        isScrubbing = true;
+        const tEl = slot.querySelector('[data-vid-time]');
+        const realDur = getDuration() || vs.durationSec || 0;
+        if (tEl) tEl.textContent = realDur > 0 ? `${fmtClock(scrub.value)} / ${fmtClock(realDur)}` : fmtClock(scrub.value);
+      };
+      scrub.onchange = () => {
+        isScrubbing = false;
+        const sec = Math.max(0, Number(scrub.value) || 0);
+        const curRm = partyRooms.find(r => r.id === activeRoomId);
+        if (curRm) {
+          broadcastSyncUpdate(curRm, { seekSec: sec }, `${me.name} skipped video to ${fmtClock(sec)}`);
+        }
+      };
+    }
+
+    if (vs.kind === 'direct') {
+      htmlVideoEl = document.getElementById(mountId);
+      if (htmlVideoEl) {
+        htmlVideoEl.muted = !partySpeakerOn;
+        htmlVideoEl.addEventListener('loadedmetadata', () => {
+          applyRemoteState(currentSyncState || vs, true);
+        });
+        htmlVideoEl.addEventListener('play', () => {
+          if (Date.now() < suppressUntil) return;
+          const curRm = partyRooms.find(r => r.id === activeRoomId);
+          if (curRm && !curRm.videoSync?.playing) {
+            broadcastSyncUpdate(curRm, { playing: true, seekSec: Math.round((htmlVideoEl.currentTime || 0) * 10) / 10 });
+          }
+        });
+        htmlVideoEl.addEventListener('pause', () => {
+          if (Date.now() < suppressUntil || htmlVideoEl.seeking) return;
+          const curRm = partyRooms.find(r => r.id === activeRoomId);
+          if (curRm && curRm.videoSync?.playing) {
+            broadcastSyncUpdate(curRm, { playing: false, seekSec: Math.round((htmlVideoEl.currentTime || 0) * 10) / 10 });
+          }
+        });
+        htmlVideoEl.addEventListener('seeked', () => {
+          if (Date.now() < suppressUntil) return;
+          const curRm = partyRooms.find(r => r.id === activeRoomId);
+          if (curRm) {
+            broadcastSyncUpdate(curRm, { seekSec: Math.round((htmlVideoEl.currentTime || 0) * 10) / 10, playing: !htmlVideoEl.paused });
+          }
+        });
+        applyRemoteState(vs, true);
+      }
+    } else {
+      const mountNode = document.getElementById(mountId);
+      const vidId = vs.videoId;
+      loadYouTubeApi().then(YT => {
+        if (!activeRoomId || activeRoomId !== rm.id || mountedSourceKey !== `youtube:${vidId}`) return;
+        const targetNode = document.getElementById(mountId);
+        if (!targetNode) return;
+        if (YT && typeof YT.Player === 'function') {
+          try {
+            ytPlayer = new YT.Player(mountId, {
+              videoId: vidId,
+              playerVars: {
+                autoplay: vs.playing ? 1 : 0,
+                start: Math.floor(computeTarget(currentSyncState || vs, Date.now())),
+                rel: 0,
+                modestbranding: 1,
+                playsinline: 1,
+                enablejsapi: 1
+              },
+              events: {
+                onReady: () => {
+                  ytReady = true;
+                  applyRemoteState(currentSyncState || vs, true);
+                },
+                onStateChange: ev => {
+                  if (Date.now() < suppressUntil) return;
+                  const curRm = partyRooms.find(r => r.id === activeRoomId);
+                  if (!curRm) return;
+                  const curT = Math.max(0, Math.round((Number(ytPlayer?.getCurrentTime?.() || 0)) * 10) / 10);
+                  if (ev.data === YT.PlayerState.PLAYING && !curRm.videoSync?.playing) {
+                    lastExpectedYtSec = curT;
+                    lastExpectedYtTs = Date.now();
+                    broadcastSyncUpdate(curRm, { playing: true, seekSec: curT });
+                  } else if (ev.data === YT.PlayerState.PAUSED && curRm.videoSync?.playing) {
+                    lastExpectedYtSec = curT;
+                    lastExpectedYtTs = Date.now();
+                    broadcastSyncUpdate(curRm, { playing: false, seekSec: curT });
+                  }
+                }
+              }
+            });
+            return;
+          } catch {}
+        }
+        // Resilient iframe fallback if YouTube IFrame API is unavailable/offline
+        const startSec = Math.floor(computeTarget(currentSyncState || vs, Date.now()));
+        targetNode.innerHTML = `<iframe src="https://www.youtube.com/embed/${esc(vidId)}?autoplay=${vs.playing ? 1 : 0}&start=${startSec}&rel=0&playsinline=1&enablejsapi=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="Synced Room Video"></iframe>`;
+      });
+      if (mountNode && !window.YT) {
+        // Immediate visual placeholder until YT API attaches
+        mountNode.style.background = '#000';
+      }
+    }
+
+    startSyncLoop();
+  }
+
+  function syncRoom(rm, slotEl) {
+    initCrossTabChannel();
+    if (!rm || !slotEl) return;
+    if (rm.mode !== 'video') {
+      if (mountedSourceKey || slotEl.innerHTML) destroy();
+      return;
+    }
+    slotElRef = slotEl;
+    const vs = normSync(rm.videoSync, rm.youtubeId || '');
+    const srcKey = (vs.videoId || vs.videoUrl) ? `${vs.kind}:${vs.videoId || vs.videoUrl}` : '';
+    const needsMount = activeRoomId !== rm.id || mountedSourceKey !== srcKey || !slotEl.querySelector('[data-testid="pfs-video-card"]');
+    if (needsMount) {
+      mountVideoCard(rm, slotEl, vs);
+    } else {
+      applyRemoteState(vs, false);
+    }
+  }
+
+  function handleAction(rm, act) {
+    if (!rm) return;
+    const vs = normSync(rm.videoSync, rm.youtubeId || '');
+    if (act === 'theater') {
+      theaterMode = !theaterMode;
+      updateControlsUI();
+      return;
+    }
+    if (!vs.videoId && !vs.videoUrl) return;
+    const curSec = Math.max(0, Math.round(getLocalTime() * 10) / 10);
+    if (act === 'toggle') {
+      const nextPlaying = !vs.playing;
+      broadcastSyncUpdate(rm, { playing: nextPlaying, seekSec: curSec }, `${me.name} ${nextPlaying ? 'played' : 'paused'} video at ${fmtClock(curSec)}`);
+    } else if (act === 'back10') {
+      const target = Math.max(0, Math.round((curSec - 10) * 10) / 10);
+      broadcastSyncUpdate(rm, { seekSec: target }, `${me.name} jumped -10s (${fmtClock(target)})`);
+    } else if (act === 'fwd10') {
+      const dur = getDuration() || vs.durationSec || 0;
+      const raw = curSec + 10;
+      const target = dur > 0 ? Math.min(dur, raw) : raw;
+      broadcastSyncUpdate(rm, { seekSec: Math.round(target * 10) / 10 }, `${me.name} skipped +10s (${fmtClock(target)})`);
+    } else if (act === 'resync') {
+      applyRemoteState(vs, true);
+      if (typeof toast === 'function') toast(`Synced to ${fmtClock(computeTarget(vs, Date.now()))}`);
+    }
+  }
+
+  function syncSpeaker(on) {
+    try {
+      if (htmlVideoEl) htmlVideoEl.muted = !on;
+      if (ytPlayer && ytReady) {
+        if (on && typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+        else if (!on && typeof ytPlayer.mute === 'function') ytPlayer.mute();
+      }
+    } catch {}
+  }
+
+  return {
+    syncRoom,
+    handleAction,
+    broadcastSyncUpdate,
+    syncSpeaker,
+    destroy,
+    getCurrentState: () => currentSyncState
+  };
+})();
+window.PartyVideoSync = PartyVideoSync;
 
 /* ===== 4-User Peer-to-Peer WebRTC Audio Mesh (Mic Seats 0..3 -> Room Audio) ===== */
 const PartyWebRtcMesh = (() => {
@@ -519,14 +1096,32 @@ function persistPartyRoom(room) {
 
 function ingestPartyRooms(list) {
   const now = Date.now();
+  const prevById = new Map((partyRooms || []).filter(r => r && r.id).map(r => [r.id, r]));
   const live = (Array.isArray(list) ? list : [])
     .filter(r => r && r.id && (!r.expiresAt || Number(r.expiresAt) > now))
     .map(normalizePartyRoom)
     .filter(Boolean)
-    .filter(r => !(partySeedsCleared() && isFakeOrStalePartyRoom(r)));
+    .filter(r => !(partySeedsCleared() && isFakeOrStalePartyRoom(r)))
+    .map(rm => {
+      const prev = prevById.get(rm.id);
+      if (prev && prev.videoSync && rm.videoSync) {
+        const pSeq = Number(prev.videoSync.seq || 0);
+        const rSeq = Number(rm.videoSync.seq || 0);
+        const pTs = Number(prev.videoSync.updatedAt || 0);
+        const rTs = Number(rm.videoSync.updatedAt || 0);
+        if ((pSeq > rSeq && now - pTs < 15000) || (pSeq === rSeq && pTs > rTs && now - pTs < 6000)) {
+          rm.videoSync = prev.videoSync;
+          rm.youtubeId = prev.youtubeId;
+        }
+      }
+      return rm;
+    });
   if (live.length) {
-    const seeds = partySeedsCleared() ? [] : buildSeedPartyRooms().filter(s => !live.some(l => l.id === s.id));
-    partyRooms = [...live, ...seeds].slice(0, 24);
+    const liveIds = new Set(live.map(l => l.id));
+    const activeLocal = activePartyRoomId ? prevById.get(activePartyRoomId) : null;
+    const keptActive = (activeLocal && !liveIds.has(activeLocal.id) && now - Number(activeLocal.updatedAt || 0) < 12000) ? [activeLocal] : [];
+    const seeds = partySeedsCleared() ? [] : buildSeedPartyRooms().filter(s => !liveIds.has(s.id));
+    partyRooms = [...keptActive, ...live, ...seeds].slice(0, 24);
   } else if (partySeedsCleared()) {
     partyRooms = (partyRooms || []).filter(r => !isFakeOrStalePartyRoom(r));
   }
@@ -659,6 +1254,10 @@ function deletePartyChatMessage(rm, msgId) {
 }
 
 function renderPartyHub() {
+  if (typeof activeAppTab !== 'undefined' && activeAppTab !== 'tools') {
+    if (typeof markTabsDirty === 'function') markTabsDirty('tools');
+    return;
+  }
   const host = $('#homePartyRooms') || $('#partyRoomsHost');
   if (!host) return;
   const rooms = (partyRooms || []).slice(0, 8);
@@ -752,10 +1351,12 @@ function closePartyRoom() {
   activePartyRoomId = null;
   minimizedPartyRoomId = null;
   unsubscribeRoomMessages();
+  PartyVideoSync.destroy();
   PartyWebRtcMesh.cleanup();
   PartyAudioPlayer.stop();
   const root = document.getElementById('partyFsRoot');
   if (root) {
+    root.dataset.mountedRoomId = '';
     root.classList.remove('open');
     root.hidden = true;
     root.innerHTML = '';
@@ -835,106 +1436,117 @@ function renderFullScreenPartyRoom() {
   const mySeatKey = findUserSeatKeyInRoom(rm, uid);
   const mySeat = mySeatKey != null ? rm.seats[mySeatKey] : null;
   const canSpeak = mySeatKey != null && isMicSeatIndex(Number(mySeatKey));
-  const vs = rm.videoSync || { videoId: rm.youtubeId || '', playing: false, seekSec: 0, updatedAt: Date.now() };
-  const elapsedSec = vs.playing ? Math.floor((Date.now() - Number(vs.updatedAt || Date.now())) / 1000) : 0;
-  const syncStart = Math.max(0, Number(vs.seekSec || 0) + elapsedSec);
 
   root.style.background = bgMeta.css;
-  root.innerHTML = `
-    <div class="pfs-shell pfs-v14">
-      <header class="pfs-top-v14">
-        <div class="pfs-hdr-left">
-          <button type="button" class="pfs-hdr-btn" data-pfs-act="close" aria-label="Exit Room">←</button>
-          <div class="pfs-hdr-meta">
-            <div class="pfs-hdr-title-row">
-              <b class="pfs-title">${esc(rm.title)}</b>
-              <span class="pfs-tag-txt">· ${esc(modeMeta.name)}</span>
-            </div>
-            <div class="pfs-hdr-id-row">
-              <span class="pfs-id-btn">Owner: ${esc(rm.hostName)} · ID ${esc(rm.shortId)}</span>
-            </div>
-          </div>
-        </div>
-        <div class="pfs-hdr-right">
-          <button type="button" class="pfs-hdr-btn" data-pfs-act="open-invite" title="Invite Friends to Voice Room" aria-label="Invite to Room">👥</button>
-          <button type="button" class="pfs-hdr-btn" data-pfs-act="minimize" title="Minimize">−</button>
-          <button type="button" class="pfs-hdr-btn" data-pfs-act="open-music" title="Music">♪</button>
-          <button type="button" class="pfs-hdr-btn" data-pfs-act="open-modes" title="Modes">⊞</button>
-        </div>
-      </header>
 
-      <div class="pfs-subbar">
-        <button type="button" class="pfs-music-pill ${rm.musicPlaying ? 'playing' : ''}" data-pfs-act="open-music">
-          <span>♪</span>
-          <span class="pfs-music-lbl">${esc(rm.musicTitle || (rm.musicUrl ? 'Audio Stream' : 'No Song'))}</span>
-        </button>
-        <div class="pfs-subbar-right">
-          <button type="button" class="pfs-mode-chip" data-pfs-act="open-modes">${esc(modeMeta.name)} ▾</button>
-          <span class="pfs-turn-chip">${canSpeak ? '🎙️ Mic Seat (0-3)' : '👂 Listener'}</span>
+  // Mount shell once per room so chat/seat/mic updates NEVER destroy or reload the live video player!
+  if (root.dataset.mountedRoomId !== rm.id || !root.querySelector('#pfsVideoSlot')) {
+    root.dataset.mountedRoomId = rm.id;
+    root.innerHTML = `
+      <div class="pfs-shell pfs-v14">
+        <header class="pfs-top-v14" id="pfsHdrSlot"></header>
+        <div class="pfs-subbar" id="pfsSubbarSlot"></div>
+        <div class="pfs-main-scroll">
+          <div class="pfs-video-slot" id="pfsVideoSlot"></div>
+          <div class="pfs-stage" id="pfsStageSlot"></div>
+          <div class="pfs-react-dock">
+            ${PARTY_REACTIONS.map(em => `<button type="button" class="pfs-react-btn" data-react="${em}">${em}</button>`).join('')}
+          </div>
+          <div class="pfs-chat-feed" id="pfsChatFeed"></div>
+        </div>
+        <div class="pfs-dock pfs-dock-v14" id="pfsDockSlot">
+          <button type="button" class="pfs-dock-ico ${partySpeakerOn ? 'on' : 'off'}" id="pfsSpkBtn" data-pfs-act="toggle-speaker">${partySpeakerOn ? '🔊' : '🔈'}</button>
+          <button type="button" class="pfs-dock-ico ${canSpeak ? (mySeat.muted ? 'muted' : 'live') : 'muted'}" id="pfsMicBtn" data-pfs-act="toggle-mic">${!canSpeak ? '👂' : (mySeat.muted ? '🔇' : '🎙️')}</button>
+          <input id="pfsChatIn" maxlength="160" placeholder="Type message..." autocomplete="off">
+          <button type="button" class="pfs-dock-send" data-pfs-act="send-chat">➤</button>
+          <button type="button" class="pfs-dock-ico gift" data-pfs-act="open-gift">🎁</button>
+          <button type="button" class="pfs-dock-ico apps" data-pfs-act="open-music">♪</button>
         </div>
       </div>
+    `;
+  }
 
-      <div class="pfs-main-scroll">
-        ${rm.mode === 'video' ? `
-          <div class="pfs-video-card">
-            ${vs.videoId ? `
-              <div class="pfs-yt-frame">
-                <iframe src="https://www.youtube.com/embed/${esc(vs.videoId)}?autoplay=${vs.playing ? 1 : 0}&start=${syncStart}&rel=0" allow="autoplay; encrypted-media" allowfullscreen title="Synced Room Video"></iframe>
-              </div>
-              <div class="pfs-vid-bar">
-                <span>${vs.playing ? '▶ Synced Play' : '⏸ Paused'} · ${syncStart}s</span>
-                <div class="row" style="gap:5px">
-                  <button type="button" class="btn sm ok" data-vid-sync="toggle">${vs.playing ? 'Pause All' : 'Play All'}</button>
-                  <button type="button" class="btn sm ghost" data-pfs-act="open-add-video">Change</button>
-                </div>
-              </div>
-            ` : `
-              <div class="pfs-vid-empty">
-                <b>Watch Together Stage</b>
-                <small>Add a YouTube link to sync across room</small>
-                <button type="button" class="btn gold sm" style="margin-top:6px" data-pfs-act="open-add-video">+ Add Video</button>
-              </div>
-            `}
+  const hdr = $('#pfsHdrSlot', root);
+  if (hdr) {
+    hdr.innerHTML = `
+      <div class="pfs-hdr-left">
+        <button type="button" class="pfs-hdr-btn" data-pfs-act="close" aria-label="Exit Room">←</button>
+        <div class="pfs-hdr-meta">
+          <div class="pfs-hdr-title-row">
+            <b class="pfs-title">${esc(rm.title)}</b>
+            <span class="pfs-tag-txt">· ${esc(modeMeta.name)}</span>
           </div>
-        ` : ''}
-
-        <div class="pfs-stage">
-          <div class="pfs-owner-solo">${renderSeatTile(rm, 0)}</div>
-          <div class="pfs-seats-4col">
-            ${[1, 2, 3, 4, 5, 6, 7, 8].map(i => renderSeatTile(rm, i)).join('')}
+          <div class="pfs-hdr-id-row">
+            <span class="pfs-id-btn">Owner: ${esc(rm.hostName)} · ID ${esc(rm.shortId)}</span>
           </div>
         </div>
-
-        <div class="pfs-react-dock">
-          ${PARTY_REACTIONS.map(em => `<button type="button" class="pfs-react-btn" data-react="${em}">${em}</button>`).join('')}
-        </div>
-
-        <div class="pfs-chat-feed" id="pfsChatFeed">
-          ${getMergedPartyMessages(rm).slice(-24).map(c => {
-            if (c.type === 'sys') return `<div class="pfs-msg sys">${esc(c.text)}</div>`;
-            const canDel = canDeletePartyMessage(c);
-            return `<div class="pfs-msg pfs-msg-row" data-pmsg-id="${esc(c.id)}">
-              <div class="pfs-msg-body"><b>${esc(c.name)}:</b> <span>${esc(c.text)}</span></div>
-              ${canDel ? `<button type="button" class="pfs-msg-del" data-del-pmsg="${esc(c.id)}" title="Delete message" aria-label="Delete message">🗑️</button>` : ''}
-            </div>`;
-          }).join('')}
-        </div>
       </div>
-
-      <div class="pfs-dock pfs-dock-v14">
-        <button type="button" class="pfs-dock-ico ${partySpeakerOn ? 'on' : 'off'}" data-pfs-act="toggle-speaker">${partySpeakerOn ? '🔊' : '🔈'}</button>
-        <button type="button" class="pfs-dock-ico ${canSpeak ? (mySeat.muted ? 'muted' : 'live') : 'muted'}" data-pfs-act="toggle-mic">
-          ${!canSpeak ? '👂' : (mySeat.muted ? '🔇' : '🎙️')}
-        </button>
-        <input id="pfsChatIn" maxlength="160" placeholder="Type message..." autocomplete="off">
-        <button type="button" class="pfs-dock-send" data-pfs-act="send-chat">➤</button>
-        <button type="button" class="pfs-dock-ico gift" data-pfs-act="open-gift">🎁</button>
-        <button type="button" class="pfs-dock-ico apps" data-pfs-act="open-music">♪</button>
+      <div class="pfs-hdr-right">
+        <button type="button" class="pfs-hdr-btn" data-pfs-act="open-invite" title="Invite Friends to Voice Room" aria-label="Invite to Room">👥</button>
+        <button type="button" class="pfs-hdr-btn" data-pfs-act="minimize" title="Minimize">−</button>
+        <button type="button" class="pfs-hdr-btn" data-pfs-act="open-music" title="Music">♪</button>
+        <button type="button" class="pfs-hdr-btn" data-pfs-act="open-modes" title="Modes">⊞</button>
       </div>
-    </div>
-  `;
+    `;
+  }
+
+  const subbar = $('#pfsSubbarSlot', root);
+  if (subbar) {
+    subbar.innerHTML = `
+      <button type="button" class="pfs-music-pill ${rm.musicPlaying ? 'playing' : ''}" data-pfs-act="open-music">
+        <span>♪</span>
+        <span class="pfs-music-lbl">${esc(rm.musicTitle || (rm.musicUrl ? 'Audio Stream' : 'No Song'))}</span>
+      </button>
+      <div class="pfs-subbar-right">
+        <button type="button" class="pfs-mode-chip" data-pfs-act="open-modes">${esc(modeMeta.name)} ▾</button>
+        <span class="pfs-turn-chip">${canSpeak ? '🎙️ Mic Seat (0-3)' : '👂 Listener'}</span>
+      </div>
+    `;
+  }
+
+  // Non-destructive live video sync update
+  const videoSlot = $('#pfsVideoSlot', root);
+  if (videoSlot) {
+    PartyVideoSync.syncRoom(rm, videoSlot);
+  }
+
+  const stage = $('#pfsStageSlot', root);
+  if (stage) {
+    stage.innerHTML = `
+      <div class="pfs-owner-solo">${renderSeatTile(rm, 0)}</div>
+      <div class="pfs-seats-4col">
+        ${[1, 2, 3, 4, 5, 6, 7, 8].map(i => renderSeatTile(rm, i)).join('')}
+      </div>
+    `;
+  }
+
   const feed = $('#pfsChatFeed', root);
-  if (feed) feed.scrollTop = feed.scrollHeight;
+  if (feed) {
+    const msgsHtml = getMergedPartyMessages(rm).slice(-24).map(c => {
+      if (c.type === 'sys') return `<div class="pfs-msg sys">${esc(c.text)}</div>`;
+      const canDel = canDeletePartyMessage(c);
+      return `<div class="pfs-msg pfs-msg-row" data-pmsg-id="${esc(c.id)}">
+        <div class="pfs-msg-body"><b>${esc(c.name)}:</b> <span>${esc(c.text)}</span></div>
+        ${canDel ? `<button type="button" class="pfs-msg-del" data-del-pmsg="${esc(c.id)}" title="Delete message" aria-label="Delete message">🗑️</button>` : ''}
+      </div>`;
+    }).join('');
+    if (feed.dataset.lastHtml !== msgsHtml) {
+      feed.dataset.lastHtml = msgsHtml;
+      feed.innerHTML = msgsHtml;
+      feed.scrollTop = feed.scrollHeight;
+    }
+  }
+
+  const spkBtn = $('#pfsSpkBtn', root);
+  if (spkBtn) {
+    spkBtn.className = `pfs-dock-ico ${partySpeakerOn ? 'on' : 'off'}`;
+    spkBtn.textContent = partySpeakerOn ? '🔊' : '🔈';
+  }
+  const micBtn = $('#pfsMicBtn', root);
+  if (micBtn) {
+    micBtn.className = `pfs-dock-ico ${canSpeak ? (mySeat.muted ? 'muted' : 'live') : 'muted'}`;
+    micBtn.textContent = !canSpeak ? '👂' : (mySeat.muted ? '🔇' : '🎙️');
+  }
 }
 
 function partyTakeSeat(rm, idx) {
@@ -1099,19 +1711,33 @@ function openPartyMusicModal(rm) {
 }
 
 function openPartyVideoModal(rm) {
-  const m = modal('Synced YouTube Video', `
-    <label for="pvIn">YouTube Link or Video ID</label>
-    <input id="pvIn" placeholder="https://youtu.be/..." value="${esc(rm.videoSync?.videoId || rm.youtubeId || '')}">
+  const curVal = rm.videoSync?.videoUrl || rm.videoSync?.videoId || rm.youtubeId || '';
+  const m = modal('Synced Room Video (Same Time)', `
+    <label for="pvIn">YouTube Link / Video ID or Direct .mp4 / .webm URL</label>
+    <input id="pvIn" placeholder="https://youtu.be/... or https://.../video.mp4" value="${esc(curVal)}">
+    <small style="display:block;color:var(--mu);margin-top:5px">Play, pause, and skip/seek stay synced live for everyone in the room.</small>
     <button type="button" class="btn gold full" id="pvGo" style="margin-top:10px">Sync Video For Room</button>
   `);
   $('#pvGo', m).onclick = () => {
-    const vid = parseYouTubeVideoId($('#pvIn', m).value || '');
-    if (!vid) return toast('Enter a valid YouTube link or ID');
+    const raw = ($('#pvIn', m).value || '').trim();
+    const parsed = (window.ShowGamesRules && typeof window.ShowGamesRules.parseVideoSource === 'function')
+      ? window.ShowGamesRules.parseVideoSource(raw)
+      : (() => {
+          const yt = parseYouTubeVideoId(raw);
+          if (yt) return { kind: 'youtube', videoId: yt, videoUrl: '' };
+          if (/^(https?:\/\/.+\.(mp4|webm|ogg|m4v)(\?.*)?$|blob:|data:video\/)/i.test(raw)) return { kind: 'direct', videoId: '', videoUrl: raw };
+          return null;
+        })();
+    if (!parsed) return toast('Enter a valid YouTube link/ID or direct .mp4/.webm video URL');
     rm.mode = 'video';
-    rm.youtubeId = vid;
-    rm.videoSync = { videoId: vid, playing: true, seekSec: 0, updatedAt: Date.now() };
-    rm.chat = [...(rm.chat || []), { id: 'vs_' + Date.now().toString(36), type: 'sys', text: `${me.name} synced a YouTube video for the room`, ts: Date.now() }].slice(-45);
-    persistPartyRoom(rm);
+    PartyVideoSync.broadcastSyncUpdate(rm, {
+      kind: parsed.kind,
+      videoId: parsed.videoId,
+      videoUrl: parsed.videoUrl,
+      playing: true,
+      seekSec: 0,
+      durationSec: 0
+    }, `${me.name} synced a ${parsed.kind === 'direct' ? 'video stream' : 'YouTube video'} for the room`);
     m.close();
   };
 }
@@ -1147,14 +1773,15 @@ function bindPartyRootDelegation(root) {
     const occ = e.target.closest('[data-seat-uid]');
     if (occ) { openSeatModModal(rm, Number(occ.dataset.seatIdx)); return; }
 
+    const vidActBtn = e.target.closest('[data-vid-act]');
+    if (vidActBtn && vidActBtn.dataset.vidAct) {
+      PartyVideoSync.handleAction(rm, vidActBtn.dataset.vidAct);
+      return;
+    }
+
     const vidSyncBtn = e.target.closest('[data-vid-sync]');
     if (vidSyncBtn) {
-      const vs = rm.videoSync || { videoId: rm.youtubeId || '', playing: false, seekSec: 0, updatedAt: Date.now() };
-      const curSec = vs.playing ? Math.max(0, Number(vs.seekSec || 0) + Math.floor((Date.now() - Number(vs.updatedAt || Date.now())) / 1000)) : Number(vs.seekSec || 0);
-      const nextPlaying = !vs.playing;
-      rm.videoSync = { ...vs, playing: nextPlaying, seekSec: curSec, updatedAt: Date.now() };
-      rm.chat = [...(rm.chat || []), { id: 'vs_' + Date.now().toString(36), type: 'sys', text: `${me.name} ${nextPlaying ? 'played' : 'paused'} video at ${curSec}s`, ts: Date.now() }].slice(-45);
-      persistPartyRoom(rm);
+      PartyVideoSync.handleAction(rm, 'toggle');
       return;
     }
 
@@ -1174,6 +1801,8 @@ function bindPartyRootDelegation(root) {
       minimizedPartyRoomId = rm.id;
       activePartyRoomId = null;
       unsubscribeRoomMessages();
+      PartyVideoSync.destroy();
+      root.dataset.mountedRoomId = '';
       root.classList.remove('open');
       root.hidden = true;
       document.body.classList.remove('party-fs-lock');
@@ -1192,6 +1821,7 @@ function bindPartyRootDelegation(root) {
       partySpeakerOn = !partySpeakerOn;
       PartyWebRtcMesh.syncSpeaker(partySpeakerOn);
       PartyAudioPlayer.syncSpeaker(partySpeakerOn);
+      PartyVideoSync.syncSpeaker(partySpeakerOn);
       renderFullScreenPartyRoom();
     } else if (act === 'toggle-mic') {
       const key = findUserSeatKeyInRoom(rm, uid);

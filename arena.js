@@ -616,7 +616,7 @@ function openArenaGame(gameId, rivalUid, extraOpts) {
     };
   });
 
-  $('#arStartMatchBtn', view).onclick = () => {
+  $('#arStartMatchBtn', view).onclick = async () => {
     const botTier = selectedStake > 0 ? 'pro' : 'standard';
     if (selectedStake > 0) {
       if (me.coins < selectedStake) return toast(`Need ${selectedStake} coins for this stake`);
@@ -625,16 +625,23 @@ function openArenaGame(gameId, rivalUid, extraOpts) {
     } else if (typeof playSfx === 'function') {
       playSfx('turnStart');
     }
+    if (typeof ensureGameModule === 'function') {
+      try { await ensureGameModule(gameId); } catch {}
+    }
     const activeCode = (typeof activeRoomId !== 'undefined' && activeRoomId && typeof mpRooms !== 'undefined')
       ? (mpRooms.find(r => r.id === activeRoomId)?.code || '')
       : '';
+    if (typeof launchStandardizedGame === 'function') {
+      return launchStandardizedGame(gameId, { modeType: selectedStake > 0 ? 'pvp' : 'bot', botTier, stake: selectedStake, stakeDeducted: selectedStake > 0, subMode: selectedMode, roomCode: activeCode || undefined, rival });
+    }
     if (gameId === 'jackaroo' && typeof launchJackaroo === 'function') launchJackaroo(selectedStake, rival, selectedMode, botTier, activeCode);
     else if (gameId === 'uno' && typeof launchUnoGame === 'function') launchUnoGame(selectedStake, rival, selectedMode, botTier, activeCode);
     else if (gameId === 'blitz_dots') launchBlitzDots(selectedStake, rival, botTier);
-    else if (gameId === 'pool_8ball') launchPool8Ball(selectedStake, rival, botTier);
+    else if (gameId === 'pool_8ball' && typeof launchPool8BallPro === 'function') launchPool8BallPro({ modeType: 'bot', botTier, stake: selectedStake, roomCode: activeCode, rival });
     else if (gameId === 'undercover') launchUndercoverSpy(selectedStake, botTier);
     else if (gameId === 'squad_arena') launchSquadTrivia(selectedStake, rival, botTier);
-    else launchLudoExpress(selectedStake, rival, botTier);
+    else if (gameId === 'ludo_snakes' || gameId === 'ludo_express') launchLudoExpress(selectedStake, rival, botTier);
+    else if (typeof toast === 'function') toast('Could not load game module. Please refresh once.');
   };
 
   const extraRulesBtn = $('#arExtraRulesBtn', view);
@@ -1172,14 +1179,28 @@ function launchPool8Ball(stake, rival, botTierRaw) {
 }
 
 /* 3. UNDERCOVER SPY */
+const UNDERCOVER_WORD_PAIRS = [
+  { id: 'uc01', civ: 'Coffee', spy: 'Tea', civClues: ['Morning roast', 'Cafe cup', 'Espresso boost'], spyClues: ['Steeped leaf', 'Herbal mug', 'Warm brew'] },
+  { id: 'uc02', civ: 'Guitar', spy: 'Violin', civClues: ['Six strings', 'Rock stage', 'Strum chords'], spyClues: ['Bow string', 'Orchestra wood', 'Classic solo'] },
+  { id: 'uc03', civ: 'Beach', spy: 'Desert', civClues: ['Ocean waves', 'Sun umbrella', 'Salty breeze'], spyClues: ['Golden dunes', 'Dry oasis', 'Hot sand'] },
+  { id: 'uc04', civ: 'Pizza', spy: 'Burger', civClues: ['Cheesy slice', 'Wood oven', 'Crispy crust'], spyClues: ['Stacked patty', 'Sesame bun', 'Grill special'] },
+  { id: 'uc05', civ: 'Cricket', spy: 'Baseball', civClues: ['Three stumps', 'Boundary six', 'Pitch bowler'], spyClues: ['Home run', 'Diamond field', 'Catcher mitt'] },
+  { id: 'uc06', civ: 'Train', spy: 'Metro', civClues: ['Long journey', 'Sleeper coach', 'Platform whistle'], spyClues: ['City tunnel', 'Quick commute', 'Smart card gate'] },
+  { id: 'uc07', civ: 'Cinema', spy: 'Theater', civClues: ['Giant screen', 'Popcorn tub', 'Trailer lights'], spyClues: ['Live actors', 'Velvet curtain', 'Stage applause'] },
+  { id: 'uc08', civ: 'Laptop', spy: 'Tablet', civClues: ['Hinge keyboard', 'Coding desk', 'Trackpad click'], spyClues: ['Touch slate', 'Stylus sketch', 'Slim screen'] },
+  { id: 'uc09', civ: 'Mango', spy: 'Peach', civClues: ['Summer king', 'Juicy yellow', 'Sweet pulp'], spyClues: ['Fuzzy skin', 'Orchard fruit', 'Soft pit'] },
+  { id: 'uc10', civ: 'Chess', spy: 'Checkers', civClues: ['Knight jump', 'Checkmate king', '64 squares'], spyClues: ['Diagonal hop', 'Red discs', 'Double jump'] },
+  { id: 'uc11', civ: 'Rocket', spy: 'Airplane', civClues: ['Orbit launch', 'Countdown fire', 'Space mission'], spyClues: ['Runway takeoff', 'Cabin window', 'Cloud cruise'] },
+  { id: 'uc12', civ: 'Camera', spy: 'Telescope', civClues: ['Shutter flash', 'Portrait lens', 'Photo frame'], spyClues: ['Night stars', 'Tripod zoom', 'Crater view'] }
+];
+
 function launchUndercoverSpy(stake, botTierRaw) {
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
-  const pairs = [
-    { civ: 'Coffee', spy: 'Tea', civClues: ['Morning roast', 'Cafe cup', 'Espresso boost'], spyClues: ['Steeped leaf', 'Herbal mug', 'Warm brew'] },
-    { civ: 'Guitar', spy: 'Violin', civClues: ['Six strings', 'Rock stage', 'Strum chords'], spyClues: ['Bow string', 'Orchestra wood', 'Classic solo'] },
-    { civ: 'Beach', spy: 'Desert', civClues: ['Ocean waves', 'Sun umbrella', 'Salty breeze'], spyClues: ['Golden dunes', 'Dry oasis', 'Hot sand'] }
-  ];
-  const pair = pairs[Math.floor(Math.random() * pairs.length)];
+  const SR = window.ShowGamesRules;
+  const drawnPairs = SR && typeof SR.drawPersistentQuestions === 'function'
+    ? SR.drawPersistentQuestions('undercover_pairs', UNDERCOVER_WORD_PAIRS, 1, p => p.id)
+    : [UNDERCOVER_WORD_PAIRS[Math.floor(Math.random() * UNDERCOVER_WORD_PAIRS.length)]];
+  const pair = drawnPairs[0] || UNDERCOVER_WORD_PAIRS[0];
   const players = [
     { id: 'you', name: me.name || 'You', avatar: me.avatar || 'av_b1', isMe: true, alive: true, isSpy: false, clue: '' },
     { id: 'b1', name: 'Aria Nova', avatar: 'av_g1', isMe: false, alive: true, isSpy: false, clue: '' },
@@ -1339,15 +1360,35 @@ function launchUndercoverSpy(stake, botTierRaw) {
 }
 
 /* 4. SQUAD TRIVIA 1v1 */
+const SQUAD_TRIVIA_BANK = [
+  { id: 'sq01', q: 'Which planet has the most moons?', o: ['Mars', 'Saturn', 'Venus', 'Mercury'], a: 1 },
+  { id: 'sq02', q: '18 × 7 = ?', o: ['116', '126', '132', '124'], a: 1 },
+  { id: 'sq03', q: 'SI unit of electrical resistance?', o: ['Watt', 'Volt', 'Ohm', 'Tesla'], a: 2 },
+  { id: 'sq04', q: 'Capital of South Korea?', o: ['Busan', 'Osaka', 'Seoul', 'Taipei'], a: 2 },
+  { id: 'sq05', q: 'Chemical symbol for Potassium?', o: ['Po', 'K', 'Pt', 'P'], a: 1 },
+  { id: 'sq06', q: 'Which river flows through Cairo?', o: ['Amazon', 'Nile', 'Danube', 'Euphrates'], a: 1 },
+  { id: 'sq07', q: 'What is the square root of 225?', o: ['13', '14', '15', '16'], a: 2 },
+  { id: 'sq08', q: 'Which vitamin prevents scurvy?', o: ['Vitamin A', 'Vitamin B12', 'Vitamin C', 'Vitamin D'], a: 2 },
+  { id: 'sq09', q: 'Which country is known as the Land of the Rising Sun?', o: ['Thailand', 'Japan', 'Vietnam', 'Nepal'], a: 1 },
+  { id: 'sq10', q: 'How many players are on a standard soccer team on the field?', o: ['9', '10', '11', '12'], a: 2 },
+  { id: 'sq11', q: 'Which gas is essential for human respiration?', o: ['Nitrogen', 'Oxygen', 'Argon', 'Neon'], a: 1 },
+  { id: 'sq12', q: 'What is the hardest naturally occurring mineral?', o: ['Quartz', 'Topaz', 'Diamond', 'Corundum'], a: 2 },
+  { id: 'sq13', q: 'Who painted the Mona Lisa?', o: ['Picasso', 'Van Gogh', 'Leonardo da Vinci', 'Michelangelo'], a: 2 },
+  { id: 'sq14', q: 'Which continent has the Sahara Desert?', o: ['Asia', 'Africa', 'Australia', 'South America'], a: 1 },
+  { id: 'sq15', q: '25% of 360 equals?', o: ['80', '85', '90', '95'], a: 2 },
+  { id: 'sq16', q: 'Which blood cells fight infections?', o: ['Red blood cells', 'White blood cells', 'Platelets', 'Plasma'], a: 1 },
+  { id: 'sq17', q: 'What is the capital of Canada?', o: ['Toronto', 'Vancouver', 'Ottawa', 'Montreal'], a: 2 },
+  { id: 'sq18', q: 'Which instrument measures atmospheric pressure?', o: ['Thermometer', 'Barometer', 'Hygrometer', 'Anemometer'], a: 1 },
+  { id: 'sq19', q: 'How many degrees are in the interior angles of a triangle?', o: ['90°', '180°', '270°', '360°'], a: 1 },
+  { id: 'sq20', q: 'Which ocean lies between Europe and North America?', o: ['Indian', 'Pacific', 'Atlantic', 'Southern'], a: 2 }
+];
+
 function launchSquadTrivia(stake, rival, botTierRaw) {
   const botTier = botTierRaw || (stake > 0 ? 'pro' : 'standard');
-  const qs = [
-    { q: 'Which planet has the most moons?', o: ['Mars', 'Saturn', 'Venus', 'Mercury'], a: 1 },
-    { q: '18 × 7 = ?', o: ['116', '126', '132', '124'], a: 1 },
-    { q: 'SI unit of electrical resistance?', o: ['Watt', 'Volt', 'Ohm', 'Tesla'], a: 2 },
-    { q: 'Capital of South Korea?', o: ['Busan', 'Osaka', 'Seoul', 'Taipei'], a: 2 },
-    { q: 'Chemical symbol for Potassium?', o: ['Po', 'K', 'Pt', 'P'], a: 1 }
-  ];
+  const SR = window.ShowGamesRules;
+  const qs = SR && typeof SR.drawPersistentQuestions === 'function'
+    ? SR.drawPersistentQuestions('squad_trivia', SQUAD_TRIVIA_BANK, 5, q => q.id)
+    : SQUAD_TRIVIA_BANK.slice(0, 5);
   let idx = 0, myScore = 0, botScore = 0, streak = 0, locked = false, over = false;
   const oppName = rival?.name || (botTier === 'pro' ? 'Apex Pro Bot' : 'Rival Bot');
   const pay = calcArenaStakePayout(stake);

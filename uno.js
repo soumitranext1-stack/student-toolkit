@@ -693,7 +693,7 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
     statusText: isSpectating ? 'Spectating' : modeTitle,
     statusTone: 'turn',
     themeClass: 'gfs-theme-uno',
-    html: `<div class="uno-garden-root" id="unoGardenRoot" data-testid="uno-garden-root"></div><div id="unoTableChatHost" class="uno-tchat-host"></div>`
+    html: `<div class="uno-garden-root" id="unoGardenRoot" data-testid="uno-garden-root"></div>${isSpectating ? '<div id="unoTableChatHost" class="uno-tchat-host"></div>' : ''}`
   });
 
   if (!isSpectating && typeof setMyLiveActivity === 'function') {
@@ -701,14 +701,14 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
   }
 
   let tableChatWidget = null;
-  if (typeof createInGameChatWidget === 'function') {
+  if (isSpectating && typeof createInGameChatWidget === 'function') {
     tableChatWidget = createInGameChatWidget({
       roomCode,
       gameName: 'UNO Garden',
-      spectate: isSpectating,
+      spectate: true,
       quickMessages: ['Nice play! 🃏', 'Watch out +4! 🔥', 'ONE! 🔔', 'Good game! 🤝'],
       onSend: (txt) => {
-        if (!isSpectating) showBubble(0, txt);
+        showBubble(0, txt);
       }
     });
     const chatHost = $('#unoTableChatHost', view);
@@ -1370,13 +1370,13 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
     const myHand = players[0].hand;
     const totalCards = myHand.length;
     const mid = (totalCards - 1) / 2;
-    const overlapPx = totalCards > 9 ? -32 : (totalCards > 6 ? -24 : -16);
+    const overlapPx = totalCards > 9 ? -22 : (totalCards > 6 ? -14 : (totalCards > 4 ? -8 : -2));
 
     const handHtml = myHand.map((card, idx) => {
       const playable = isMyTurn && Rules.canPlayCard(card, top, activeColor, pendingDraw, funStacking);
       const off = idx - mid;
-      const rot = (off * (totalCards > 8 ? 2.4 : 3.4)).toFixed(1);
-      const ty = (Math.abs(off) * (totalCards > 8 ? 1.5 : 2.1)).toFixed(1);
+      const rot = (off * (totalCards > 8 ? 1.6 : 2.1)).toFixed(1);
+      const ty = (Math.abs(off) * (totalCards > 8 ? 1.1 : 1.5)).toFixed(1);
       const ml = idx === 0 ? 0 : overlapPx;
       return renderUnoCardHtml(card, {
         interactive: !isSpectating,

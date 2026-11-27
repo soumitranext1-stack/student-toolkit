@@ -233,9 +233,9 @@ function attachUserListeners(){
   userUnsubs.push(S.onSnapshot(S.query(S.collection(db,'dm_messages'),S.where('to','==',uid)),s=>{buf.a=s.docs.map(d=>({id:d.id,...d.data()}));push()},()=>{}));
   userUnsubs.push(S.onSnapshot(S.query(S.collection(db,'dm_messages'),S.where('from','==',uid)),s=>{buf.b=s.docs.map(d=>({id:d.id,...d.data()}));push()},()=>{}));
   if(devMode){
-    userUnsubs.push(S.onSnapshot(S.collection(db,'dev_inbox'),snap=>{const next={};snap.docs.forEach(d=>{next[d.id]={uid:d.id,...d.data()}});devInbox=next;ls.set('sg_dev_inbox',devInbox);if(!cur)renderChats()},()=>{}));
+    userUnsubs.push(S.onSnapshot(S.collection(db,'dev_inbox'),snap=>{const next={};snap.docs.forEach(d=>{next[d.id]={uid:d.id,...d.data()}});devInbox=next;ls.set('sg_dev_inbox',devInbox);if(!cur){if(typeof markTabsDirty==='function')markTabsDirty('chat');else renderChats()}},()=>{}));
   }else{
-    userUnsubs.push(S.onSnapshot(S.doc(db,'dev_inbox',uid),sn=>{devInbox=sn.exists()?{[uid]:{uid,...sn.data()}}:{};ls.set('sg_dev_inbox',devInbox);if(!cur)renderChats()},()=>{}));
+    userUnsubs.push(S.onSnapshot(S.doc(db,'dev_inbox',uid),sn=>{devInbox=sn.exists()?{[uid]:{uid,...sn.data()}}:{};ls.set('sg_dev_inbox',devInbox);if(!cur){if(typeof markTabsDirty==='function')markTabsDirty('chat');else renderChats()}},()=>{}));
   }
 }
 
@@ -294,9 +294,10 @@ async function initFirebase(){
       }
       const d=s.data();
       mergeAppearanceFromCloud({...d,_hasCoins:typeof d?.coins==='number'});
-      applyDevUI();checkBan();updateHud();buildProfile();renderAll();
+      applyDevUI();checkBan();updateHud();renderAll();
     }).catch(()=>{});
 
+    let usersRenderTimer=0;
     S.onSnapshot(S.collection(db,'users'),snap=>{
       const docs=snap.docs.map(d=>sanitizeUserAppearance({uid:d.id,...d.data()}));
       cleanupInactiveGuestUsers(docs);
@@ -307,7 +308,9 @@ async function initFirebase(){
       usersHydrated=true;ls.set('sg_users_cache',users);
       const m=users.find(x=>x.uid===uid);
       if(m){mergeAppearanceFromCloud(m);applyDevUI();checkBan()}
-      setStatus(true);claimRankReward();checkReferralPayout();updateHud();renderAll();
+      setStatus(true);claimRankReward();checkReferralPayout();updateHud();
+      clearTimeout(usersRenderTimer);
+      usersRenderTimer=setTimeout(()=>{usersRenderTimer=0;renderAll();},160);
     },()=>{});
 
     S.onSnapshot(S.collection(db,'gift_events'),snap=>{
@@ -317,7 +320,9 @@ async function initFirebase(){
 
     S.onSnapshot(S.collection(db,'store_items'),snap=>{
       customItems=snap.docs.map(d=>({id:d.id,...d.data()})).filter(c=>!DEFAULT_ITEMS.some(x=>x.id===c.id) && !(typeof isRankExclusiveKey==='function'&&isRankExclusiveKey(`${c.kind}:${c.value}`)));
-      ls.set('sg_store_custom',customItems);storeItems=[...DEFAULT_ITEMS,...customItems];renderStore();
+      ls.set('sg_store_custom',customItems);storeItems=[...DEFAULT_ITEMS,...customItems];
+      if(typeof markTabsDirty==='function')markTabsDirty('store');
+      else renderStore();
     },()=>{});
 
     S.onSnapshot(S.collection(db,'rank_rewards'),snap=>{
@@ -325,7 +330,8 @@ async function initFirebase(){
         rankRewards=snap.docs.map(d=>({id:d.id,...d.data()}));
         ls.set('sg_rank_rewards',rankRewards);
       }
-      renderRanking();
+      if(typeof markTabsDirty==='function')markTabsDirty('ranking');
+      else renderRanking();
     },()=>{});
 
     /* World Chat with automatic 7-day cleanup + 150 msg cap + live incoming Sound FX & Luxury Showcase */
@@ -375,7 +381,9 @@ async function initFirebase(){
       prevWorldIds=new Set(list.map(x=>x.id));
       worldMsgs=list;ls.set('sg_world_msgs',worldMsgs);
       if(cur==='world')renderThread();
+      else if(typeof markTabsDirty==='function')markTabsDirty('chat');
       else renderChats();
+      if(typeof updateUnreadDots==='function')updateUnreadDots();
     },()=>{});
 
     /* Live Multiplayer Game Rooms listener (auto-cleans stale rooms older than 2 hours) */
@@ -422,12 +430,18 @@ async function initFirebase(){
       poems=list;ls.set('sg_poems_cache',poems);renderPoems();
     },()=>{});
 
-    S.onSnapshot(S.collection(db,'dev_tasks'),snap=>{devTasks=snap.docs.map(d=>({id:d.id,...d.data()}));ls.set('sg_dev_tasks',devTasks);renderTasks()},()=>{});
+    S.onSnapshot(S.collection(db,'dev_tasks'),snap=>{
+      devTasks=snap.docs.map(d=>({id:d.id,...d.data()}));
+      ls.set('sg_dev_tasks',devTasks);
+      if(typeof markTabsDirty==='function')markTabsDirty('tasks');
+      else renderTasks();
+    },()=>{});
     S.onSnapshot(S.doc(db,'config','notice'),sn=>{notice=sn.exists()?sn.data():null;ls.set('sg_notice',notice);renderNotice()},()=>{});
     S.onSnapshot(S.doc(db,'config','game_slots'),sn=>{
       customGameSlots=sn.exists()&&Array.isArray(sn.data().slots)?sn.data().slots:[];
       ls.set('sg_game_slots',customGameSlots);
-      renderGameSlots();
+      if(typeof markTabsDirty==='function')markTabsDirty('games');
+      else renderGameSlots();
     },()=>{});
 
     S.onSnapshot(S.collection(db,'referrals'),snap=>{

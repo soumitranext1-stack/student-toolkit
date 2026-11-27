@@ -45,63 +45,112 @@ function recordMatchHistory(gameId, outcome, stake, modeType) {
 }
 window.recordMatchHistory = recordMatchHistory;
 
-function launchStandardizedGame(gameId, cfg) {
+const _MS_FALLBACK_BUNDLES = {
+  ludo: ['ludo-rules.js?v=30', 'ludo.js?v=30'],
+  number_match: ['number-match-rules.js?v=30', 'number-match.js?v=30'],
+  jackaroo: ['jackaroo-rules.js?v=30', 'jackaroo.js?v=30'],
+  uno: ['uno-rules.js?v=30', 'uno.js?v=30'],
+  pool_8ball: ['pool-8ball.js?v=30'],
+  chess_blitz: ['chess-arena.js?v=30'],
+  tile_race: ['voice-narrator.js?v=30', 'arcade-games.js?v=30'],
+  trap_door: ['voice-narrator.js?v=30', 'arcade-games.js?v=30'],
+  mind_clash: ['voice-narrator.js?v=30', 'arcade-games.js?v=30'],
+  pocket_territory: ['voice-narrator.js?v=30', 'arcade-games.js?v=30'],
+  budget_clash: ['voice-narrator.js?v=30', 'budget-clash.js?v=30'],
+  couple_arena: ['voice-narrator.js?v=30', 'budget-clash.js?v=30', 'couple-arena.js?v=30']
+};
+
+function _msLoadScriptDirect(src) {
+  return new Promise((resolve, reject) => {
+    const base = src.split('?')[0];
+    if ([...document.scripts].some(s => (s.getAttribute('src') || '').split('?')[0] === base)) {
+      return resolve(true);
+    }
+    const el = document.createElement('script');
+    el.src = src;
+    el.async = false;
+    el.onload = () => resolve(true);
+    el.onerror = () => reject(new Error('Failed to load ' + base));
+    document.head.appendChild(el);
+  });
+}
+
+async function _msEnsureGameReady(gameId) {
+  if (typeof ensureGameModule === 'function') {
+    const ok = await ensureGameModule(gameId);
+    if (ok) return true;
+  }
+  const files = _MS_FALLBACK_BUNDLES[gameId];
+  if (!files || !files.length) return true;
+  try {
+    for (const f of files) await _msLoadScriptDirect(f);
+    return true;
+  } catch (err) {
+    console.warn('Fallback game loader error:', err);
+    return false;
+  }
+}
+
+async function launchStandardizedGame(rawGameId, cfg) {
   const c = cfg || {};
+  let gameId = String(rawGameId || '').trim().toLowerCase();
+  let subMode = c.subMode || '';
+  if (gameId === 'couple_mind_sync') { gameId = 'couple_arena'; subMode = subMode || 'mind_sync'; }
+  else if (gameId === 'couple_truth_dare') { gameId = 'couple_arena'; subMode = subMode || 'truth_dare'; }
+  else if (gameId === 'couple_most_likely') { gameId = 'couple_arena'; subMode = subMode || 'most_likely'; }
+  else if (gameId === 'couple_love_meter') { gameId = 'couple_arena'; subMode = subMode || 'love_meter'; }
+
   const stake = Math.max(0, Math.floor(Number(c.stake || 0)));
   const botTier = c.botTier || (stake > 0 ? 'pro' : 'standard');
-  const subMode = c.subMode || '';
   const roomCode = c.roomCode || genGameRoomCode(gameId);
   const rival = c.rival || null;
   const modeType = c.modeType || 'bot';
+  const stakeDeducted = Boolean(c.stakeDeducted);
 
+  const ready = await _msEnsureGameReady(gameId);
+  if (!ready) {
+    if (typeof toast === 'function') toast('Could not load game. Please refresh & try again.');
+    return false;
+  }
+
+  let launched = null;
+  let matched = false;
   if (gameId === 'budget_clash' && typeof launchBudgetClash === 'function') {
-    return launchBudgetClash({ modeType, botTier, stake, subMode: subMode || 'ten_vs_cr', roomCode, rival });
+    matched = true; launched = launchBudgetClash({ modeType, botTier, stake, stakeDeducted, subMode: subMode || 'ten_vs_cr', roomCode, rival });
+  } else if (gameId === 'couple_arena' && typeof launchCoupleArena === 'function') {
+    matched = true; launched = launchCoupleArena({ modeType, botTier, stake, stakeDeducted, subMode: subMode || 'mind_sync', roomCode, rival });
+  } else if (gameId === 'pool_8ball' && typeof launchPool8BallPro === 'function') {
+    matched = true; launched = launchPool8BallPro({ modeType, botTier, stake, roomCode, rival });
+  } else if (gameId === 'jackaroo' && typeof launchJackaroo === 'function') {
+    matched = true; launched = launchJackaroo(stake, rival, subMode === '2v2' ? '2v2' : '1v1', botTier, roomCode);
+  } else if (gameId === 'uno' && typeof launchUnoGame === 'function') {
+    matched = true; launched = launchUnoGame(stake, rival, subMode || (modeType === 'pvp' ? '1v1' : 'classic'), botTier, roomCode);
+  } else if (gameId === 'chess_blitz' && typeof launchChessBlitzArena === 'function') {
+    matched = true; launched = launchChessBlitzArena({ modeType, botTier, stake, roomCode, rival });
+  } else if (gameId === 'tile_race' && typeof launchTileRace === 'function') {
+    matched = true; launched = launchTileRace({ modeType, botTier, stake, roomCode, rival });
+  } else if (gameId === 'trap_door' && typeof launchTrapDoorDuel === 'function') {
+    matched = true; launched = launchTrapDoorDuel({ modeType, botTier, stake, roomCode, rival });
+  } else if (gameId === 'mind_clash' && typeof launchMindClash === 'function') {
+    matched = true; launched = launchMindClash({ modeType, botTier, stake, roomCode, rival });
+  } else if (gameId === 'pocket_territory' && typeof launchPocketTerritory === 'function') {
+    matched = true; launched = launchPocketTerritory({ modeType, botTier, stake, roomCode, rival });
+  } else if (gameId === 'ludo' && typeof launchLudoGame === 'function') {
+    matched = true; launched = launchLudoGame({ mode: subMode === '1v1' ? '1v1' : '4p', stake, botTier, roomCode, rival });
+  } else if (gameId === 'number_match' && typeof launchNumberMatch === 'function') {
+    matched = true; launched = launchNumberMatch({ mode: subMode === 'duel' ? 'duel' : 'classic', stake, roomCode, rival });
+  } else if (gameId === 'blitz_dots' && typeof launchBlitzDots === 'function') {
+    matched = true; launched = launchBlitzDots(stake, rival, botTier);
+  } else if (gameId === 'squad_arena' && typeof launchSquadTrivia === 'function') {
+    matched = true; launched = launchSquadTrivia(stake, rival, botTier);
+  } else if (gameId === 'undercover' && typeof launchUndercoverSpy === 'function') {
+    matched = true; launched = launchUndercoverSpy(stake, botTier);
+  } else if ((gameId === 'ludo_snakes' || gameId === 'ludo_express') && typeof launchLudoExpress === 'function') {
+    matched = true; launched = launchLudoExpress(stake, rival, botTier);
   }
-  if (gameId === 'couple_arena' && typeof launchCoupleArena === 'function') {
-    return launchCoupleArena({ modeType, botTier, stake, subMode: subMode || 'mind_sync', roomCode, rival });
-  }
-  if (gameId === 'pool_8ball' && typeof launchPool8BallPro === 'function') {
-    return launchPool8BallPro({ modeType, botTier, stake, roomCode, rival });
-  }
-  if (gameId === 'jackaroo' && typeof launchJackaroo === 'function') {
-    return launchJackaroo(stake, rival, subMode === '2v2' ? '2v2' : '1v1', botTier, roomCode);
-  }
-  if (gameId === 'uno' && typeof launchUnoGame === 'function') {
-    return launchUnoGame(stake, rival, subMode || (modeType === 'pvp' ? '1v1' : 'classic'), botTier, roomCode);
-  }
-  if (gameId === 'chess_blitz' && typeof launchChessBlitzArena === 'function') {
-    return launchChessBlitzArena({ modeType, botTier, stake, roomCode, rival });
-  }
-  if (gameId === 'tile_race' && typeof launchTileRace === 'function') {
-    return launchTileRace({ modeType, botTier, stake, roomCode, rival });
-  }
-  if (gameId === 'trap_door' && typeof launchTrapDoorDuel === 'function') {
-    return launchTrapDoorDuel({ modeType, botTier, stake, roomCode, rival });
-  }
-  if (gameId === 'mind_clash' && typeof launchMindClash === 'function') {
-    return launchMindClash({ modeType, botTier, stake, roomCode, rival });
-  }
-  if (gameId === 'pocket_territory' && typeof launchPocketTerritory === 'function') {
-    return launchPocketTerritory({ modeType, botTier, stake, roomCode, rival });
-  }
-  if (gameId === 'ludo' && typeof launchLudoGame === 'function') {
-    return launchLudoGame({ mode: subMode === '1v1' ? '1v1' : '4p', stake, botTier, roomCode, rival });
-  }
-  if (gameId === 'number_match' && typeof launchNumberMatch === 'function') {
-    return launchNumberMatch({ mode: subMode === 'duel' ? 'duel' : 'classic', stake, roomCode, rival });
-  }
-  if (gameId === 'blitz_dots' && typeof launchBlitzDots === 'function') {
-    return launchBlitzDots(stake, rival, botTier);
-  }
-  if (gameId === 'squad_arena' && typeof launchSquadTrivia === 'function') {
-    return launchSquadTrivia(stake, rival, botTier);
-  }
-  if (gameId === 'undercover' && typeof launchUndercoverSpy === 'function') {
-    return launchUndercoverSpy(stake, botTier);
-  }
-  if (typeof launchLudoExpress === 'function') {
-    return launchLudoExpress(stake, rival, botTier);
-  }
+  if (matched) return launched || true;
+  if (typeof toast === 'function') toast('Could not start ' + (gameId || 'game') + '. Please refresh once.');
+  return false;
 }
 window.launchStandardizedGame = launchStandardizedGame;
 
@@ -275,18 +324,28 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
         };
       });
 
-      $('#msLaunchBtn', panel).onclick = () => {
+      const launchBtn = $('#msLaunchBtn', panel);
+      launchBtn.onclick = async () => {
+        if (launchBtn.disabled) return;
         const res = AR
           ? AR.validateModeEntry({ modeType: 'bot', difficulty: botDiff, userCoins: me.coins })
           : { ok: true, cost: botDiff === 'hard' ? hardCost : 0, botTier: botDiff === 'hard' ? 'pro' : 'standard' };
         if (!res.ok) return toast(res.reason);
+        const origTxt = launchBtn.textContent;
+        launchBtn.disabled = true;
+        launchBtn.textContent = 'Loading…';
         if (res.cost > 0) {
           addReward(-res.cost, 0, null, true, { silentSfx: true, skipLevelUp: true });
           if (typeof playSfx === 'function') playSfx('stakeLock');
         } else if (typeof playSfx === 'function') {
           playSfx('turnStart');
         }
-        launchStandardizedGame(g.id, { modeType: 'bot', botTier: res.botTier, stake: res.cost, stakeDeducted: res.cost > 0, subMode, roomCode });
+        const started = await launchStandardizedGame(g.id, { modeType: 'bot', botTier: res.botTier, stake: res.cost, stakeDeducted: res.cost > 0, subMode, roomCode });
+        if (!started) {
+          if (res.cost > 0) addReward(res.cost, 0, null, true, { silentSfx: true, skipLevelUp: true });
+          launchBtn.disabled = false;
+          launchBtn.textContent = origTxt;
+        }
       };
       return;
     }
@@ -326,14 +385,24 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
         };
       });
 
-      $('#msLaunchBtn', panel).onclick = () => {
+      const launchBtn = $('#msLaunchBtn', panel);
+      launchBtn.onclick = async () => {
+        if (launchBtn.disabled) return;
         const res = AR
           ? AR.validateModeEntry({ modeType: 'pvp', betAmount: pvpBet, userCoins: me.coins })
           : { ok: me.coins >= pvpBet, cost: pvpBet };
         if (!res.ok) return toast(res.reason);
+        const origTxt = launchBtn.textContent;
+        launchBtn.disabled = true;
+        launchBtn.textContent = 'Loading…';
         addReward(-res.cost, 0, null, true, { silentSfx: true, skipLevelUp: true });
         if (typeof playSfx === 'function') playSfx('stakeLock');
-        launchStandardizedGame(g.id, { modeType: 'pvp', botTier: 'pro', stake: res.cost, stakeDeducted: true, subMode, roomCode, rival });
+        const started = await launchStandardizedGame(g.id, { modeType: 'pvp', botTier: 'pro', stake: res.cost, stakeDeducted: true, subMode, roomCode, rival });
+        if (!started) {
+          addReward(res.cost, 0, null, true, { silentSfx: true, skipLevelUp: true });
+          launchBtn.disabled = false;
+          launchBtn.textContent = origTxt;
+        }
       };
       return;
     }
@@ -441,11 +510,16 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
       };
     });
 
-    $('#msStartRoomBtn', panel).onclick = () => {
+    const startRoomBtn = $('#msStartRoomBtn', panel);
+    startRoomBtn.onclick = async () => {
+      if (startRoomBtn.disabled) return;
       const res = AR
         ? AR.validateModeEntry({ modeType: 'invite', betAmount: inviteBet, userCoins: me.coins })
         : { ok: me.coins >= inviteBet, cost: inviteBet };
       if (!res.ok) return toast(res.reason);
+      const origTxt = startRoomBtn.textContent;
+      startRoomBtn.disabled = true;
+      startRoomBtn.textContent = 'Loading…';
       ensureInviteRoomPersisted();
       if (res.cost > 0 && !isShowGame) {
         addReward(-res.cost, 0, null, true, { silentSfx: true, skipLevelUp: true });
@@ -453,7 +527,12 @@ function openVisualModeSelect(gameId, rivalUid, extraOpts) {
       } else if (typeof playSfx === 'function') {
         playSfx('turnStart');
       }
-      launchStandardizedGame(g.id, { modeType: 'invite', botTier: res.cost > 0 ? 'pro' : 'standard', stake: res.cost, subMode, roomCode, rival });
+      const started = await launchStandardizedGame(g.id, { modeType: 'invite', botTier: res.cost > 0 ? 'pro' : 'standard', stake: res.cost, stakeDeducted: res.cost > 0 && !isShowGame, subMode, roomCode, rival });
+      if (!started) {
+        if (res.cost > 0 && !isShowGame) addReward(res.cost, 0, null, true, { silentSfx: true, skipLevelUp: true });
+        startRoomBtn.disabled = false;
+        startRoomBtn.textContent = origTxt;
+      }
     };
   };
 

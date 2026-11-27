@@ -181,8 +181,21 @@ function launchBudgetClash(opts) {
   let locked = false;
   let rollRaf = 0;
   let roundTimerIv = 0;
+  let curtainTimer = 0;
+  let confettiTimer = 0;
   let sastaAnchor = null;
-  let usedIds = new Set();
+  const loadModeSeen = (modeKey) => new Set(
+    typeof SR.loadSeenQuestionIds === 'function' ? SR.loadSeenQuestionIds('bc_' + modeKey) : []
+  );
+  const recordModeSeen = (modeKey, id, maxKeep) => {
+    if (!id) return;
+    usedIds.add(id);
+    const list = Array.from(usedIds);
+    const trimmed = list.length >= maxKeep ? [id] : list;
+    usedIds = new Set(trimmed);
+    if (typeof SR.saveSeenQuestionIds === 'function') SR.saveSeenQuestionIds('bc_' + modeKey, trimmed);
+  };
+  let usedIds = loadModeSeen(activeMode);
   let curRoundData = null;
   let matchSettled = false;
 
@@ -310,8 +323,9 @@ function launchBudgetClash(opts) {
       const c = colors[i % colors.length];
       html += `<span class="bc-conf-bit" style="left:${left}%;background:${c};animation-delay:${delay}s;animation-duration:${dur}s"></span>`;
     }
+    clearTimeout(confettiTimer);
     layer.innerHTML = html;
-    setTimeout(() => { if (layer) layer.innerHTML = ''; }, 1800);
+    confettiTimer = setTimeout(() => { if (layer) layer.innerHTML = ''; }, 1800);
   };
 
   const animateRollingCounter = (startVal, endVal, labelText, isJackpot) => {
@@ -459,7 +473,8 @@ function launchBudgetClash(opts) {
     }
 
     if (activeMode === 'ten_vs_cr') {
-      const data = SR.createTenVsCrRound();
+      const data = SR.createTenVsCrRound(usedIds);
+      if (data.pairId) recordModeSeen('ten_vs_cr', data.pairId, (SR.TRICKY_TEN_VS_CR_PAIRS || []).length);
       const jackpotItem = data.jackpot || data.pair[data.jackpotIndex];
       curRoundData = { ...data, targetItem: jackpotItem, correctIdx: data.jackpotIndex };
       if ($('#bcCounterLbl', view)) $('#bcCounterLbl', view).textContent = 'TAP THE REAL FORTUNE BEHIND THE CURTAIN';
@@ -488,12 +503,14 @@ function launchBudgetClash(opts) {
         </div>
         <div class="bc-feedback-bar" id="bcFeedback"></div>
       `;
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          const st = $('#bcCurtainStage', host);
-          if (st) st.classList.add('open');
-        }, 60);
-      });
+      clearTimeout(curtainTimer);
+      curtainTimer = setTimeout(() => {
+        const st = $('#bcCurtainStage', host);
+        if (st) {
+          void st.offsetWidth;
+          st.classList.add('open');
+        }
+      }, 28);
 
       const resolveTenVsCr = (pick, timedOut) => {
         if (locked || over) return;
@@ -534,7 +551,7 @@ function launchBudgetClash(opts) {
 
     if (activeMode === 'asli_nakli') {
       const data = SR.createAsliNakliRound(usedIds);
-      usedIds.add(data.item.id);
+      recordModeSeen('asli_nakli', data.item.id, (SR.BUDGET_ITEMS || []).length);
       curRoundData = { ...data, targetItem: data.item };
       if ($('#bcCounterLbl', view)) $('#bcCounterLbl', view).textContent = 'ASLI VS NAKLI · PICK REAL PRICE';
       if ($('#bcCounterVal', view)) $('#bcCounterVal', view).textContent = '???';
@@ -598,7 +615,8 @@ function launchBudgetClash(opts) {
     }
 
     if (activeMode === 'sasta_mehnga') {
-      const data = SR.createSastaMehngaPair(sastaAnchor);
+      const data = SR.createSastaMehngaPair(sastaAnchor, usedIds);
+      recordModeSeen('sasta_mehnga', data.challenger.id, Math.max(8, (SR.BUDGET_ITEMS || []).length - 1));
       sastaAnchor = data.challenger;
       curRoundData = { ...data, targetItem: data.challenger, correctIdx: data.answer === 'higher' ? 1 : 0 };
       if ($('#bcCounterLbl', view)) $('#bcCounterLbl', view).textContent = 'SASTA YA MEHNGA · STREAK RUN';
@@ -667,7 +685,10 @@ function launchBudgetClash(opts) {
 
     // Mode 4: Closest Guess Wins (Simultaneous Reveal + Reaction Stickers)
     const pool = SR.BUDGET_ITEMS.filter(i => i.price >= 80 && i.price <= 2250000);
-    const item = pool[Math.floor(Math.random() * pool.length)];
+    const drawn = typeof SR.drawPersistentQuestions === 'function'
+      ? SR.drawPersistentQuestions('bc_closest_guess', pool, 1, i => i.id)
+      : [pool[Math.floor(Math.random() * pool.length)]];
+    const item = drawn[0] || pool[0];
     curRoundData = { item, targetItem: item };
     if ($('#bcCounterLbl', view)) $('#bcCounterLbl', view).textContent = 'CLOSEST GUESS WINS · LOCK YOUR PRICE';
     if ($('#bcCounterVal', view)) $('#bcCounterVal', view).textContent = '₹ ???';
@@ -775,6 +796,14 @@ function launchBudgetClash(opts) {
 
   const resetGame = (modeId) => {
     stopRoundTimer();
+    cancelAnimationFrame(rollRaf);
+    rollRaf = 0;
+    clearTimeout(curtainTimer);
+    clearTimeout(confettiTimer);
+    const confLayer = $('#bcConfetti', view);
+    if (confLayer) confLayer.innerHTML = '';
+    const boxEl = $('#bcCounterBox', view);
+    if (boxEl) boxEl.classList.remove('jackpot');
     activeMode = modeId || activeMode;
     roundNo = 1;
     score = 0;
@@ -787,7 +816,7 @@ function launchBudgetClash(opts) {
     over = false;
     locked = false;
     sastaAnchor = null;
-    usedIds = new Set();
+    usedIds = loadModeSeen(activeMode);
     renderRound();
   };
 
@@ -849,6 +878,8 @@ function launchBudgetClash(opts) {
     over = true;
     stopRoundTimer();
     cancelAnimationFrame(rollRaf);
+    clearTimeout(curtainTimer);
+    clearTimeout(confettiTimer);
     if (typeof VoiceNarrator !== 'undefined') VoiceNarrator.stop();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };

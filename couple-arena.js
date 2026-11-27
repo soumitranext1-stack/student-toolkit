@@ -41,6 +41,18 @@ function launchCoupleArena(opts) {
   let wheelAngle = 0;
   let wheelSpinning = false;
   let dareTimerIv = 0;
+  let wheelTickIv = 0;
+  let wheelStopTimer = 0;
+
+  const clearCoupleTimers = () => {
+    clearInterval(dareTimerIv);
+    dareTimerIv = 0;
+    clearInterval(wheelTickIv);
+    wheelTickIv = 0;
+    clearTimeout(wheelStopTimer);
+    wheelStopTimer = 0;
+    wheelSpinning = false;
+  };
 
   const MODES = [
     { id: 'mind_sync', label: '💓 Mind Sync' },
@@ -146,7 +158,9 @@ function launchCoupleArena(opts) {
 
   /* ===== MODE 1: MIND SYNC (DIL KI DHADKAN) ===== */
   const runMindSync = () => {
-    const prompts = SR.MIND_SYNC_PROMPTS.slice(0, 4);
+    const prompts = typeof SR.drawPersistentQuestions === 'function'
+      ? SR.drawPersistentQuestions('couple_mind_sync', SR.MIND_SYNC_PROMPTS, 5, q => q.id || q.question)
+      : SR.MIND_SYNC_PROMPTS.slice(0, 5);
     let idx = 0, matches = 0, p1Pick = null;
     const host = $('#cpStageHost', view);
 
@@ -244,7 +258,7 @@ function launchCoupleArena(opts) {
 
   /* ===== MODE 2: TRUTH, DARE YA SWEET PENALTY (3D SPINNING WHEEL) ===== */
   const runTruthDareWheel = () => {
-    clearInterval(dareTimerIv);
+    clearCoupleTimers();
     const wedges = SR.TRUTH_DARE_WEDGES;
     const slice = 360 / wedges.length;
     const host = $('#cpStageHost', view);
@@ -259,7 +273,8 @@ function launchCoupleArena(opts) {
         const mid = (((i + 0.5) * slice) - 90) * Math.PI / 180;
         const tx = cx + r * 0.65 * Math.cos(mid);
         const ty = cy + r * 0.65 * Math.sin(mid);
-        const rot = (i + 0.5) * slice;
+        const rawRot = (i + 0.5) * slice;
+        const rot = (rawRot > 90 && rawRot < 270) ? (rawRot + 180) : rawRot;
         return `
           <path d="M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 0,1 ${x1.toFixed(1)},${y1.toFixed(1)} Z" fill="${w.color}" stroke="#fef08a" stroke-width="2"/>
           <text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="#fff" font-size="9.5" font-weight="800" text-anchor="middle" dominant-baseline="middle" transform="rotate(${rot.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)})">${esc(w.kind || w.type || 'SPIN')}</text>
@@ -286,9 +301,9 @@ function launchCoupleArena(opts) {
     `;
 
     $('#cpSpinBtn', host).onclick = () => {
-      if (wheelSpinning) return;
+      if (wheelSpinning || over) return;
+      clearCoupleTimers();
       wheelSpinning = true;
-      clearInterval(dareTimerIv);
       const spinBtn = $('#cpSpinBtn', host);
       spinBtn.disabled = true;
       const extraSpins = 1440 + Math.floor(Math.random() * 720);
@@ -296,20 +311,29 @@ function launchCoupleArena(opts) {
       const svg = $('#cpWheelSvg', host);
       if (svg) svg.style.transform = `rotate(${wheelAngle}deg)`;
 
-      // Tick sounds during spin
       let ticks = 0;
-      const tickIv = setInterval(() => {
+      wheelTickIv = setInterval(() => {
+        if (over) { clearInterval(wheelTickIv); wheelTickIv = 0; return; }
         ticks++;
         if (typeof playSfx === 'function') playSfx('wheelTick');
-        if (ticks >= 14) clearInterval(tickIv);
+        if (ticks >= 14) { clearInterval(wheelTickIv); wheelTickIv = 0; }
       }, 150);
 
-      setTimeout(() => {
-        clearInterval(tickIv);
+      wheelStopTimer = setTimeout(() => {
+        clearInterval(wheelTickIv);
+        wheelTickIv = 0;
+        wheelStopTimer = 0;
         wheelSpinning = false;
+        if (over) return;
         spinBtn.disabled = false;
         const winIdx = SR.resolveWheelWedge(wheelAngle, wedges.length);
-        const w = wedges[winIdx];
+        const baseW = wedges[winIdx];
+        const seenTd = typeof SR.loadSeenQuestionIds === 'function' ? SR.loadSeenQuestionIds('couple_truth_dare') : [];
+        const w = typeof SR.pickTruthDareChallenge === 'function' ? SR.pickTruthDareChallenge(baseW, seenTd) : baseW;
+        if (w.variantId && typeof SR.saveSeenQuestionIds === 'function') {
+          const nextSeen = [...seenTd.filter(id => id !== w.variantId), w.variantId].slice(-20);
+          SR.saveSeenQuestionIds('couple_truth_dare', nextSeen);
+        }
         if (typeof playSfx === 'function') playSfx('wheelStop');
         spawnHeartBurst(['✨', '🎤', '💖']);
         speak(w);
@@ -334,15 +358,17 @@ function launchCoupleArena(opts) {
           clearInterval(dareTimerIv);
           const tb = $('#cpDareTimerBtn', resEl);
           dareTimerIv = setInterval(() => {
+            if (over) { clearInterval(dareTimerIv); dareTimerIv = 0; return; }
             sec--;
             const m = Math.floor(sec / 60), s = sec % 60;
             if (tb) tb.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
             if (typeof playSfx === 'function' && sec <= 5 && sec > 0) playSfx('timerTick');
-            if (sec <= 0) { clearInterval(dareTimerIv); toast('Time up! Challenge complete!'); }
+            if (sec <= 0) { clearInterval(dareTimerIv); dareTimerIv = 0; toast('Time up! Challenge complete!'); }
           }, 1000);
         };
         $('#cpDareDoneBtn', resEl).onclick = () => {
           clearInterval(dareTimerIv);
+          dareTimerIv = 0;
           const settle = settleCoupleOutcome(true, false, 15);
           const unlocked = SR.checkCoupleExclusiveUnlocks({ syncRate: 0, lovePercent: 0, completed: true });
           unlocked.forEach(rw => grantGameExclusiveReward(rw));
@@ -356,7 +382,9 @@ function launchCoupleArena(opts) {
 
   /* ===== MODE 3: WHO'S MOST LIKELY TO? ===== */
   const runMostLikely = () => {
-    const prompts = SR.MOST_LIKELY_PROMPTS;
+    const prompts = typeof SR.drawPersistentQuestions === 'function'
+      ? SR.drawPersistentQuestions('couple_most_likely', SR.MOST_LIKELY_PROMPTS, 5, q => q.id || q.prompt)
+      : SR.MOST_LIKELY_PROMPTS.slice(0, 5);
     let idx = 0, p1Votes = 0, p2Votes = 0;
     const host = $('#cpStageHost', view);
 
@@ -432,7 +460,9 @@ function launchCoupleArena(opts) {
 
   /* ===== MODE 4: LOVE & VIBE METER (0%–100% ANIMATED HEART METER) ===== */
   const runLoveMeter = () => {
-    const qs = SR.LOVE_METER_QUESTIONS;
+    const qs = typeof SR.drawPersistentQuestions === 'function'
+      ? SR.drawPersistentQuestions('couple_love_meter', SR.LOVE_METER_QUESTIONS, 5, q => q.id || q.q)
+      : SR.LOVE_METER_QUESTIONS.slice(0, 5);
     let idx = 0;
     const pts = [];
     const host = $('#cpStageHost', view);
@@ -505,7 +535,7 @@ function launchCoupleArena(opts) {
   };
 
   const renderActiveMode = () => {
-    clearInterval(dareTimerIv);
+    clearCoupleTimers();
     syncTopTabs();
     if (activeMode === 'truth_dare') runTruthDareWheel();
     else if (activeMode === 'most_likely') runMostLikely();
@@ -531,7 +561,7 @@ function launchCoupleArena(opts) {
 
   view.onclose = () => {
     over = true;
-    clearInterval(dareTimerIv);
+    clearCoupleTimers();
     if (typeof VoiceNarrator !== 'undefined') VoiceNarrator.stop();
     if (typeof clearMyLiveActivity === 'function') clearMyLiveActivity();
   };

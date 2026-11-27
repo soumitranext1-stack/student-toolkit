@@ -77,12 +77,11 @@ function seedV13GuestShowcaseIfNeeded(){
   }catch{}
 }
 seedV13GuestShowcaseIfNeeded();
-renderHome();
-renderGameSlots();
 renderNotice();
-buildProfile();
 updateHud();
-renderAll();
+if(typeof renderTabView==='function')renderTabView('tools');
+else renderHome();
+if(typeof updateUnreadDots==='function')updateUnreadDots();
 pruneExpiredChats();
 cleanupInactiveGuestUsers();
 sweepDuels();
@@ -114,5 +113,5 @@ try{
     }
   }
 }catch{}
-setInterval(sweepDuels,30000);
-setInterval(pruneExpiredChats,300000);
+setInterval(()=>{if(!document.hidden)sweepDuels()},30000);
+setInterval(()=>{if(!document.hidden)pruneExpiredChats()},300000);

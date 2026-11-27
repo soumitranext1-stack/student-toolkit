@@ -3813,14 +3813,14 @@ function launchJackaroo(stake, rival, modeRaw, botTierRaw, roomCodeRaw, launchOp
   }
 
   let jkChatWidget = null;
-  if (shellEl && typeof createInGameChatWidget === 'function') {
+  if (isSpectating && shellEl && typeof createInGameChatWidget === 'function') {
     const chatHost = document.createElement('div');
     chatHost.className = 'jk-live-chat-host';
     shellEl.appendChild(chatHost);
     jkChatWidget = createInGameChatWidget({
       roomCode,
       gameId: 'jackaroo',
-      spectate: isSpectating,
+      spectate: true,
       quickLines: ['Nice move! 🔥', 'Swap now! 🔀', 'Block them! 🛡️', 'GG! 👏', 'Watch out! 😎'],
       onMessage: (item) => {
         if (!item.system) showAvatarBubble(0, item.text);

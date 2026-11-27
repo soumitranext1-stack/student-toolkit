@@ -16,7 +16,7 @@ main{flex:1;padding:12px 10px calc(24px + env(safe-area-inset-bottom))}
 .mu{color:var(--mu);font-size:12.5px}
 label{display:block;color:var(--mu);font-size:12px;margin:10px 0 5px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
-.chips button{flex:1;min-width:58px;padding:9px 6px;border-radius:10px;border:1px solid var(--ln);background:var(--s2);cursor:pointer;font-weight:600;font-size:13px}
+.chips button{flex:1;min-width:58px;padding:9px 6px;border-radius:10px;border:1px solid var(--ln);background:var(--s2);cursor:pointer;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chips button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 .btn{background:linear-gradient(135deg,var(--ac),color-mix(in srgb,var(--ac) 60%,#c084fc));color:#fff;border:0;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer}
 .btn.ghost{background:var(--s2);border:1px solid var(--ln);color:var(--tx)}.btn.red{background:var(--red)}.btn.full{width:100%;margin-top:10px}.btn.sm{padding:8px 12px;font-size:13px}

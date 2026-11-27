@@ -502,31 +502,84 @@
     return { ok: true };
   }
 
-  /* ---------- 5. Mind Clash 1v1 Generator & Scoring ---------- */
+  /* ---------- 5. Mind Clash 1v1 Generator & Scoring (28 Unique Questions + Non-Repeating History) ---------- */
   const MIND_CLASH_BANK = [
-    { kind: 'Pattern', q: 'Next in sequence: 2, 6, 12, 20, ?', o: ['28', '30', '32', '26'], a: 1, hiSpoken: 'Agla number batayiye: 2, 6, 12, 20 ke baad kya aayega?', bnSpoken: 'Poroborti shongkha ki hobe: 2, 6, 12, 20 er por?' },
-    { kind: 'Logic', q: 'Which shape completes: ▲ ● ■ ▲ ● ?', o: ['▲', '●', '■', '◆'], a: 2, hiSpoken: 'Pattern pura karne ke liye agla shape kaunsa hoga?', bnSpoken: 'Pattern ti shompurno korte porer shape konti hobe?' },
-    { kind: 'Speed Math', q: '17 × 6 − 12 = ?', o: ['86', '90', '94', '88'], a: 1, hiSpoken: '17 guna 6 minus 12 kitna hota hai?', bnSpoken: '17 gun 6 biyog 12 koto hoy?' },
-    { kind: 'Odd One', q: 'Odd one out: 16, 25, 36, 48, 64', o: ['25', '36', '48', '64'], a: 2, hiSpoken: 'Inme se alag number kaunsa hai: 16, 25, 36, 48 ya 64?', bnSpoken: 'Er modhye alada shongkha konti: 16, 25, 36, 48 naki 64?' },
-    { kind: 'Pattern', q: 'Next letter: B, E, H, K, ?', o: ['M', 'N', 'O', 'L'], a: 1, hiSpoken: 'Agla letter kaunsa hoga: B, E, H, K ke baad?', bnSpoken: 'Porer okkhor konti hobe: B, E, H, K er por?' },
-    { kind: 'Logic', q: 'If 3 cats catch 3 mice in 3 min, 1 cat catches 1 mouse in?', o: ['1 min', '3 min', '6 min', '9 min'], a: 1, hiSpoken: 'Agar 3 billiyan 3 chuhe 3 minute mein pakadti hain, toh 1 billi 1 chuha kitne minute mein pakdegi?', bnSpoken: 'Jodi 3 ti biral 3 minute e 3 ti idur dhore, tobe 1 ti biral 1 ti idur koto minute e dhorbe?' },
-    { kind: 'Pattern', q: 'Next number: 3, 9, 27, 81, ?', o: ['162', '243', '216', '270'], a: 1, hiSpoken: 'Agla number batayiye: 3, 9, 27, 81 ke baad kya aayega?', bnSpoken: 'Porer shongkha konti: 3, 9, 27, 81 er por?' },
-    { kind: 'Speed Math', q: '(144 ÷ 12) + (9 × 4) = ?', o: ['44', '46', '48', '52'], a: 2, hiSpoken: '144 divided by 12 plus 9 guna 4 kitna hoga?', bnSpoken: '144 bhag 12 jog 9 gun 4 koto hobe?' },
-    { kind: 'Visual', q: 'Mirror symmetry: ◆ ◇ ◆ ◇ ◆ ?', o: ['◆', '◇', '★', '●'], a: 1, hiSpoken: 'Is pattern ka agla symbol kaunsa hoga?', bnSpoken: 'Ei pattern er poroborti chihno konti hobe?' },
-    { kind: 'Logic', q: 'Half of 2 + 2 equals?', o: ['2', '3', '4', '1'], a: 1, hiSpoken: '2 ka aadha plus 2 kitna hota hai?', bnSpoken: '2 er ordhek jog 2 koto hoy?' },
-    { kind: 'Pattern', q: 'Fibonacci: 5, 8, 13, 21, ?', o: ['32', '34', '35', '29'], a: 1, hiSpoken: 'Fibonacci series mein 5, 8, 13, 21 ke baad agla number kya hai?', bnSpoken: 'Fibonacci series e 5, 8, 13, 21 er porer shongkha koto?' },
-    { kind: 'Odd One', q: 'Odd one out: Mercury, Mars, Moon, Venus', o: ['Mercury', 'Mars', 'Moon', 'Venus'], a: 2, hiSpoken: 'Inme se alag kaunsa hai: Mercury, Mars, Moon ya Venus?', bnSpoken: 'Er modhye alada konti: Mercury, Mars, Moon naki Venus?' },
-    { kind: 'Speed Math', q: '25% of 160 + 15 = ?', o: ['50', '55', '60', '45'], a: 1, hiSpoken: '160 ka 25 percent plus 15 kitna hota hai?', bnSpoken: '160 er 25 shotangsho jog 15 koto hoy?' },
-    { kind: 'Pattern', q: '100, 91, 82, 73, ?', o: ['64', '65', '63', '66'], a: 0, hiSpoken: 'Agla number batayiye: 100, 91, 82, 73 ke baad kya aayega?', bnSpoken: 'Porer shongkha konti: 100, 91, 82, 73 er por?' }
+    { id: 'mc01', kind: 'Pattern', q: 'Next in sequence: 2, 6, 12, 20, ?', o: ['28', '30', '32', '26'], a: 1, hiSpoken: 'Agla number batayiye: 2, 6, 12, 20 ke baad kya aayega?', bnSpoken: 'Poroborti shongkha ki hobe: 2, 6, 12, 20 er por?' },
+    { id: 'mc02', kind: 'Logic', q: 'Which shape completes: ▲ ● ■ ▲ ● ?', o: ['▲', '●', '■', '◆'], a: 2, hiSpoken: 'Pattern pura karne ke liye agla shape kaunsa hoga?', bnSpoken: 'Pattern ti shompurno korte porer shape konti hobe?' },
+    { id: 'mc03', kind: 'Speed Math', q: '17 × 6 − 12 = ?', o: ['86', '90', '94', '88'], a: 1, hiSpoken: '17 guna 6 minus 12 kitna hota hai?', bnSpoken: '17 gun 6 biyog 12 koto hoy?' },
+    { id: 'mc04', kind: 'Odd One', q: 'Odd one out: 16, 25, 36, 48, 64', o: ['25', '36', '48', '64'], a: 2, hiSpoken: 'Inme se alag number kaunsa hai: 16, 25, 36, 48 ya 64?', bnSpoken: 'Er modhye alada shongkha konti: 16, 25, 36, 48 naki 64?' },
+    { id: 'mc05', kind: 'Pattern', q: 'Next letter: B, E, H, K, ?', o: ['M', 'N', 'O', 'L'], a: 1, hiSpoken: 'Agla letter kaunsa hoga: B, E, H, K ke baad?', bnSpoken: 'Porer okkhor konti hobe: B, E, H, K er por?' },
+    { id: 'mc06', kind: 'Logic', q: 'If 3 cats catch 3 mice in 3 min, 1 cat catches 1 mouse in?', o: ['1 min', '3 min', '6 min', '9 min'], a: 1, hiSpoken: 'Agar 3 billiyan 3 chuhe 3 minute mein pakadti hain, toh 1 billi 1 chuha kitne minute mein pakdegi?', bnSpoken: 'Jodi 3 ti biral 3 minute e 3 ti idur dhore, tobe 1 ti biral 1 ti idur koto minute e dhorbe?' },
+    { id: 'mc07', kind: 'Pattern', q: 'Next number: 3, 9, 27, 81, ?', o: ['162', '243', '216', '270'], a: 1, hiSpoken: 'Agla number batayiye: 3, 9, 27, 81 ke baad kya aayega?', bnSpoken: 'Porer shongkha konti: 3, 9, 27, 81 er por?' },
+    { id: 'mc08', kind: 'Speed Math', q: '(144 ÷ 12) + (9 × 4) = ?', o: ['44', '46', '48', '52'], a: 2, hiSpoken: '144 divided by 12 plus 9 guna 4 kitna hoga?', bnSpoken: '144 bhag 12 jog 9 gun 4 koto hobe?' },
+    { id: 'mc09', kind: 'Visual', q: 'Mirror symmetry: ◆ ◇ ◆ ◇ ◆ ?', o: ['◆', '◇', '★', '●'], a: 1, hiSpoken: 'Is pattern ka agla symbol kaunsa hoga?', bnSpoken: 'Ei pattern er poroborti chihno konti hobe?' },
+    { id: 'mc10', kind: 'Logic', q: 'Half of 2 + 2 equals?', o: ['2', '3', '4', '1'], a: 1, hiSpoken: '2 ka aadha plus 2 kitna hota hai?', bnSpoken: '2 er ordhek jog 2 koto hoy?' },
+    { id: 'mc11', kind: 'Pattern', q: 'Fibonacci: 5, 8, 13, 21, ?', o: ['32', '34', '35', '29'], a: 1, hiSpoken: 'Fibonacci series mein 5, 8, 13, 21 ke baad agla number kya hai?', bnSpoken: 'Fibonacci series e 5, 8, 13, 21 er porer shongkha koto?' },
+    { id: 'mc12', kind: 'Odd One', q: 'Odd one out: Mercury, Mars, Moon, Venus', o: ['Mercury', 'Mars', 'Moon', 'Venus'], a: 2, hiSpoken: 'Inme se alag kaunsa hai: Mercury, Mars, Moon ya Venus?', bnSpoken: 'Er modhye alada konti: Mercury, Mars, Moon naki Venus?' },
+    { id: 'mc13', kind: 'Speed Math', q: '25% of 160 + 15 = ?', o: ['50', '55', '60', '45'], a: 1, hiSpoken: '160 ka 25 percent plus 15 kitna hota hai?', bnSpoken: '160 er 25 shotangsho jog 15 koto hoy?' },
+    { id: 'mc14', kind: 'Pattern', q: '100, 91, 82, 73, ?', o: ['64', '65', '63', '66'], a: 0, hiSpoken: 'Agla number batayiye: 100, 91, 82, 73 ke baad kya aayega?', bnSpoken: 'Porer shongkha konti: 100, 91, 82, 73 er por?' },
+    { id: 'mc15', kind: 'Speed Math', q: '19 × 4 + 24 = ?', o: ['96', '100', '104', '92'], a: 1, hiSpoken: '19 guna 4 plus 24 kitna hota hai?', bnSpoken: '19 gun 4 jog 24 koto hoy?' },
+    { id: 'mc16', kind: 'Logic', q: 'A clock shows 3:15. What is the angle between hands?', o: ['0°', '7.5°', '15°', '22.5°'], a: 1, hiSpoken: 'Ghadi mein 3 bajkar 15 minute hain, dono suiyon ke beech kitna angle hoga?', bnSpoken: 'Ghorite 3:15 bajle duito katar modhye kon koto degree?' },
+    { id: 'mc17', kind: 'Odd One', q: 'Odd one out: 2, 3, 5, 9, 11', o: ['2', '5', '9', '11'], a: 2, hiSpoken: 'Inme se kaunsa number prime nahi hai: 2, 3, 5, 9 ya 11?', bnSpoken: 'Er modhye konti moulik shongkha noy: 2, 3, 5, 9 naki 11?' },
+    { id: 'mc18', kind: 'Pattern', q: 'Next in sequence: 1, 4, 9, 16, 25, ?', o: ['30', '35', '36', '49'], a: 2, hiSpoken: '1, 4, 9, 16, 25 ke baad agla square number kya hai?', bnSpoken: '1, 4, 9, 16, 25 er porer shongkha konti?' },
+    { id: 'mc19', kind: 'Speed Math', q: '3/4 of 120 = ?', o: ['80', '85', '90', '95'], a: 2, hiSpoken: '120 ka teen chauthai kitna hota hai?', bnSpoken: '120 er tin choturthangsho koto hoy?' },
+    { id: 'mc20', kind: 'Logic', q: 'If all Bloops are Razzies and all Razzies are Lazzies, then all Bloops are?', o: ['Lazzies', 'Not Lazzies', 'Half Lazzies', 'Unknown'], a: 0, hiSpoken: 'Agar sabhi Bloops Razzies hain aur sabhi Razzies Lazzies hain, toh sabhi Bloops kya honge?', bnSpoken: 'Shob Bloops jodi Razzies hoy ar shob Razzies Lazzies hoy, tobe shob Bloops ki?' },
+    { id: 'mc21', kind: 'Pattern', q: 'Next letter: Z, X, V, T, ?', o: ['S', 'R', 'Q', 'P'], a: 1, hiSpoken: 'Z, X, V, T ke baad agla letter kaunsa hoga?', bnSpoken: 'Z, X, V, T er porer okkhor konti?' },
+    { id: 'mc22', kind: 'Speed Math', q: '√196 + √64 = ?', o: ['20', '22', '24', '18'], a: 1, hiSpoken: '196 ka square root plus 64 ka square root kitna hoga?', bnSpoken: '196 er borgomul jog 64 er borgomul koto?' },
+    { id: 'mc23', kind: 'Odd One', q: 'Odd one out: Triangle, Square, Cube, Circle', o: ['Triangle', 'Square', 'Cube', 'Circle'], a: 2, hiSpoken: 'Inme se 3D shape kaunsa hai: Triangle, Square, Cube ya Circle?', bnSpoken: 'Er modhye konti 3D akriti: Triangle, Square, Cube naki Circle?' },
+    { id: 'mc24', kind: 'Logic', q: 'A farmer has 17 sheep; all but 9 run away. How many remain?', o: ['8', '9', '17', '0'], a: 1, hiSpoken: 'Ek kisan ke paas 17 bhedein hain, 9 ko chhodkar sab bhag gayi, kitni bachi?', bnSpoken: 'Ek krishoker 17 ti bhera chilo, 9 ti chara shob paliye gelo, koiti roilo?' },
+    { id: 'mc25', kind: 'Speed Math', q: '12² − 10² = ?', o: ['40', '44', '48', '24'], a: 1, hiSpoken: '12 ka square minus 10 ka square kitna hota hai?', bnSpoken: '12 er borgo biyog 10 er borgo koto?' },
+    { id: 'mc26', kind: 'Pattern', q: 'Next number: 7, 14, 28, 56, ?', o: ['98', '108', '112', '120'], a: 2, hiSpoken: '7, 14, 28, 56 ke baad agla number kya aayega?', bnSpoken: '7, 14, 28, 56 er porer shongkha konti?' },
+    { id: 'mc27', kind: 'Logic', q: 'Which month has 28 days?', o: ['Only February', 'All 12 months', 'None', 'April'], a: 1, hiSpoken: 'Kis mahine mein 28 din hote hain?', bnSpoken: 'Kon mashe 28 din thake?' },
+    { id: 'mc28', kind: 'Speed Math', q: '(45 × 2) ÷ 5 + 7 = ?', o: ['23', '25', '27', '21'], a: 1, hiSpoken: '45 guna 2 divided by 5 plus 7 kitna hoga?', bnSpoken: '45 gun 2 bhag 5 jog 7 koto hoy?' }
   ];
 
-  function createMindClashDeck(count = 7) {
-    const arr = MIND_CLASH_BANK.slice();
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+  function drawMindClashBatch(count = 7, seenIds = [], rng = Math.random) {
+    if (global.ShowGamesRules && typeof global.ShowGamesRules.drawNonRepeatingBatch === 'function') {
+      return global.ShowGamesRules.drawNonRepeatingBatch(MIND_CLASH_BANK, count, seenIds, q => q.id, rng);
     }
-    return arr.slice(0, Math.min(count, arr.length));
+    const seen = new Set(Array.isArray(seenIds) ? seenIds.map(String) : Array.from(seenIds || []).map(String));
+    const shuffle = (arr) => {
+      const copy = arr.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    };
+    const unseen = shuffle(MIND_CLASH_BANK.filter(q => !seen.has(q.id)));
+    const want = Math.min(count, MIND_CLASH_BANK.length);
+    if (unseen.length >= want) {
+      const items = unseen.slice(0, want);
+      const nextSeen = [...Array.from(seen), ...items.map(q => q.id)];
+      return { items, seenIds: nextSeen.length >= MIND_CLASH_BANK.length ? items.map(q => q.id) : nextSeen, cycled: nextSeen.length >= MIND_CLASH_BANK.length };
+    }
+    const chosenIds = new Set(unseen.map(q => q.id));
+    const recycled = shuffle(MIND_CLASH_BANK.filter(q => !chosenIds.has(q.id)));
+    const items = [...unseen, ...recycled].slice(0, want);
+    return { items, seenIds: items.map(q => q.id), cycled: true };
+  }
+
+  function createMindClashDeck(count = 7, seenIds = null) {
+    if (seenIds !== null) {
+      return drawMindClashBatch(count, seenIds).items;
+    }
+    const storageKey = 'mind_clash';
+    let prev = [];
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('sg_seen_q_' + storageKey);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(parsed)) prev = parsed;
+      }
+    } catch {}
+    const res = drawMindClashBatch(count, prev);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('sg_seen_q_' + storageKey, JSON.stringify(res.seenIds));
+      }
+    } catch {}
+    return res.items;
   }
 
   function scoreMindClashAnswer(isCorrect, secondsLeft) {
@@ -708,6 +761,8 @@
     createTrapDoorState,
     stepTrapDoor,
     plantTrapSabotage,
+    MIND_CLASH_BANK,
+    drawMindClashBatch,
     createMindClashDeck,
     scoreMindClashAnswer,
     TERRITORY_SIZE,

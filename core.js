@@ -791,7 +791,8 @@ function addReward(coinsDelta, expDelta, taskId, noLb, opts){
   if(cDelta>0 && !(opts&&opts.silentSfx) && typeof playSfx==='function'){
     playSfx('coin',{amount:cDelta});
   }
-  if(typeof renderRanking==='function')renderRanking();
+  if(typeof markTabsDirty==='function')markTabsDirty('ranking');
+  else if(typeof renderRanking==='function')renderRanking();
   dbOp(()=>F.setDoc(userRef(uid),{...base(),coins:me.coins,exp:me.exp,dailyCoinsByDay:me.dailyCoinsByDay,claimedByDay:me.claimedByDay},{merge:true}));
 
   if(!(opts&&opts.skipLevelUp) && eDelta>0 && newLevel>prevLevel && newLevel>Number(me.lastRewardedLevel||1)){
@@ -1590,7 +1591,7 @@ function joinFromInvitePayload(raw){
     }
   }
 
-  if(['pool_8ball','chess_blitz','tile_race','trap_door','mind_clash','pocket_territory','jackaroo','uno','ludo','number_match'].includes(inv.gameId)){
+  if(['budget_clash','couple_arena','pool_8ball','chess_blitz','tile_race','trap_door','mind_clash','pocket_territory','jackaroo','uno','ludo','number_match'].includes(inv.gameId)){
     if(typeof openVisualModeSelect==='function'){
       openVisualModeSelect(inv.gameId, null, { initialTab:'invite', roomCode:inv.roomCode, mode:inv.mode, stake:inv.stake||0 });
       return;
@@ -1652,7 +1653,7 @@ function sendUniversalRoomInviteToDm(friend, payload){
 }
 window.sendUniversalRoomInviteToDm=sendUniversalRoomInviteToDm;
 
-function spectateUserMatch(targetUidOrUser){
+async function spectateUserMatch(targetUidOrUser){
   const u=typeof targetUidOrUser==='string'?resolvePlayerForProfile(targetUidOrUser):targetUidOrUser;
   if(!u)return toast('Player not found');
   const act=getUserLiveActivity(u);
@@ -1661,24 +1662,29 @@ function spectateUserMatch(targetUidOrUser){
   }
   if(typeof playSfx==='function')playSfx('tap');
   if(act.type==='party'&&act.roomId&&typeof openPartyRoomModal==='function'){
-    showTab('party');
+    showTab('tools');
     openPartyRoomModal(act.roomId);
     return;
   }
   const code=act.roomCode||('SP'+Math.floor(1000+Math.random()*9000));
-  if(act.gameId==='ludo'&&typeof launchLudoGame==='function'){
+  const gid=act.gameId||'ludo';
+  if(typeof ensureGameModule==='function'){
+    const ok=await ensureGameModule(gid);
+    if(!ok)return;
+  }
+  if(gid==='ludo'&&typeof launchLudoGame==='function'){
     launchLudoGame({stake:0,rival:u,mode:act.mode==='1v1'?'1v1':'4p',roomCode:code,spectate:true,spectateHost:u});
     return;
   }
-  if(act.gameId==='number_match'&&typeof launchNumberMatch==='function'){
+  if(gid==='number_match'&&typeof launchNumberMatch==='function'){
     launchNumberMatch({stake:0,rival:u,mode:act.mode==='duel'?'duel':'classic',roomCode:code,spectate:true,spectateHost:u});
     return;
   }
-  if(act.gameId==='jackaroo'&&typeof launchJackaroo==='function'){
+  if(gid==='jackaroo'&&typeof launchJackaroo==='function'){
     launchJackaroo(0,u,act.mode==='1v1'?'1v1':'2v2','standard',code,{spectate:true,spectateHost:u});
     return;
   }
-  if(act.gameId==='uno'&&typeof launchUnoGame==='function'){
+  if(gid==='uno'&&typeof launchUnoGame==='function'){
     launchUnoGame(0,u,act.mode||'classic','standard',code,{spectate:true,spectateHost:u});
     return;
   }
@@ -2209,17 +2215,190 @@ window.addEventListener('popstate',()=>{
   handleAppBack();
 });
 
+/* ===== On-Demand Script & Game Module Loader (Lazy Load Heavy Engines) ===== */
+const _loadedScriptPromises=new Map();
+function loadScriptOnce(src){
+  const cleanSrc=String(src||'').trim();
+  if(!cleanSrc)return Promise.resolve(true);
+  const basePath=cleanSrc.split('?')[0];
+  if(_loadedScriptPromises.has(basePath))return _loadedScriptPromises.get(basePath);
+  const existing=[...document.scripts].find(s=>{
+    const attr=s.getAttribute('src')||'';
+    return attr.split('?')[0]===basePath;
+  });
+  if(existing){
+    const p=Promise.resolve(true);
+    _loadedScriptPromises.set(basePath,p);
+    return p;
+  }
+  const p=new Promise((resolve,reject)=>{
+    const el=document.createElement('script');
+    el.src=cleanSrc;
+    el.async=false;
+    el.onload=()=>resolve(true);
+    el.onerror=()=>{
+      _loadedScriptPromises.delete(basePath);
+      reject(new Error('Failed to load module: '+basePath));
+    };
+    document.head.appendChild(el);
+  });
+  _loadedScriptPromises.set(basePath,p);
+  return p;
+}
+window.loadScriptOnce=loadScriptOnce;
+
+const GAME_MODULE_BUNDLES={
+  ludo:['ludo-rules.js?v=30','ludo.js?v=30'],
+  number_match:['number-match-rules.js?v=30','number-match.js?v=30'],
+  jackaroo:['jackaroo-rules.js?v=30','jackaroo.js?v=30'],
+  uno:['uno-rules.js?v=30','uno.js?v=30'],
+  pool_8ball:['pool-8ball.js?v=30'],
+  chess_blitz:['chess-arena.js?v=30'],
+  tile_race:['voice-narrator.js?v=30','arcade-games.js?v=30'],
+  trap_door:['voice-narrator.js?v=30','arcade-games.js?v=30'],
+  mind_clash:['voice-narrator.js?v=30','arcade-games.js?v=30'],
+  pocket_territory:['voice-narrator.js?v=30','arcade-games.js?v=30'],
+  budget_clash:['voice-narrator.js?v=30','budget-clash.js?v=30'],
+  couple_arena:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30'],
+  couple_mind_sync:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30'],
+  couple_truth_dare:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30'],
+  couple_most_likely:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30'],
+  couple_love_meter:['voice-narrator.js?v=30','budget-clash.js?v=30','couple-arena.js?v=30']
+};
+
+const GAME_MODULE_SYMBOLS={
+  ludo:'launchLudoGame',
+  number_match:'launchNumberMatch',
+  jackaroo:'launchJackaroo',
+  uno:'launchUnoGame',
+  pool_8ball:'launchPool8BallPro',
+  chess_blitz:'launchChessBlitzArena',
+  tile_race:'launchTileRace',
+  trap_door:'launchTrapDoorDuel',
+  mind_clash:'launchMindClash',
+  pocket_territory:'launchPocketTerritory',
+  budget_clash:'launchBudgetClash',
+  couple_arena:'launchCoupleArena',
+  couple_mind_sync:'launchCoupleArena',
+  couple_truth_dare:'launchCoupleArena',
+  couple_most_likely:'launchCoupleArena',
+  couple_love_meter:'launchCoupleArena'
+};
+
+async function ensureGameModule(gameId){
+  const gid=String(gameId||'').trim().toLowerCase();
+  const files=GAME_MODULE_BUNDLES[gid];
+  if(!files||!files.length)return true;
+  const expectedFn=GAME_MODULE_SYMBOLS[gid];
+  if(expectedFn&&typeof window[expectedFn]==='function')return true;
+  try{
+    for(const f of files){
+      await loadScriptOnce(f);
+    }
+    if(expectedFn&&typeof window[expectedFn]!=='function'){
+      // Retry once with fresh cache-busting query if a stale cached script missed exports
+      const bust='&r='+Date.now();
+      for(const f of files){
+        const base=f.split('?')[0];
+        _loadedScriptPromises.delete(base);
+        [...document.scripts].forEach(s=>{if((s.getAttribute('src')||'').split('?')[0]===base)s.remove()});
+        await loadScriptOnce(f+bust);
+      }
+    }
+    return !expectedFn||typeof window[expectedFn]==='function';
+  }catch(err){
+    console.warn('ensureGameModule error:',err);
+    if(typeof toast==='function')toast('Could not load game module. Check connection & try again.');
+    return false;
+  }
+}
+window.ensureGameModule=ensureGameModule;
+
+/* ===== Page-By-Page On-Demand View Lifecycle & Active-Tab-Only Rendering ===== */
+const appViewLifecycle=(window.ShowGamesRules&&typeof window.ShowGamesRules.createViewLifecycleManager==='function')
+  ? window.ShowGamesRules.createViewLifecycleManager('tools')
+  : (()=>{
+      let active='tools';
+      const mounted=new Set();
+      const dirty=new Set(['tools','games','ranking','tasks','store','chat','profile']);
+      return {
+        getActiveTab:()=>active,
+        isMounted:t=>mounted.has(t),
+        isDirty:t=>dirty.has(t),
+        markDirty:tabs=>{const arr=Array.isArray(tabs)?tabs:[tabs];let hit=false;arr.forEach(t=>{if(t){dirty.add(t);if(t===active)hit=true}});return hit},
+        markRendered:t=>{mounted.add(t);dirty.delete(t)},
+        switchTab:t=>{const prev=active;active=t||'tools';return {prevTab:prev,nextTab:active,changed:prev!==active,shouldRender:!mounted.has(active)||dirty.has(active)}}
+      };
+    })();
+window.appViewLifecycle=appViewLifecycle;
+
+let _activeTabRaf=0;
+function renderTabView(tab){
+  const t=tab||activeAppTab||'tools';
+  if(t==='tools'){
+    if(typeof renderHome==='function')renderHome();
+    else if(typeof renderHomeHub==='function')renderHomeHub();
+  }else if(t==='games'){
+    if(typeof renderGameSlots==='function')renderGameSlots();
+  }else if(t==='ranking'){
+    if(typeof renderRanking==='function')renderRanking();
+  }else if(t==='tasks'){
+    if(typeof renderTasks==='function')renderTasks();
+  }else if(t==='store'){
+    if(typeof renderStore==='function')renderStore();
+  }else if(t==='chat'){
+    if(typeof cur!=='undefined'&&cur){
+      if(typeof renderThread==='function')renderThread();
+    }else if(typeof renderChats==='function'){
+      renderChats();
+    }
+  }else if(t==='profile'){
+    if(typeof buildProfile==='function')buildProfile();
+  }
+  appViewLifecycle.markRendered(t);
+}
+window.renderTabView=renderTabView;
+
+function scheduleActiveTabRender(){
+  if(_activeTabRaf)return;
+  _activeTabRaf=requestAnimationFrame(()=>{
+    _activeTabRaf=0;
+    const curTab=activeAppTab||'tools';
+    if(!appViewLifecycle.isMounted(curTab)||appViewLifecycle.isDirty(curTab)){
+      renderTabView(curTab);
+    }
+  });
+}
+
+function markTabsDirty(tabs){
+  const affectsActive=appViewLifecycle.markDirty(tabs);
+  if(affectsActive)scheduleActiveTabRender();
+  return affectsActive;
+}
+window.markTabsDirty=markTabsDirty;
+
 function showTab(tab,opts){
   const o=opts||{};
-  activeAppTab=tab||'tools';
+  const nextTab=tab||'tools';
+  const prevTab=activeAppTab||'tools';
+  if(prevTab!==nextTab&&typeof window.pauseLauncherHeroTimer==='function'){
+    window.pauseLauncherHeroTimer();
+  }
+  activeAppTab=nextTab;
   /* Always close transient Student Tools Drawer & open Chat Thread when switching tabs so Back returns to Home */
   if(typeof closeToolsDrawer==='function')closeToolsDrawer();
   const thr=$('#thread');
-  if(tab!=='chat'&&thr&&!thr.hidden){thr.hidden=true;if(typeof cur!=='undefined')cur=null}
+  if(nextTab!=='chat'&&thr&&!thr.hidden){thr.hidden=true;if(typeof cur!=='undefined')cur=null}
   closeCuteExitConfirm();
   $$('#nav button').forEach(x=>x.classList.toggle('on',x.dataset.tab===activeAppTab));
   $$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+activeAppTab));
   $('main').scrollTop=0;
+  const info=typeof appViewLifecycle.switchTab==='function'
+    ? appViewLifecycle.switchTab(activeAppTab)
+    : {shouldRender:true};
+  if(info.shouldRender){
+    renderTabView(activeAppTab);
+  }
   if(!o.fromBack&&activeAppTab!=='tools')pushBackGuardState('tab:'+activeAppTab);
 }
 $('#nav').onclick=e=>{const b=e.target.closest('[data-tab]');if(b){if(typeof playSfx==='function')playSfx('click');showTab(b.dataset.tab)}};
@@ -2232,13 +2411,7 @@ if($('#sfxBtn'))$('#sfxBtn').onclick=()=>{
 /* Arm initial back-button guard sentinel once DOM loads */
 try{pushBackGuardState('init')}catch{}
 function renderAll(){
-  if(typeof renderHomeHub==='function')renderHomeHub();
-  if(typeof renderPartyHub==='function')renderPartyHub();
-  if(typeof renderGameSlots==='function')renderGameSlots();
-  if(typeof renderMultiplayerRooms==='function')renderMultiplayerRooms();
-  if(typeof renderRanking==='function')renderRanking();
-  if(typeof renderTasks==='function')renderTasks();
-  if(typeof renderStore==='function')renderStore();
+  markTabsDirty(['tools','games','ranking','tasks','store','chat','profile']);
   if(typeof renderPoems==='function')renderPoems();
-  if(typeof renderChats==='function'&&!cur)renderChats();
+  if(typeof updateUnreadDots==='function')updateUnreadDots();
 }

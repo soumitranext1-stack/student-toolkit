@@ -660,14 +660,20 @@ function openRedPacketDropModal(){
 }
 
 /* ===== 10-Second Chat Flash Drops (Tap / Quick Math / Fast Word) ===== */
+const FLASH_DROP_WORDS=['LUXURY','GALAXY','TROPHY','VICTORY','DIAMOND','PHOENIX','LEGEND','COMET','AURORA','CROWN','TITAN','APEX'];
 function launchChatFlashDrop(){
   if(cur!=='world')return toast('Flash Drops work in World Chat');
   if(!devMode && me.coins<100)return toast('Players need 100 coins to host a Flash Drop');
   const a=12+Math.floor(Math.random()*38), b=7+Math.floor(Math.random()*28);
+  const SR=window.ShowGamesRules;
+  const pickedWords=SR&&typeof SR.drawPersistentQuestions==='function'
+    ?SR.drawPersistentQuestions('flash_drop_words',FLASH_DROP_WORDS,1,w=>w)
+    :[FLASH_DROP_WORDS[Math.floor(Math.random()*FLASH_DROP_WORDS.length)]];
+  const secretWord=pickedWords[0]||'GALAXY';
   const modes=[
     {flashMode:'tap',prompt:'⚡ LIGHTNING TAP! First 3 players to tap win +80 🪙!',answer:'',rewardCoins:80},
     {flashMode:'math',prompt:`⚡ QUICK MATH (10s): What is ${a} + ${b}?`,answer:String(a+b),rewardCoins:120},
-    {flashMode:'word',prompt:'⚡ FASTEST TYPER (10s): Type the secret word "LUXURY"',answer:'LUXURY',rewardCoins:100}
+    {flashMode:'word',prompt:`⚡ FASTEST TYPER (10s): Type the secret word "${secretWord}"`,answer:secretWord,rewardCoins:100}
   ];
   const pick=modes[Math.floor(Math.random()*modes.length)];
   if(!devMode)addReward(-100,0,null,true,{silentSfx:true,skipLevelUp:true});
@@ -715,7 +721,7 @@ function claimFlashDrop(dropId, suppliedAns){
 }
 
 setInterval(()=>{
-  if(cur!=='world')return;
+  if(document.hidden || cur!=='world' || (typeof activeAppTab!=='undefined' && activeAppTab!=='chat'))return;
   $$('[data-fd-timer]').forEach(el=>{
     const id=el.dataset.fdTimer;
     const item=(worldMsgs||[]).find(x=>x.id===id);

@@ -31,14 +31,55 @@ const TOOLS=[
   ['canvas-studio.html','canvas','Canvas Studio','Design & visual edits','tool_open']
 ];
 
-/* ===== Student Tools Side Drawer Controls ===== */
+/* ===== Student Tools Side Drawer Controls (On-Demand Mount + Clean Timer Teardown) ===== */
+let toolsDrawerMounted=false;
+let drawerPoemsDirty=true;
+let posterScrollIv=0;
+
+function mountToolsDrawer(){
+  if(!toolsDrawerMounted){
+    const track=$('#posterTrack');
+    if(track){
+      track.innerHTML=POSTERS.map(p=>`<a class="poster-slide ${p[4]}" href="${esc(p[0])}" onclick="event.preventDefault();closeToolsDrawer();window.__openTool('${esc(p[0])}')"><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><span class="poster-ico">${TOOL_SVG[p[3]]}</span></a>`).join('');
+    }
+    const tg=$('#toolGrid');
+    if(tg){
+      tg.innerHTML=TOOLS.map(t=>`<a class="card tool" href="${esc(t[0])}" data-stat="${esc(t[4])}" data-href="${esc(t[0])}"><div class="art">${TOOL_SVG[t[1]]}</div><b>${esc(t[2])}</b><small>${esc(t[3])}</small></a>`).join('');
+    }
+    toolsDrawerMounted=true;
+  }
+  if(drawerPoemsDirty){
+    renderPoems(true);
+  }
+}
+
+function startDrawerPosterTimer(){
+  clearInterval(posterScrollIv);
+  posterScrollIv=setInterval(()=>{
+    const drawer=$('#toolsDrawer');
+    const track=$('#posterTrack');
+    if(document.hidden||!drawer||!drawer.classList.contains('open')||!track||!track.offsetParent)return;
+    if(track.scrollLeft+track.clientWidth>=track.scrollWidth-10)track.scrollTo({left:0,behavior:'smooth'});
+    else track.scrollBy({left:track.clientWidth*0.85,behavior:'smooth'});
+  },4200);
+}
+
+function stopDrawerPosterTimer(){
+  if(posterScrollIv){
+    clearInterval(posterScrollIv);
+    posterScrollIv=0;
+  }
+}
+
 function openToolsDrawer(){
   const drawer=$('#toolsDrawer');
   const backdrop=$('#toolsDrawerBackdrop');
   if(!drawer)return;
+  mountToolsDrawer();
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden','false');
   if(backdrop){backdrop.hidden=false;backdrop.classList.add('open')}
+  startDrawerPosterTimer();
   if(typeof pushBackGuardState==='function')pushBackGuardState('drawer');
   if(typeof playSfx==='function')playSfx('click');
 }
@@ -46,6 +87,7 @@ function openToolsDrawer(){
 function closeToolsDrawer(){
   const drawer=$('#toolsDrawer');
   const backdrop=$('#toolsDrawerBackdrop');
+  stopDrawerPosterTimer();
   if(!drawer)return;
   drawer.classList.remove('open');
   drawer.setAttribute('aria-hidden','true');
@@ -131,14 +173,6 @@ function renderHomeHub(){
 
 function renderHome(){
   renderHomeHub();
-  const track=$('#posterTrack');
-  if(track){
-    track.innerHTML=POSTERS.map(p=>`<a class="poster-slide ${p[4]}" href="${esc(p[0])}" onclick="event.preventDefault();closeToolsDrawer();window.__openTool('${esc(p[0])}')"><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><span class="poster-ico">${TOOL_SVG[p[3]]}</span></a>`).join('');
-  }
-  const tg=$('#toolGrid');
-  if(tg){
-    tg.innerHTML=TOOLS.map(t=>`<a class="card tool" href="${esc(t[0])}" data-stat="${esc(t[4])}" data-href="${esc(t[0])}"><div class="art">${TOOL_SVG[t[1]]}</div><b>${esc(t[2])}</b><small>${esc(t[3])}</small></a>`).join('');
-  }
 }
 
 if($('#toolGrid')){
@@ -152,17 +186,16 @@ if($('#toolGrid')){
   };
 }
 
-setInterval(()=>{
-  const track=$('#posterTrack');
-  if(!track||!track.offsetParent)return;
-  if(track.scrollLeft+track.clientWidth>=track.scrollWidth-10)track.scrollTo({left:0,behavior:'smooth'});
-  else track.scrollBy({left:track.clientWidth*0.85,behavior:'smooth'});
-},4200);
-
 /* Poem Request (1/day per user) -> Developer Approval -> Side Drawer Wall + Dev Delete */
-function renderPoems(){
+function renderPoems(force){
   const listEl=$('#poemList');
   if(!listEl)return;
+  const drawer=$('#toolsDrawer');
+  if(!force&&drawer&&!drawer.classList.contains('open')){
+    drawerPoemsDirty=true;
+    return;
+  }
+  drawerPoemsDirty=false;
   let devReqHtml='';
   if(devMode && poemRequests.length){
     devReqHtml=`<div class="card" style="border-color:var(--gold)">

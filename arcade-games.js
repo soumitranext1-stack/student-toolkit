@@ -595,7 +595,13 @@ function launchPocketTerritory(opts) {
   const roomCode = String(o.roomCode || ('PT' + Math.floor(1000 + Math.random() * 9000))).toUpperCase();
   const isLocalPvp = modeType === 'pvp' && !o.rivalBot;
   const p1Name = (typeof me !== 'undefined' && me.name) ? me.name : 'You';
-  const p2Name = o.rival?.name || (isLocalPvp ? 'Player 2' : (botTier === 'pro' ? 'Tactician Bot' : 'Territory Bot'));
+  const p2Name = o.rival?.name || (isLocalPvp ? 'Player 2' : (botTier === 'pro' ? 'Pro Bot' : 'AI Bot'));
+  const shortPt = (nm) => {
+    const s = String(nm || '').trim();
+    return s.length > 12 ? (s.slice(0, 11) + '…') : s;
+  };
+  const p1Lbl = shortPt(p1Name);
+  const p2Lbl = shortPt(p2Name);
   const pay = AR.calcMatchPayout(stake);
 
   if (typeof setMyLiveActivity === 'function') {
@@ -619,9 +625,9 @@ function launchPocketTerritory(opts) {
       <div class="arc-stage" id="ptStage" data-testid="territory-stage">
         <div class="pt-dom-card">
           <div class="pt-dom-nums">
-            <b class="p1" id="ptP1Cnt">🔵 ${esc(p1Name.slice(0, 9))}: 1</b>
+            <b class="p1" id="ptP1Cnt">🔵 ${esc(p1Lbl)}: 1</b>
             <span id="ptTurnsLbl">${state.turnsLeft} left</span>
-            <b class="p2" id="ptP2Cnt">${esc(p2Name.slice(0, 9))}: 1 🔴</b>
+            <b class="p2" id="ptP2Cnt">${esc(p2Lbl)}: 1 🔴</b>
           </div>
           <div class="pt-dom-bar"><i id="ptBarP1" style="width:50%"></i></div>
         </div>
@@ -681,8 +687,8 @@ function launchPocketTerritory(opts) {
   const renderBoard = () => {
     const counts = AR.countTerritory(state);
     const pct = Math.round((counts.p1 / Math.max(1, counts.p1 + counts.p2)) * 100);
-    if ($('#ptP1Cnt', view)) $('#ptP1Cnt', view).textContent = `🔵 ${p1Name.slice(0, 9)}: ${counts.p1}`;
-    if ($('#ptP2Cnt', view)) $('#ptP2Cnt', view).textContent = `${p2Name.slice(0, 9)}: ${counts.p2} 🔴`;
+    if ($('#ptP1Cnt', view)) $('#ptP1Cnt', view).textContent = `🔵 ${p1Lbl}: ${counts.p1}`;
+    if ($('#ptP2Cnt', view)) $('#ptP2Cnt', view).textContent = `${p2Lbl}: ${counts.p2} 🔴`;
     if ($('#ptTurnsLbl', view)) $('#ptTurnsLbl', view).textContent = `${state.turnsLeft} left`;
     if ($('#ptBarP1', view)) $('#ptBarP1', view).style.width = `${pct}%`;
 

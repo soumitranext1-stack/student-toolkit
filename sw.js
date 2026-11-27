@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v27';
+const CACHE_NAME = 'study-game-v30';
 const CORE_SHELL = [
   './',
   './index.html',
@@ -17,14 +17,19 @@ const CORE_SHELL = [
   './apple-touch-icon.png',
   './style.css',
   './fx-pack.css',
+  './launcher-show.css',
   './gamekit.css',
   './sfx.js',
   './quickvoice.js',
   './fx-avatars.js',
   './fx-frames.js',
+  './arcade-rules.js',
+  './show-games-rules.js',
+  './voice-narrator.js',
   './core.js',
   './social.js',
   './party.js',
+  './launcher-ui.js',
   './ludo-rules.js',
   './ludo.js',
   './number-match-rules.js',
@@ -33,10 +38,11 @@ const CORE_SHELL = [
   './jackaroo.js',
   './uno-rules.js',
   './uno.js',
-  './arcade-rules.js',
   './pool-8ball.js',
   './chess-arena.js',
   './arcade-games.js',
+  './budget-clash.js',
+  './couple-arena.js',
   './mode-select.js',
   './arena.js',
   './gifts.js',

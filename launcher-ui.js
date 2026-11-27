@@ -50,15 +50,15 @@
           <path d="M0 0h44c-5 48-7 94-15 146H0V0z" fill="#7f1d1d" opacity=".92"/>
           <path d="M320 0h-44c5 48 7 94 15 146h29V0z" fill="#7f1d1d" opacity=".92"/>
           <path d="M0 0c44 18 82 18 120 0h80c38 18 76 18 120 0v13H0V0z" fill="#991b1b"/>
-          <ellipse cx="160" cy="126" rx="88" ry="12" fill="#fbbf24" fill-opacity=".22"/>
-          <rect x="108" y="34" width="104" height="72" rx="14" fill="#1e1b4b" stroke="#fde047" stroke-width="3.2"/>
-          <rect x="114" y="40" width="92" height="22" rx="7" fill="#fbbf24" fill-opacity=".18"/>
-          <path d="M142 34v-8a18 18 0 0 1 36 0v8" fill="none" stroke="#fde047" stroke-width="3.5" stroke-linecap="round"/>
-          <text x="160" y="80" text-anchor="middle" font-size="24" font-weight="900" fill="#fef08a">₹1 Cr</text>
-          <rect x="40" y="84" width="54" height="26" rx="9" fill="#0f172a" fill-opacity=".9" stroke="#34d399" stroke-width="2"/>
-          <text x="67" y="102" text-anchor="middle" font-size="13" font-weight="900" fill="#6ee7b7">₹10</text>
-          <rect x="216" y="28" width="66" height="24" rx="9" fill="#f59e0b" stroke="#fffbeb" stroke-width="1.8"/>
-          <text x="249" y="44" text-anchor="middle" font-size="11" font-weight="900" fill="#2b1200">JACKPOT</text>
+          <ellipse cx="160" cy="130" rx="88" ry="11" fill="#fbbf24" fill-opacity=".22"/>
+          <rect x="108" y="42" width="104" height="68" rx="14" fill="#1e1b4b" stroke="#fde047" stroke-width="3.2"/>
+          <rect x="114" y="48" width="92" height="20" rx="7" fill="#fbbf24" fill-opacity=".18"/>
+          <path d="M142 42v-7a18 18 0 0 1 36 0v7" fill="none" stroke="#fde047" stroke-width="3.4" stroke-linecap="round"/>
+          <text x="160" y="86" text-anchor="middle" font-size="24" font-weight="900" fill="#fef08a">₹1 Cr</text>
+          <rect x="40" y="92" width="54" height="26" rx="9" fill="#0f172a" fill-opacity=".9" stroke="#34d399" stroke-width="2"/>
+          <text x="67" y="110" text-anchor="middle" font-size="13" font-weight="900" fill="#6ee7b7">₹10</text>
+          <rect x="220" y="92" width="66" height="26" rx="9" fill="#f59e0b" stroke="#fffbeb" stroke-width="1.8"/>
+          <text x="253" y="109" text-anchor="middle" font-size="11" font-weight="900" fill="#2b1200">JACKPOT</text>
         </g>`,
       couple_arena: `
         <g>
@@ -257,17 +257,22 @@
       $$('.gl-hero-dot', wrap).forEach((el, i) => el.classList.toggle('on', i === activeHeroIdx));
     };
 
-    wrap.onclick = (e) => {
+    wrap.onclick = async (e) => {
       const playBtn = e.target.closest('[data-heroplay]');
       if (playBtn) {
         e.stopPropagation();
         if (typeof playSfx === 'function') playSfx('turnStart');
         const gid = playBtn.dataset.heroplay;
         const sub = playBtn.dataset.herosub || '';
-        if (gid === 'budget_clash' && typeof launchBudgetClash === 'function') {
-          launchBudgetClash({ subMode: sub || 'ten_vs_cr', stake: 0, modeType: 'bot' });
-        } else if (gid === 'couple_arena' && typeof launchCoupleArena === 'function') {
-          launchCoupleArena({ subMode: sub || 'mind_sync', stake: 0, modeType: 'bot' });
+        if (typeof launchStandardizedGame === 'function') {
+          await launchStandardizedGame(gid, { subMode: sub || (gid === 'couple_arena' ? 'mind_sync' : 'ten_vs_cr'), stake: 0, modeType: 'bot' });
+        } else {
+          if (typeof ensureGameModule === 'function') await ensureGameModule(gid);
+          if (gid === 'budget_clash' && typeof launchBudgetClash === 'function') {
+            launchBudgetClash({ subMode: sub || 'ten_vs_cr', stake: 0, modeType: 'bot' });
+          } else if (gid === 'couple_arena' && typeof launchCoupleArena === 'function') {
+            launchCoupleArena({ subMode: sub || 'mind_sync', stake: 0, modeType: 'bot' });
+          }
         }
         return;
       }
@@ -309,10 +314,14 @@
 
     clearInterval(heroTimer);
     heroTimer = setInterval(() => {
-      if (!document.body.contains(wrap) || !wrap.offsetParent) return;
+      if (document.hidden || !document.body.contains(wrap) || !wrap.offsetParent) return;
       syncSlide(activeHeroIdx + 1);
     }, 6500);
   }
+  window.pauseLauncherHeroTimer = () => {
+    clearInterval(heroTimer);
+    heroTimer = 0;
+  };
 
   const BADGE_LABEL = {
     bot: '🤖 Bot',
@@ -367,8 +376,8 @@
     if (g.launcher === 'couple_sub') {
       if (typeof openVisualModeSelect === 'function') {
         openVisualModeSelect(g.parentGameId || 'couple_arena', null, { mode: g.initialSubMode || 'mind_sync' });
-      } else if (typeof launchCoupleArena === 'function') {
-        launchCoupleArena({ subMode: g.initialSubMode || 'mind_sync' });
+      } else if (typeof launchStandardizedGame === 'function') {
+        launchStandardizedGame(g.parentGameId || 'couple_arena', { subMode: g.initialSubMode || 'mind_sync', stake: 0, modeType: 'bot' });
       }
       return;
     }

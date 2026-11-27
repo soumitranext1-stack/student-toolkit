@@ -74,84 +74,128 @@ const DUEL_GAMES=[
   {
     id:'number_match',name:'Number Match Room',icon:'puzzle',
     questions:[
-      {q:'Which two digits can be matched in Number Match?',o:['Same digits or Sum 10','Only even digits','Only prime digits','Sum 12'],a:0},
-      {q:'In Number Match, 3 can pair with which two numbers?',o:['3 or 7','3 or 6','2 or 8','4 or 6'],a:0},
-      {q:'What happens when every number in a row is cleared?',o:['Row collapses + Bonus','Game ends','Nothing','Tiles shuffle'],a:0},
-      {q:'Which directions can a Number Match pair connect across empty tiles?',o:['Horizontal, Vertical, Diagonal & Wrap','Horizontal only','Vertical only','Diagonal only'],a:0}
+      {id:'nm1',q:'Which two digits can be matched in Number Match?',o:['Same digits or Sum 10','Only even digits','Only prime digits','Sum 12'],a:0},
+      {id:'nm2',q:'In Number Match, 3 can pair with which two numbers?',o:['3 or 7','3 or 6','2 or 8','4 or 6'],a:0},
+      {id:'nm3',q:'What happens when every number in a row is cleared?',o:['Row collapses + Bonus','Game ends','Nothing','Tiles shuffle'],a:0},
+      {id:'nm4',q:'Which directions can a Number Match pair connect across empty tiles?',o:['Horizontal, Vertical, Diagonal & Wrap','Horizontal only','Vertical only','Diagonal only'],a:0},
+      {id:'nm5',q:'Which pair adds up to 10 in Number Match?',o:['4 and 6','3 and 6','2 and 7','5 and 4'],a:0},
+      {id:'nm6',q:'Can a number at the end of one row pair with the first active number of the next row?',o:['Yes, line-wrap match','No, never','Only on diagonals','Only if both are 5'],a:0},
+      {id:'nm7',q:'What does the "+ Add Rows" action do when no pairs remain?',o:['Appends remaining numbers below','Deletes top row','Ends the game','Resets score to 0'],a:0},
+      {id:'nm8',q:'Which digit pairs ONLY with itself to make 10?',o:['5','4','6','9'],a:0},
+      {id:'nm9',q:'Which pair is an EQUAL match?',o:['8 and 8','8 and 2','7 and 3','9 and 1'],a:0},
+      {id:'nm10',q:'If 1 and 9 have only cleared cells between them vertically, can they match?',o:['Yes, clear path works','No, must touch directly','Only horizontally','Only at game start'],a:0},
+      {id:'nm11',q:'Clearing the entire board in Number Match gives what?',o:['Stage Clear + Big Bonus','Instant Loss','Penalty −50','Board Lock'],a:0},
+      {id:'nm12',q:'Which number pairs with 2 to sum to 10?',o:['8','7','6','9'],a:0}
     ]
   },
   {
     id:'jackaroo',name:'Jackaroo Royal Room',icon:'custom',
     questions:[
-      {q:'Which card in Jackaroo moves 1 or 2 stones a total of 7 steps?',o:['Card 4','Card 7','Card 10','Queen'],a:1},
-      {q:'Card 4 in Jackaroo moves a stone how many steps back?',o:['2 steps','3 steps','4 steps','5 steps'],a:2},
-      {q:'Which card lets you swap with another player\'s stone or move +11?',o:['Jack (J)','King (K)','2','6'],a:0},
-      {q:'King (K) in Jackaroo can exit base or move how many steps?',o:['10','11','12','13'],a:3}
+      {id:'jk1',q:'Which card in Jackaroo moves 1 or 2 stones a total of 7 steps?',o:['Card 4','Card 7','Card 10','Queen'],a:1},
+      {id:'jk2',q:'Card 4 in Jackaroo moves a stone how many steps back?',o:['2 steps','3 steps','4 steps','5 steps'],a:2},
+      {id:'jk3',q:'Which card lets you swap with another player\'s stone or move +11?',o:['Jack (J)','King (K)','2','6'],a:0},
+      {id:'jk4',q:'King (K) in Jackaroo can exit base or move how many steps?',o:['10','11','12','13'],a:3},
+      {id:'jk5',q:'Which card besides King allows a marble to exit Home Base?',o:['Ace (A)','5','9','Queen (Q)'],a:0},
+      {id:'jk6',q:'How many marbles does each player race to Safe Home in Jackaroo?',o:['2','3','4','6'],a:2},
+      {id:'jk7',q:'What does Card 10 allow in classic Jackaroo?',o:['Move +10 or force next player to burn a card','Move backwards 10','Swap two marbles','Skip two players'],a:0},
+      {id:'jk8',q:'In 2v2 Squad Jackaroo, once all 4 of your marbles reach Home, what do you do?',o:['Help move your teammate\'s marbles','Leave the table','Skip every turn','Restart your marbles'],a:0},
+      {id:'jk9',q:'What happens when your marble lands directly on an opponent\'s unprotected marble?',o:['Sends opponent marble back to Base','Both marbles freeze','Nothing happens','You lose a turn'],a:0},
+      {id:'jk10',q:'How many steps forward does Queen (Q) move a stone?',o:['10','11','12','13'],a:2},
+      {id:'jk11',q:'Card 5 in Jackaroo can move which marble +5 steps?',o:['Any marble on the track (even opponent/ally)','Only your own marble','Only marbles in base','None'],a:0},
+      {id:'jk12',q:'When you have no legal move with any card in hand, what happens?',o:['Burn/discard a card','Draw 5 cards','Win automatically','Reverse the board'],a:0}
     ]
   },
   {
     id:'uno',name:'UNO Clash Room',icon:'duel',
     questions:[
-      {q:'What happens if you reach 1 card and forget to call UNO?',o:['Nothing','+2 penalty cards','Instant win','Skip next turn'],a:1},
-      {q:'Which card reverses turn direction?',o:['Skip','Reverse','Wild','0'],a:1},
-      {q:'Wild +4 lets you choose the next color and forces next player to draw?',o:['2 cards','3 cards','4 cards','1 card'],a:2},
-      {q:'In 1v1 UNO, how does a Reverse card act?',o:['Same as Skip','Draws 1','Ends round','Changes deck'],a:0}
+      {id:'un1',q:'What happens if you reach 1 card and forget to call UNO?',o:['Nothing','+2 penalty cards','Instant win','Skip next turn'],a:1},
+      {id:'un2',q:'Which card reverses turn direction?',o:['Skip','Reverse','Wild','0'],a:1},
+      {id:'un3',q:'Wild +4 lets you choose the next color and forces next player to draw?',o:['2 cards','3 cards','4 cards','1 card'],a:2},
+      {id:'un4',q:'In 1v1 UNO, how does a Reverse card act?',o:['Same as Skip','Draws 1','Ends round','Changes deck'],a:0},
+      {id:'un5',q:'How many cards are dealt to each player at the start of standard UNO?',o:['5','7','9','10'],a:1},
+      {id:'un6',q:'What are the 4 standard UNO card colors?',o:['Red, Yellow, Green, Blue','Red, Purple, Orange, Blue','Black, White, Red, Green','Pink, Gold, Cyan, Blue'],a:0},
+      {id:'un7',q:'You can play a card on top of the discard pile if it matches the?',o:['Color, Number, Symbol, or is Wild','Exact same card only','Higher number only','Lower number only'],a:0},
+      {id:'un8',q:'In Fun +Stack mode, what can you play on top of a +2 card?',o:['Another +2 (or +4) to stack penalty','Only a 0 card','Any matching number','Nothing'],a:0},
+      {id:'un9',q:'What does a Skip card do to the next player?',o:['Skips their turn','Gives them +2 cards','Swaps their hand','Ends the match'],a:0},
+      {id:'un10',q:'Can a regular Wild card be played on any color?',o:['Yes, and you pick the new color','No, only on Red','Only on matching number','Only on last turn'],a:0},
+      {id:'un11',q:'How do you win a round of UNO?',o:['Be the first to empty your hand','Collect 15 cards','Hold 4 Wild cards','Draw the whole deck'],a:0},
+      {id:'un12',q:'If you have no playable card on your turn, what must you do?',o:['Draw from the deck','Pass without drawing','Discard 2 cards','Swap seats'],a:0}
     ]
   },
   {
     id:'math',name:'Math Speed Sprint',icon:'math',
     questions:[
-      {q:'(24 ÷ 3) + (6 × 5) = ?',o:['34','38','42','30'],a:1},
-      {q:'15% of 200 = ?',o:['25','30','35','40'],a:1},
-      {q:'14 × 6 = ?',o:['74','84','94','64'],a:1},
-      {q:'√144 = ?',o:['10','11','12','14'],a:2},
-      {q:'7² + 3² = ?',o:['52','58','56','62'],a:1},
-      {q:'1/2 + 1/4 = ?',o:['3/4','2/6','1/6','2/4'],a:0},
-      {q:'9 × 8 = ?',o:['64','72','81','78'],a:1},
-      {q:'250 ÷ 5 = ?',o:['40','45','50','55'],a:2},
-      {q:'18 × 5 = ?',o:['80','85','90','95'],a:2},
-      {q:'3³ + 13 = ?',o:['36','40','42','39'],a:1}
+      {id:'ma1',q:'(24 ÷ 3) + (6 × 5) = ?',o:['34','38','42','30'],a:1},
+      {id:'ma2',q:'15% of 200 = ?',o:['25','30','35','40'],a:1},
+      {id:'ma3',q:'14 × 6 = ?',o:['74','84','94','64'],a:1},
+      {id:'ma4',q:'√144 = ?',o:['10','11','12','14'],a:2},
+      {id:'ma5',q:'7² + 3² = ?',o:['52','58','56','62'],a:1},
+      {id:'ma6',q:'1/2 + 1/4 = ?',o:['3/4','2/6','1/6','2/4'],a:0},
+      {id:'ma7',q:'9 × 8 = ?',o:['64','72','81','78'],a:1},
+      {id:'ma8',q:'250 ÷ 5 = ?',o:['40','45','50','55'],a:2},
+      {id:'ma9',q:'18 × 5 = ?',o:['80','85','90','95'],a:2},
+      {id:'ma10',q:'3³ + 13 = ?',o:['36','40','42','39'],a:1},
+      {id:'ma11',q:'12 × 12 − 44 = ?',o:['90','100','104','110'],a:1},
+      {id:'ma12',q:'20% of 450 = ?',o:['80','85','90','95'],a:2},
+      {id:'ma13',q:'√196 + 6 = ?',o:['18','20','22','24'],a:1},
+      {id:'ma14',q:'(15 × 4) ÷ 3 = ?',o:['15','20','25','30'],a:1}
     ]
   },
   {
     id:'science',name:'Science Quiz Arena',icon:'trivia',
     questions:[
-      {q:'Powerhouse of the cell?',o:['Ribosome','Mitochondria','Nucleus','Golgi'],a:1},
-      {q:'Chemical symbol of Sodium?',o:['So','Na','Sd','K'],a:1},
-      {q:'SI unit of force?',o:['Joule','Watt','Newton','Pascal'],a:2},
-      {q:'Formula of water?',o:['H2O','CO2','O2','HO'],a:0},
-      {q:'Which planet is known as the Red Planet?',o:['Venus','Mars','Jupiter','Mercury'],a:1},
-      {q:'Gas absorbed by plants during photosynthesis?',o:['Oxygen','Nitrogen','Carbon dioxide','Helium'],a:2},
-      {q:'Hardest natural substance on Earth?',o:['Gold','Iron','Diamond','Quartz'],a:2},
-      {q:'Total bones in an adult human body?',o:['206','201','212','196'],a:0},
-      {q:'SI unit of electric current?',o:['Volt','Ohm','Ampere','Watt'],a:2},
-      {q:'Chemical symbol of Gold?',o:['Ag','Au','Gd','Go'],a:1}
+      {id:'sc1',q:'Powerhouse of the cell?',o:['Ribosome','Mitochondria','Nucleus','Golgi'],a:1},
+      {id:'sc2',q:'Chemical symbol of Sodium?',o:['So','Na','Sd','K'],a:1},
+      {id:'sc3',q:'SI unit of force?',o:['Joule','Watt','Newton','Pascal'],a:2},
+      {id:'sc4',q:'Formula of water?',o:['H2O','CO2','O2','HO'],a:0},
+      {id:'sc5',q:'Which planet is known as the Red Planet?',o:['Venus','Mars','Jupiter','Mercury'],a:1},
+      {id:'sc6',q:'Gas absorbed by plants during photosynthesis?',o:['Oxygen','Nitrogen','Carbon dioxide','Helium'],a:2},
+      {id:'sc7',q:'Hardest natural substance on Earth?',o:['Gold','Iron','Diamond','Quartz'],a:2},
+      {id:'sc8',q:'Total bones in an adult human body?',o:['206','201','212','196'],a:0},
+      {id:'sc9',q:'SI unit of electric current?',o:['Volt','Ohm','Ampere','Watt'],a:2},
+      {id:'sc10',q:'Chemical symbol of Gold?',o:['Ag','Au','Gd','Go'],a:1},
+      {id:'sc11',q:'Which planet is closest to the Sun?',o:['Venus','Mercury','Mars','Earth'],a:1},
+      {id:'sc12',q:'Normal human body temperature in Celsius?',o:['35°C','37°C','39°C','40°C'],a:1},
+      {id:'sc13',q:'Which organ filters blood to produce urine?',o:['Heart','Liver','Kidney','Lung'],a:2},
+      {id:'sc14',q:'Sound travels fastest through which medium?',o:['Vacuum','Air','Water','Steel (Solid)'],a:3}
     ]
   },
   {
     id:'trivia',name:'Trivia Rush Live',icon:'trivia',
     questions:[
-      {q:'Capital of Japan?',o:['Kyoto','Tokyo','Osaka','Seoul'],a:1},
-      {q:'Largest ocean on Earth?',o:['Atlantic','Indian','Pacific','Arctic'],a:2},
-      {q:'How many continents are there?',o:['5','6','7','8'],a:2},
-      {q:'Longest river in India?',o:['Yamuna','Ganga','Godavari','Kaveri'],a:1},
-      {q:'National flower of India?',o:['Rose','Marigold','Lotus','Jasmine'],a:2},
-      {q:'Number of days in a leap year?',o:['364','365','366','367'],a:2},
-      {q:'Olympics are held every how many years?',o:['2','3','4','5'],a:2},
-      {q:'HTML stands for?',o:['HyperText Markup Language','HighText Machine Language','HyperTool Markup Language','Home Text Markup Language'],a:0}
+      {id:'tr1',q:'Capital of Japan?',o:['Kyoto','Tokyo','Osaka','Seoul'],a:1},
+      {id:'tr2',q:'Largest ocean on Earth?',o:['Atlantic','Indian','Pacific','Arctic'],a:2},
+      {id:'tr3',q:'How many continents are there?',o:['5','6','7','8'],a:2},
+      {id:'tr4',q:'Longest river in India?',o:['Yamuna','Ganga','Godavari','Kaveri'],a:1},
+      {id:'tr5',q:'National flower of India?',o:['Rose','Marigold','Lotus','Jasmine'],a:2},
+      {id:'tr6',q:'Number of days in a leap year?',o:['364','365','366','367'],a:2},
+      {id:'tr7',q:'Olympics are held every how many years?',o:['2','3','4','5'],a:2},
+      {id:'tr8',q:'HTML stands for?',o:['HyperText Markup Language','HighText Machine Language','HyperTool Markup Language','Home Text Markup Language'],a:0},
+      {id:'tr9',q:'Which country gifted the Statue of Liberty to the USA?',o:['Spain','France','Italy','UK'],a:1},
+      {id:'tr10',q:'Which city is known as the Pink City of India?',o:['Udaipur','Jaipur','Jodhpur','Bikaner'],a:1},
+      {id:'tr11',q:'How many keys are on a standard full-size piano?',o:['76','84','88','92'],a:2},
+      {id:'tr12',q:'Which currency is used in the United Kingdom?',o:['Euro','Dollar','Pound Sterling','Franc'],a:2},
+      {id:'tr13',q:'Mount Kilimanjaro is located in which country?',o:['Kenya','Tanzania','Ethiopia','Egypt'],a:1},
+      {id:'tr14',q:'Which desert is the coldest desert on Earth?',o:['Gobi','Sahara','Antarctica','Kalahari'],a:2}
     ]
   },
   {
     id:'word',name:'Word Power Clash',icon:'word',
     questions:[
-      {q:'Synonym of "Swift"?',o:['Slow','Rapid','Heavy','Calm'],a:1},
-      {q:'Antonym of "Abundant"?',o:['Plentiful','Rich','Scarce','Large'],a:2},
-      {q:'Meaning of "Benevolent"?',o:['Kind & generous','Angry','Silent','Careless'],a:0},
-      {q:'Synonym of "Diligent"?',o:['Lazy','Hardworking','Fragile','Noisy'],a:1},
-      {q:'Antonym of "Opaque"?',o:['Dark','Transparent','Solid','Thick'],a:1},
-      {q:'Meaning of "Concise"?',o:['Brief and clear','Very long','Confusing','Delayed'],a:0},
-      {q:'Synonym of "Resilient"?',o:['Weak','Adaptable & strong','Timid','Rigid'],a:1},
-      {q:'Antonym of "Expand"?',o:['Grow','Stretch','Contract','Build'],a:2}
+      {id:'wd1',q:'Synonym of "Swift"?',o:['Slow','Rapid','Heavy','Calm'],a:1},
+      {id:'wd2',q:'Antonym of "Abundant"?',o:['Plentiful','Rich','Scarce','Large'],a:2},
+      {id:'wd3',q:'Meaning of "Benevolent"?',o:['Kind & generous','Angry','Silent','Careless'],a:0},
+      {id:'wd4',q:'Synonym of "Diligent"?',o:['Lazy','Hardworking','Fragile','Noisy'],a:1},
+      {id:'wd5',q:'Antonym of "Opaque"?',o:['Dark','Transparent','Solid','Thick'],a:1},
+      {id:'wd6',q:'Meaning of "Concise"?',o:['Brief and clear','Very long','Confusing','Delayed'],a:0},
+      {id:'wd7',q:'Synonym of "Resilient"?',o:['Weak','Adaptable & strong','Timid','Rigid'],a:1},
+      {id:'wd8',q:'Antonym of "Expand"?',o:['Grow','Stretch','Contract','Build'],a:2},
+      {id:'wd9',q:'Synonym of "Candid"?',o:['Secretive','Honest & frank','Shy','Bitter'],a:1},
+      {id:'wd10',q:'Antonym of "Optimistic"?',o:['Hopeful','Cheerful','Pessimistic','Confident'],a:2},
+      {id:'wd11',q:'Meaning of "Ephemeral"?',o:['Short-lived','Eternal','Heavy','Ancient'],a:0},
+      {id:'wd12',q:'Synonym of "Meticulous"?',o:['Careless','Very thorough','Hasty','Loud'],a:1},
+      {id:'wd13',q:'Antonym of "Scarce"?',o:['Rare','Limited','Plentiful','Tiny'],a:2},
+      {id:'wd14',q:'Meaning of "Pragmatic"?',o:['Practical & realistic','Daydreaming','Stubborn','Dramatic'],a:0}
     ]
   }
 ];
@@ -163,6 +207,28 @@ function seededShuffle(a,seed){
   const b=[...a];
   for(let i=b.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[b[i],b[j]]=[b[j],b[i]]}
   return b;
+}
+
+function drawDuelQuestionBatch(modeObj, count, seed, roundNo){
+  const list = (modeObj && Array.isArray(modeObj.questions)) ? modeObj.questions : [];
+  if (!list.length) return [];
+  const SR = window.ShowGamesRules;
+  if (seed) {
+    // Deterministic across players in the same room/duel, rotating cleanly by roundNo
+    const baseSeed = `${seed}_${modeObj.id}`;
+    const ordered = seededShuffle(list, baseSeed);
+    const rn = Math.max(1, Number(roundNo || 1));
+    const offset = ((rn - 1) * count) % ordered.length;
+    const out = [];
+    for (let i = 0; i < Math.min(count, ordered.length); i++) {
+      out.push(ordered[(offset + i) % ordered.length]);
+    }
+    return out;
+  }
+  if (SR && typeof SR.drawPersistentQuestions === 'function') {
+    return SR.drawPersistentQuestions('duel_' + modeObj.id, list, count, q => q.id || q.q);
+  }
+  return seededShuffle(list, Date.now() + '_' + Math.random()).slice(0, count);
 }
 
 /* ===== Live Multiplayer Rooms State & Firestore Sync ===== */
@@ -257,8 +323,9 @@ function settleRoomRewardForMe(room){
 }
 
 function renderMultiplayerRooms(){
-  if(typeof renderGamesLauncher==='function'&&$('#gamesLauncherRoot')){
-    renderGamesLauncher();
+  if(typeof activeAppTab!=='undefined' && activeAppTab!=='games'){
+    if(typeof markTabsDirty==='function')markTabsDirty('games');
+    return;
   }
   const host=$('#mpRoomsHost');
   if(!host)return;
@@ -303,11 +370,14 @@ function renderMultiplayerRooms(){
     if(!code)return toast('Enter a room code (e.g. SG-4K9P)');
     joinMultiplayerRoomByCode(code);
   };
-  host.onclick=e=>{
+  host.onclick=async e=>{
     const sb=e.target.closest('[data-specroom]');
     if(sb&&sb.dataset.specroom){
       const rm=mpRooms.find(x=>x.id===sb.dataset.specroom);
       if(rm){
+        if(typeof ensureGameModule==='function'&&['ludo','number_match','jackaroo','uno'].includes(rm.mode)){
+          try{await ensureGameModule(rm.mode)}catch{}
+        }
         if(rm.mode==='ludo'&&typeof launchLudoGame==='function'){
           launchLudoGame({roomCode:rm.code,mode:rm.subMode==='1v1'?'1v1':'4p',spectate:true,spectateHost:{uid:rm.hostUid,name:rm.hostName}});
         }else if(rm.mode==='number_match'&&typeof launchNumberMatch==='function'){
@@ -423,14 +493,18 @@ function joinMultiplayerRoom(roomId){
     persistMpRoom(room);
   }
   if(typeof playSfx==='function')playSfx('click');
-  if(room.mode==='jackaroo'&&typeof openJackarooTableLobby==='function'){
-    openJackarooTableLobby({
-      mode:room.subMode==='1v1'?'1v1':'2v2',
-      tier:room.tierLabel||(room.subMode==='1v1'?'1v1 | Junior':'Basic | Junior'),
-      stake:Number(room.entryCoins||0),
-      roomCode:room.code,
-      roomId:room.id,
-      joinExistingRoom:room
+  if(room.mode==='jackaroo'){
+    Promise.resolve(typeof ensureGameModule==='function'?ensureGameModule('jackaroo'):null).then(()=>{
+      if(typeof openJackarooTableLobby==='function'){
+        openJackarooTableLobby({
+          mode:room.subMode==='1v1'?'1v1':'2v2',
+          tier:room.tierLabel||(room.subMode==='1v1'?'1v1 | Junior':'Basic | Junior'),
+          stake:Number(room.entryCoins||0),
+          roomCode:room.code,
+          roomId:room.id,
+          joinExistingRoom:room
+        });
+      }else openMultiplayerRoom(room.id);
     });
     return;
   }
@@ -478,7 +552,7 @@ function startLocalRoomMatchRunner(room){
   }
 
   const mode=mpModeById(room.mode);
-  const questions=seededShuffle(mode.questions,room.seed||room.id).slice(0,6);
+  const questions=drawDuelQuestionBatch(mode,6,room.seed||room.id,room.roundNo||1);
   activeRoomPlayState={
     roundNo:Number(room.roundNo||1),
     questions,
@@ -555,11 +629,11 @@ function refreshActiveRoomModal(){
 
   let stageHtml='';
   if(room.status==='waiting'){
-    const launchBoardBtn=(room.mode==='jackaroo'&&typeof launchJackaroo==='function')
+    const launchBoardBtn=room.mode==='jackaroo'
       ? `<button type="button" class="btn gold sm" id="mpLaunchJackarooBtn">Launch Jackaroo Board</button>`
-      : ((room.mode==='uno'&&typeof launchUnoGame==='function')
+      : (room.mode==='uno'
         ? `<button type="button" class="btn gold sm" id="mpLaunchUnoBtn">Launch UNO Table</button>`
-        : ((room.mode==='number_match'&&typeof launchNumberMatch==='function')
+        : (room.mode==='number_match'
           ? `<button type="button" class="btn gold sm" id="mpLaunchNmBtn">Launch Number Match</button>`
           : ''));
     stageHtml=`
@@ -669,21 +743,24 @@ function refreshActiveRoomModal(){
   };
 
   if($('#mpLaunchJackarooBtn',body)){
-    $('#mpLaunchJackarooBtn',body).onclick=()=>{
+    $('#mpLaunchJackarooBtn',body).onclick=async ()=>{
       if(activeRoomModal)activeRoomModal.close();
-      launchJackaroo(room.entryCoins||0,null,'2v2',room.entryCoins>0?'pro':'standard',room.code);
+      if(typeof ensureGameModule==='function')await ensureGameModule('jackaroo');
+      if(typeof launchJackaroo==='function')launchJackaroo(room.entryCoins||0,null,'2v2',room.entryCoins>0?'pro':'standard',room.code);
     };
   }
   if($('#mpLaunchUnoBtn',body)){
-    $('#mpLaunchUnoBtn',body).onclick=()=>{
+    $('#mpLaunchUnoBtn',body).onclick=async ()=>{
       if(activeRoomModal)activeRoomModal.close();
-      launchUnoGame(room.entryCoins||0,null,'4p',room.entryCoins>0?'pro':'standard',room.code);
+      if(typeof ensureGameModule==='function')await ensureGameModule('uno');
+      if(typeof launchUnoGame==='function')launchUnoGame(room.entryCoins||0,null,'4p',room.entryCoins>0?'pro':'standard',room.code);
     };
   }
   if($('#mpLaunchNmBtn',body)){
-    $('#mpLaunchNmBtn',body).onclick=()=>{
+    $('#mpLaunchNmBtn',body).onclick=async ()=>{
       if(activeRoomModal)activeRoomModal.close();
-      launchNumberMatch({mode:'duel',stake:room.entryCoins||0,roomCode:room.code});
+      if(typeof ensureGameModule==='function')await ensureGameModule('number_match');
+      if(typeof launchNumberMatch==='function')launchNumberMatch({mode:'duel',stake:room.entryCoins||0,roomCode:room.code});
     };
   }
   if($('#mpShareWorldBtn',body))$('#mpShareWorldBtn',body).onclick=()=>shareRoomToWorldChat(room);
@@ -859,7 +936,7 @@ function startTimedDuel(msg,peer){
   if(msg.paid||msg.myScore!=null||me.done['bet_'+msg.id])return toast('You already played this duel');
   if(me.coins<20)return toast('Need 20 coins');
   msg.paid=true;me.done['bet_'+msg.id]=1;addReward(-20,0,null,true,{silentSfx:true});saveChats();
-  const g=DUEL_GAMES[msg.gi]||DUEL_GAMES[0],Q=seededShuffle(g.questions,msg.id).slice(0,8);
+  const g=DUEL_GAMES[msg.gi]||DUEL_GAMES[0],Q=drawDuelQuestionBatch(g,8,msg.id,1);
   let qIdx=0,score=0,left=60,over=false,iv=0;
   const m=modal(`${esc(g.name)} (60s)`,`<div class="row" style="justify-content:space-between;margin-bottom:8px;flex-wrap:wrap"><span class="dur-pill">⏱ <b id="dTimer">60s</b></span><span class="chip" id="dScore">Score: 0</span><button type="button" class="btn gold sm" id="dGiftBtn">Gift Opponent</button></div><div id="dBody"></div>`);
   if($('#dGiftBtn',m))$('#dGiftBtn',m).onclick=()=>{if(typeof openGiftSendModal==='function')openGiftSendModal(peer,{inDm:true})};

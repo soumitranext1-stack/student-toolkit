@@ -266,9 +266,127 @@ const ShowGamesRules = (() => {
     }
   ];
 
-  // Tricky "₹10 vs ₹1 Cr" deceptive matchups (close/tricky visual decoys so players MUST think!)
+  // ---------- 3B. NON-REPEATING QUESTION / PROMPT ENGINE ----------
+  function shuffleArray(list, rng = Math.random) {
+    const arr = Array.isArray(list) ? list.slice() : [];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function defaultItemId(item, idx) {
+    if (item && typeof item === 'object') {
+      if (item.id != null && item.id !== '') return String(item.id);
+      if (item.q) return String(item.q);
+      if (item.question) return String(item.question);
+      if (item.prompt) return String(item.prompt);
+      if (item.task) return String(item.task);
+    }
+    return String(idx);
+  }
+
+  /**
+   * Draws `count` items from `pool` prioritizing unseen IDs in `seenIds`.
+   * Once unseen items run out, begins a fresh shuffled cycle while avoiding
+   * immediately repeating the items just chosen in this batch (or recently seen).
+   */
+  function drawNonRepeatingBatch(pool, count, seenIds = [], getId = defaultItemId, rng = Math.random) {
+    const src = Array.isArray(pool) ? pool : [];
+    const want = Math.max(0, Math.min(Number(count) || 0, src.length));
+    if (!want) {
+      return { items: [], seenIds: Array.isArray(seenIds) ? seenIds.slice() : Array.from(seenIds || []), cycled: false };
+    }
+    const idOf = typeof getId === 'function' ? getId : defaultItemId;
+    const seenSet = new Set(Array.isArray(seenIds) ? seenIds.map(String) : Array.from(seenIds || []).map(String));
+    const keyed = src.map((item, idx) => ({ item, id: String(idOf(item, idx)) }));
+
+    const unseen = shuffleArray(keyed.filter(x => !seenSet.has(x.id)), rng);
+    const chosen = [];
+    const chosenIds = new Set();
+    let cycled = false;
+
+    for (let i = 0; i < unseen.length && chosen.length < want; i++) {
+      chosen.push(unseen[i].item);
+      chosenIds.add(unseen[i].id);
+    }
+
+    if (chosen.length < want) {
+      // Fresh cycle: reset seen history to only the items picked in this batch
+      // so we never repeat the exact previous batch back-to-back.
+      cycled = true;
+      const prevSeenList = Array.isArray(seenIds) ? seenIds.map(String) : Array.from(seenIds || []).map(String);
+      const recentTail = new Set(prevSeenList.slice(-Math.min(want, Math.max(1, src.length - want))));
+      const preferredRecycle = shuffleArray(
+        keyed.filter(x => !chosenIds.has(x.id) && !recentTail.has(x.id)),
+        rng
+      );
+      const fallbackRecycle = shuffleArray(
+        keyed.filter(x => !chosenIds.has(x.id) && recentTail.has(x.id)),
+        rng
+      );
+      const refill = [...preferredRecycle, ...fallbackRecycle];
+      for (let i = 0; i < refill.length && chosen.length < want; i++) {
+        chosen.push(refill[i].item);
+        chosenIds.add(refill[i].id);
+      }
+      return {
+        items: chosen,
+        seenIds: Array.from(chosenIds),
+        cycled: true
+      };
+    }
+
+    const nextSeen = [...Array.from(seenSet), ...Array.from(chosenIds)];
+    // If the entire pool has now been consumed, keep the latest batch as the
+    // cooldown anchor so the next call starts a fresh cycle without repeating this batch.
+    if (nextSeen.length >= keyed.length) {
+      return {
+        items: chosen,
+        seenIds: Array.from(chosenIds),
+        cycled: true
+      };
+    }
+    return {
+      items: chosen,
+      seenIds: nextSeen,
+      cycled
+    };
+  }
+
+  function loadSeenQuestionIds(storageKey) {
+    try {
+      if (typeof localStorage === 'undefined') return [];
+      const raw = localStorage.getItem('sg_seen_q_' + storageKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSeenQuestionIds(storageKey, ids) {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const list = Array.isArray(ids) ? ids.map(String).slice(-200) : [];
+      localStorage.setItem('sg_seen_q_' + storageKey, JSON.stringify(list));
+    } catch {}
+  }
+
+  function drawPersistentQuestions(storageKey, pool, count, getId = defaultItemId, rng = Math.random) {
+    const prev = loadSeenQuestionIds(storageKey);
+    const res = drawNonRepeatingBatch(pool, count, prev, getId, rng);
+    saveSeenQuestionIds(storageKey, res.seenIds);
+    return res.items;
+  }
+
+  // Tricky "₹10 vs ₹1 Cr" deceptive matchups (10 unique pairs so back-to-back rounds stay fresh!)
   const TRICKY_TEN_VS_CR_PAIRS = [
     {
+      id: 'tvc_watch',
       budget: {
         id: 'decoy_watch', name: 'Gold-Plated Quartz Replica', price: 499, category: 'Lookalike', icon: 'watch',
         hint: 'One watch is a ₹499 street replica; the other is an authentic ₹1 Cr Tourbillon!'
@@ -276,6 +394,7 @@ const ShowGamesRules = (() => {
       jackpot: BUDGET_ITEMS.find(x => x.id === 'swiss_watch')
     },
     {
+      id: 'tvc_book',
       budget: {
         id: 'decoy_book', name: 'Spiral Sketch Notebook', price: 120, category: 'Campus', icon: 'notebook',
         hint: 'Both look like paper, but a graded First-Print Comic auctions for ₹48 Lakh!'
@@ -283,6 +402,7 @@ const ShowGamesRules = (() => {
       jackpot: BUDGET_ITEMS.find(x => x.id === 'vintage_comic')
     },
     {
+      id: 'tvc_coin',
       budget: {
         id: 'decoy_gold_coin', name: 'Brass Souvenir Token', price: 80, category: 'Souvenir', icon: 'goldbar',
         hint: 'Do not judge by shine — one is an ₹80 souvenir token, the other is a ₹85 Lakh 1947 Proof Coin!'
@@ -290,6 +410,7 @@ const ShowGamesRules = (() => {
       jackpot: BUDGET_ITEMS.find(x => x.id === 'vintage_coin_10')
     },
     {
+      id: 'tvc_swiss',
       budget: {
         id: 'decoy_swiss', name: 'Swiss Automatic Diver', price: 175000, category: 'Mid-Luxury', icon: 'watch',
         hint: 'Both are real luxury items, but only ONE crosses the ₹1 Crore mark!'
@@ -297,6 +418,7 @@ const ShowGamesRules = (() => {
       jackpot: BUDGET_ITEMS.find(x => x.id === 'emerald_necklace')
     },
     {
+      id: 'tvc_bike',
       budget: {
         id: 'decoy_bike', name: 'Carbon Road Bicycle', price: 118000, category: 'Pro Sport', icon: 'supercar',
         hint: 'Both are performance machines, yet one is ₹1.18 Lakh and the other is ₹1.32 Crore!'
@@ -304,11 +426,44 @@ const ShowGamesRules = (() => {
       jackpot: BUDGET_ITEMS.find(x => x.id === 'supercar')
     },
     {
+      id: 'tvc_ring',
       budget: {
         id: 'decoy_ring', name: 'Titanium Fitness Ring', price: 17999, category: 'Smart Tech', icon: 'necklace',
         hint: 'Smart titanium wearable vs 24K Investment Gold Bullion Vault Set!'
       },
       jackpot: BUDGET_ITEMS.find(x => x.id === 'gold_bullion')
+    },
+    {
+      id: 'tvc_ev',
+      budget: {
+        id: 'decoy_diecast', name: '1:18 Scale Collector Model Car', price: 3200, category: 'Collectible', icon: 'supercar',
+        hint: 'One fits on a desk for ₹3,200; the other is a real ₹78 Lakh Luxury EV Sedan!'
+      },
+      jackpot: BUDGET_ITEMS.find(x => x.id === 'ev_sedan')
+    },
+    {
+      id: 'tvc_tech',
+      budget: {
+        id: 'decoy_earbuds', name: 'ANC Wireless Earbuds', price: 2799, category: 'Tech', icon: 'earbuds',
+        hint: 'Budget TWS earbuds vs an authentic ₹1.05 Crore 24K Gold Bullion Vault!'
+      },
+      jackpot: BUDGET_ITEMS.find(x => x.id === 'gold_bullion')
+    },
+    {
+      id: 'tvc_laptop',
+      budget: {
+        id: 'decoy_laptop', name: 'Ultralight RTX Laptop', price: 149900, category: 'Tech', icon: 'laptop',
+        hint: 'High-end creator laptop (₹1.5L) vs a ₹1.12 Crore Kashmir Emerald Necklace!'
+      },
+      jackpot: BUDGET_ITEMS.find(x => x.id === 'emerald_necklace')
+    },
+    {
+      id: 'tvc_cam',
+      budget: {
+        id: 'decoy_cam', name: 'Retro Instant Film Camera', price: 6999, category: 'Lifestyle', icon: 'phone',
+        hint: 'Retro instant camera (₹6,999) vs a ₹1 Crore Swiss Diamond Tourbillon!'
+      },
+      jackpot: BUDGET_ITEMS.find(x => x.id === 'swiss_watch')
     }
   ];
 
@@ -319,12 +474,23 @@ const ShowGamesRules = (() => {
     { id: 'closest_guess', name: 'Closest Guess Wins', short: 'Exact Price Duel', icon: '🎯' }
   ];
 
-  function createTenVsCrRound(rng = Math.random) {
-    const pick = TRICKY_TEN_VS_CR_PAIRS[Math.floor(rng() * TRICKY_TEN_VS_CR_PAIRS.length)] || TRICKY_TEN_VS_CR_PAIRS[0];
+  function createTenVsCrRound(excludeOrRng = new Set(), maybeRng = Math.random) {
+    let excludeIds = new Set();
+    let rng = Math.random;
+    if (typeof excludeOrRng === 'function') {
+      rng = excludeOrRng;
+    } else {
+      excludeIds = excludeOrRng instanceof Set ? excludeOrRng : new Set(Array.isArray(excludeOrRng) ? excludeOrRng : []);
+      rng = typeof maybeRng === 'function' ? maybeRng : Math.random;
+    }
+    const pool = TRICKY_TEN_VS_CR_PAIRS.filter(p => !excludeIds.has(p.id));
+    const list = pool.length ? pool : TRICKY_TEN_VS_CR_PAIRS;
+    const pick = list[Math.floor(rng() * list.length)] || TRICKY_TEN_VS_CR_PAIRS[0];
     const swap = rng() >= 0.5;
     const pair = swap ? [pick.jackpot, pick.budget] : [pick.budget, pick.jackpot];
     const jackpotIndex = swap ? 0 : 1;
     return {
+      id: pick.id,
       mode: 'ten_vs_cr',
       pair,
       jackpotIndex,
@@ -340,7 +506,8 @@ const ShowGamesRules = (() => {
   }
 
   function createAsliNakliRound(excludeIds = new Set(), rng = Math.random) {
-    const pool = BUDGET_ITEMS.filter(i => !excludeIds.has(i.id));
+    const seen = excludeIds instanceof Set ? excludeIds : new Set(Array.isArray(excludeIds) ? excludeIds : []);
+    const pool = BUDGET_ITEMS.filter(i => !seen.has(i.id));
     const item = (pool.length ? pool : BUDGET_ITEMS)[Math.floor(rng() * (pool.length ? pool.length : BUDGET_ITEMS.length))];
     // Tight realistic spread (±14% to ±26%) so it requires genuine price sense
     const direction = rng() >= 0.5 ? 1 : -1;
@@ -366,9 +533,26 @@ const ShowGamesRules = (() => {
     };
   }
 
-  function createSastaMehngaPair(prevItem = null, rng = Math.random) {
-    const anchor = prevItem || BUDGET_ITEMS[Math.floor(rng() * BUDGET_ITEMS.length)];
-    // Prefer close, tricky challengers within 0.35x .. 2.8x of anchor price!
+  function createSastaMehngaPair(prevItem = null, excludeOrRng = new Set(), maybeRng = Math.random) {
+    let excludeIds = new Set();
+    let rng = Math.random;
+    if (typeof excludeOrRng === 'function') {
+      rng = excludeOrRng;
+    } else {
+      excludeIds = excludeOrRng instanceof Set ? excludeOrRng : new Set(Array.isArray(excludeOrRng) ? excludeOrRng : []);
+      rng = typeof maybeRng === 'function' ? maybeRng : Math.random;
+    }
+    const anchorPool = BUDGET_ITEMS.filter(i => !excludeIds.has(i.id));
+    const anchor = prevItem || (anchorPool.length ? anchorPool : BUDGET_ITEMS)[Math.floor(rng() * (anchorPool.length ? anchorPool.length : BUDGET_ITEMS.length))];
+    // Prefer unseen, close, tricky challengers within 0.35x .. 2.8x of anchor price!
+    const unseenClose = BUDGET_ITEMS.filter(i =>
+      i.id !== anchor.id &&
+      !excludeIds.has(i.id) &&
+      i.price !== anchor.price &&
+      i.price >= anchor.price * 0.35 &&
+      i.price <= anchor.price * 2.8
+    );
+    const unseenAny = BUDGET_ITEMS.filter(i => i.id !== anchor.id && !excludeIds.has(i.id) && i.price !== anchor.price);
     const closePool = BUDGET_ITEMS.filter(i =>
       i.id !== anchor.id &&
       i.price !== anchor.price &&
@@ -376,7 +560,7 @@ const ShowGamesRules = (() => {
       i.price <= anchor.price * 2.8
     );
     const fallbackPool = BUDGET_ITEMS.filter(i => i.id !== anchor.id && i.price !== anchor.price);
-    const pool = closePool.length ? closePool : fallbackPool;
+    const pool = unseenClose.length ? unseenClose : (unseenAny.length ? unseenAny : (closePool.length ? closePool : fallbackPool));
     const challenger = pool[Math.floor(rng() * pool.length)];
     const answer = challenger.price > anchor.price ? 'higher' : 'lower';
     return {
@@ -430,7 +614,7 @@ const ShowGamesRules = (() => {
     return { ok: false, message: 'Unknown lifeline' };
   }
 
-  // ---------- 4. COUPLE & BESTIE ARENA DATA & RULES ----------
+  // ---------- 4. COUPLE & BESTIE ARENA DATA & RULES (EXPANDED NON-REPEATING POOLS) ----------
   const MIND_SYNC_PROMPTS = [
     {
       id: 'ms1', question: 'Ideal Midnight Craving?',
@@ -466,6 +650,83 @@ const ShowGamesRules = (() => {
       enText: 'If you won One Crore together today, what is move number one?',
       hiSpoken: 'अगर आज आप दोनों एक करोड़ जीत जाएं, तो सबसे पहले क्या करेंगे?',
       bnSpoken: 'যদি আজ তোমরা এক কোটি টাকা জিতে যাও, প্রথমেই কী করবে?'
+    },
+    {
+      id: 'ms6', question: 'Rainy Evening Perfect Plan?',
+      options: ['Chai & Pakora', 'Long Drive', 'Balcony Music', 'Binge Web Series'],
+      enText: 'Rain is pouring outside! Pick your perfect duo plan.',
+      hiSpoken: 'बाहर बारिश हो रही है! आप दोनों का परफेक्ट प्लान क्या होगा?',
+      bnSpoken: 'বাইরে বৃষ্টি হচ্ছে! তোমাদের পারফেক্ট প্ল্যান কোনটা?'
+    },
+    {
+      id: 'ms7', question: 'Best Movie Genre for Tonight?',
+      options: ['Rom-Com', 'Horror Thriller', 'Sci-Fi Action', 'Anime Marathon'],
+      enText: 'Movie night starts in five minutes! What genre do you both pick?',
+      hiSpoken: 'मूवी नाइट शुरू होने वाली है! आप दोनों कौन-सा जॉनर चुनेंगे?',
+      bnSpoken: 'মুভি নাইট শুরু হবে! তোমরা কোন ধরনের সিনেমা বেছে নেবে?'
+    },
+    {
+      id: 'ms8', question: 'Dream International Vacation?',
+      options: ['Switzerland Alps', 'Tokyo Streets', 'Bali Villas', 'Paris Lights'],
+      enText: 'Passports ready! Which dream country do you pick together?',
+      hiSpoken: 'पासपोर्ट तैयार है! आप दोनों साथ में किस देश घूमने जाएंगे?',
+      bnSpoken: 'পাসপোর্ট রেডি! তোমরা একসাথে কোন দেশে ঘুরতে যাবে?'
+    },
+    {
+      id: 'ms9', question: 'Go-To Street Food Treat?',
+      options: ['Pani Puri', 'Chole Bhature', 'Egg Roll', 'Pav Bhaji'],
+      enText: 'Street food cravings just hit! Lock in the ultimate plate.',
+      hiSpoken: 'स्ट्रीट फूड की क्रेविंग हो रही है! सबसे बेस्ट डिश चुनिए!',
+      bnSpoken: 'স্ট্রিট ফুড খেতে ইচ্ছে করছে! কোন খাবারটা বাছবে?'
+    },
+    {
+      id: 'ms10', question: 'Your Duo Superpower?',
+      options: ['Telepathy', 'Time Travel', 'Invisibility', 'Flying'],
+      enText: 'Choose one superpower to share as a duo!',
+      hiSpoken: 'आप दोनों को एक सुपरपावर मिले तो कौन-सी चुनेंगे?',
+      bnSpoken: 'তোমরা দুজন মিলে একটা সুপারপাওয়ার পেলে কোনটা নেবে?'
+    },
+    {
+      id: 'ms11', question: 'Ideal Sunday Morning?',
+      options: ['Sleep Till Noon', 'Cafe Brunch', 'Early Workout', 'Arcade Session'],
+      enText: 'No alarms today! What does your ideal Sunday look like?',
+      hiSpoken: 'आज कोई अलार्म नहीं है! आपका परफेक्ट संडे कैसा होगा?',
+      bnSpoken: 'আজ কোনো অ্যালার্ম নেই! তোমাদের পারফেক্ট রবিবার কেমন হবে?'
+    },
+    {
+      id: 'ms12', question: 'Favorite Dessert to Share?',
+      options: ['Gulab Jamun', 'Chocolate Brownie', 'Rasmalai', 'Cheesecake'],
+      enText: 'Dessert menu is open! Pick the sweet dish you both love.',
+      hiSpoken: 'मीठे का समय हो गया है! अपनी पसंदीदा मिठाई लॉक कीजिए!',
+      bnSpoken: 'মিষ্টি খাওয়ার সময়! তোমাদের প্রিয় ডেজার্ট কোনটা?'
+    },
+    {
+      id: 'ms13', question: 'Best Multiplayer Game Night Pick?',
+      options: ['Ludo Royal', 'UNO Chaos', '8-Ball Pool', 'Budget Clash'],
+      enText: 'Game night trophy is on the line! Which arena do you pick?',
+      hiSpoken: 'गेम नाइट की ट्रॉफी दांव पर है! आप कौन-सा गेम चुनेंगे?',
+      bnSpoken: 'গেম নাইট ট্রফি জেতার লড়াই! কোন গেমটা খেলবে?'
+    },
+    {
+      id: 'ms14', question: 'Dream Pet to Adopt Together?',
+      options: ['Golden Retriever', 'Fluffy Cat', 'Talking Parrot', 'Mini Bunny'],
+      enText: 'If you adopt a cute pet together, which one steals your heart?',
+      hiSpoken: 'अगर आप दोनों साथ में कोई पेट अपनाएं, तो कौन-सा चुनेंगे?',
+      bnSpoken: 'তোমরা একসাথে কোনো পোষা প্রাণী নিলে কোনটা বেছে নেবে?'
+    },
+    {
+      id: 'ms15', question: 'Go-To Drink at a Cafe?',
+      options: ['Iced Latte', 'Masala Chai', 'Hot Chocolate', 'Fresh Mojito'],
+      enText: 'Waiter is at your table! Lock your cafe order.',
+      hiSpoken: 'कैफे में वेटर आ गया है! अपनी पसंदीदा ड्रिंक चुनिए!',
+      bnSpoken: 'ক্যাফেতে অর্ডার দেওয়ার সময়! কোন ড্রিঙ্কটা বেছে নেবে?'
+    },
+    {
+      id: 'ms16', question: 'Best Way to Celebrate a Big Win?',
+      options: ['Fancy Dinner', 'Party Room Jam', 'Shopping Spree', 'Surprise Trip'],
+      enText: 'You just hit a massive milestone! How do you celebrate?',
+      hiSpoken: 'आप दोनों ने बड़ी जीत हासिल की है! सेलिब्रेशन कैसे होगा?',
+      bnSpoken: 'তোমরা বড় একটা জয় পেয়েছ! কীভাবে সেলিব্রেট করবে?'
     }
   ];
 
@@ -475,128 +736,147 @@ const ShowGamesRules = (() => {
       task: 'Talk on voice chat for 2 minutes without saying "Yes" or "No"!',
       enText: 'Dare! Talk on voice chat for two minutes without saying Yes or No!',
       hiSpoken: 'डेयर! वॉइस चैट पर दो मिनट तक बिना हाँ या ना कहे बात कीजिए!',
-      bnSpoken: 'ডেয়ার! ভয়েস চ্যাটে দুই মিনিট হ্যাঁ বা না না বলে কথা বলো!'
+      bnSpoken: 'ডেয়ার! ভয়েস চ্যাটে দুই মিনিট হ্যাঁ বা না না বলে কথা বলো!',
+      variants: [
+        { id: 'td1_a', task: 'Talk on voice chat for 2 minutes without saying "Yes" or "No"!', enText: 'Dare! Talk for two minutes without saying Yes or No!', hiSpoken: 'डेयर! दो मिनट तक बिना हाँ या ना कहे बात कीजिए!', bnSpoken: 'ডেয়ার! দুই মিনিট হ্যাঁ বা না না বলে কথা বলো!' },
+        { id: 'td1_b', task: 'Speak the next 3 sentences in a dramatic news anchor voice!', enText: 'Dare! Speak your next three sentences like a breaking news anchor!', hiSpoken: 'डेयर! अगले तीन वाक्य ब्रेकिंग न्यूज़ एंकर की आवाज़ में बोलिए!', bnSpoken: 'ডেয়ার! পরের তিনটে বাক্য নিউজ অ্যাঙ্কারের মতো করে বলো!' },
+        { id: 'td1_c', task: 'Give your partner a hilarious royal nickname and use it for 3 rounds!', enText: 'Dare! Invent a royal nickname for your partner and use it for three rounds!', hiSpoken: 'डेयर! अपने पार्टनर को एक शाही निकनेम दीजिए और 3 राउंड तक वही बोलिए!', bnSpoken: 'ডেয়ার! তোমার পার্টনারকে একটা রাজকীয় ডাকনাম দাও আর ৩ রাউন্ড ওটাই বলো!' }
+      ]
     },
     {
       id: 'td2', kind: 'TRUTH', label: 'First Impression', color: '#8b5cf6',
       task: 'Share your honest first impression of your partner or bestie!',
       enText: 'Truth! Share your honest first impression of your partner or bestie!',
       hiSpoken: 'ट्रुथ! अपने पार्टनर या बेस्टी के बारे में आपका पहला इम्प्रेशन क्या था?',
-      bnSpoken: 'ট্রুথ! তোমার পার্টনার বা বেস্টিকে প্রথম দেখে কী মনে হয়েছিল?'
+      bnSpoken: 'ট্রুথ! তোমার পার্টনার বা বেস্টিকে প্রথম দেখে কী মনে হয়েছিল?',
+      variants: [
+        { id: 'td2_a', task: 'Share your honest first impression of your partner or bestie!', enText: 'Truth! Share your honest first impression of your partner!', hiSpoken: 'ट्रुथ! अपने पार्टनर के बारे में आपका पहला इम्प्रेशन क्या था?', bnSpoken: 'ট্রুথ! তোমার পার্টনারকে প্রথম দেখে কী মনে হয়েছিল?' },
+        { id: 'td2_b', task: 'What is one tiny thing your partner does that secretly makes you smile?', enText: 'Truth! What tiny thing your partner does secretly makes you smile?', hiSpoken: 'ट्रुथ! आपके पार्टनर की कौन-सी छोटी-सी बात आपको मुस्कुराने पर मजबूर कर देती है?', bnSpoken: 'ট্রুথ! তোমার পার্টনারের কোন ছোট্ট কাজটা তোমার মুখে হাসি আনে?' },
+        { id: 'td2_c', task: 'When was the last time you laughed until your stomach hurt together?', enText: 'Truth! When did you last laugh until your stomach hurt together?', hiSpoken: 'ट्रुथ! आखिरी बार आप दोनों साथ में कब इतना हंसे थे कि पेट दुखने लगा?', bnSpoken: 'ট্রুথ! শেষ কবে তোমরা দুজনে মিলে পেটে খিল ধরা হাসি হেসেছিলে?' }
+      ]
     },
     {
       id: 'td3', kind: 'PENALTY', label: 'Sweet Penalty', color: '#f59e0b',
       task: 'Hum or sing 2 lines of a romantic or friendship song right now!',
       enText: 'Sweet Penalty! Hum or sing two lines of a romantic or friendship song!',
       hiSpoken: 'स्वीट पेनल्टी! अभी कोई प्यारा-सा दोस्ती या रोमांटिक गाना गुनगुनाइए!',
-      bnSpoken: 'সুইট পেনাল্টি! এখনই বন্ধুত্ব বা ভালোবাসার গানের দুটো লাইন গেয়ে শোনাও!'
+      bnSpoken: 'সুইট পেনাল্টি! এখনই বন্ধুত্ব বা ভালোবাসার গানের দুটো লাইন গেয়ে শোনাও!',
+      variants: [
+        { id: 'td3_a', task: 'Hum or sing 2 lines of a romantic or friendship song right now!', enText: 'Sweet Penalty! Sing two lines of a romantic or friendship song!', hiSpoken: 'स्वीट पेनल्टी! अभी कोई प्यारा-सा गाना गुनगुनाइए!', bnSpoken: 'সুইট পেনাল্টি! এখনই একটা সুন্দর গানের দুটো লাইন গাও!' },
+        { id: 'td3_b', task: 'Write a 2-line rhyming shayari or mini poem about your duo right now!', enText: 'Sweet Penalty! Create a two-line rhyming poem about your duo!', hiSpoken: 'स्वीट पेनल्टी! अपनी जोड़ी पर अभी दो लाइन की मज़ेदार शायरी सुनाइए!', bnSpoken: 'সুইট পেনাল্টি! তোমাদের জুটি নিয়ে এখনই দুই লাইনের একটা ছড়া বলো!' },
+        { id: 'td3_c', task: 'Send a surprise sweet voice note or hype message in chat!', enText: 'Sweet Penalty! Drop a surprise hype compliment in chat right now!', hiSpoken: 'स्वीट पेनल्टी! अभी चैट में एक प्यारा-सा सरप्राइज़ मैसेज भेजिए!', bnSpoken: 'সুইট পেনাল্টি! এখনই চ্যাটে একটা মিষ্টি সারপ্রাইজ মেসেজ পাঠাও!' }
+      ]
     },
     {
       id: 'td4', kind: 'DARE', label: '3 Compliments', color: '#ef4444',
       task: 'Give 3 rapid-fire genuine compliments in under 15 seconds!',
       enText: 'Dare! Give three rapid-fire genuine compliments in fifteen seconds!',
       hiSpoken: 'डेयर! पंद्रह सेकंड में अपने पार्टनर की तीन सच्ची तारीफें कीजिए!',
-      bnSpoken: 'ডেয়ার! পনেরো সেকেন্ডের মধ্যে তিনটি সত্যিকারের প্রশংসা করো!'
+      bnSpoken: 'ডেয়ার! পনেরো সেকেন্ডের মধ্যে তিনটি সত্যিকারের প্রশংসা করো!',
+      variants: [
+        { id: 'td4_a', task: 'Give 3 rapid-fire genuine compliments in under 15 seconds!', enText: 'Dare! Give three rapid-fire genuine compliments in fifteen seconds!', hiSpoken: 'डेयर! पंद्रह सेकंड में तीन सच्ची तारीफें कीजिए!', bnSpoken: 'ডেয়ার! পনেরো সেকেন্ডে তিনটি সত্যিকারের প্রশংসা করো!' },
+        { id: 'td4_b', task: 'Do a 10-second victory speech thanking your bestie like you won an Oscar!', enText: 'Dare! Give a ten-second Oscar acceptance speech thanking your bestie!', hiSpoken: 'डेयर! ऑस्कर जीतने के अंदाज़ में 10 सेकंड में अपने बेस्टी को थैंक्स बोलिए!', bnSpoken: 'ডেয়ার! অস্কার জেতার স্টাইলে ১০ সেকেন্ডে তোমার বেস্টিকে ধন্যবাদ জানাও!' },
+        { id: 'td4_c', task: 'Imitate your partner’s favorite catchphrase with 100% drama!', enText: 'Dare! Imitate your partner’s favorite catchphrase with full drama!', hiSpoken: 'डेयर! अपने पार्टनर के फेवरेट डायलॉग की पूरी एक्टिंग करके दिखाइए!', bnSpoken: 'ডেয়ার! তোমার পার্টনারের প্রিয় ডায়লগটা পুরো নাটকীয়ভাবে নকল করে দেখাও!' }
+      ]
     },
     {
       id: 'td5', kind: 'TRUTH', label: 'Secret Habit', color: '#6366f1',
       task: 'What is one funny habit of yours that almost nobody knows?',
       enText: 'Truth! Reveal one funny secret habit nobody knows about you!',
       hiSpoken: 'ट्रुथ! अपनी कोई एक मज़ेदार आदत बताइए जो शायद ही कोई जानता हो!',
-      bnSpoken: 'ট্রুথ! নিজের এমন একটা মজার অভ্যাস বলো যা কেউ জানে না!'
+      bnSpoken: 'ট্রুথ! নিজের এমন একটা মজার অভ্যাস বলো যা কেউ জানে না!',
+      variants: [
+        { id: 'td5_a', task: 'What is one funny habit of yours that almost nobody knows?', enText: 'Truth! Reveal one funny secret habit nobody knows about you!', hiSpoken: 'ट्रुथ! अपनी कोई एक मज़ेदार आदत बताइए जो कोई नहीं जानता!', bnSpoken: 'ট্রুথ! নিজের একটা মজার গোপন অভ্যাস বলো যা কেউ জানে না!' },
+        { id: 'td5_b', task: 'What is the funniest excuse you ever used to avoid going out?', enText: 'Truth! What is the funniest excuse you ever used to skip plans?', hiSpoken: 'ट्रुथ! बाहर न जाने के लिए आपने अब तक का सबसे मज़ेदार बहाना क्या बनाया था?', bnSpoken: 'ট্রুথ! বাইরে না যাওয়ার জন্য তুমি সবচেয়ে মজার কী অজুহাত দিয়েছিলে?' },
+        { id: 'td5_c', task: 'Which song on your playlist are you secretly embarrassed to love?', enText: 'Truth! Which guilty-pleasure song do you secretly love?', hiSpoken: 'ट्रुथ! आपकी प्लेलिस्ट का कौन-सा गाना है जिसे आप छुपकर सुनते हैं?', bnSpoken: 'ট্রুথ! কোন গানটা তুমি লুকিয়ে লুকিয়ে শুনতে ভালোবাসো?' }
+      ]
     },
     {
       id: 'td6', kind: 'PENALTY', label: 'Emoji Story', color: '#f43f5e',
       task: 'Describe your bestie using ONLY 3 emojis — let them decode it!',
       enText: 'Sweet Penalty! Describe your bestie using only three emojis!',
       hiSpoken: 'स्वीट पेनल्टी! सिर्फ तीन इमोजी में अपने बेस्टी को बयान कीजिए!',
-      bnSpoken: 'সুইট পেনাল্টি! মাত্র তিনটি ইমোজিতে তোমার বেস্টিকে বর্ণনা করো!'
+      bnSpoken: 'সুইট পেনাল্টি! মাত্র তিনটি ইমোজিতে তোমার বেস্টিকে বর্ণনা করো!',
+      variants: [
+        { id: 'td6_a', task: 'Describe your bestie using ONLY 3 emojis — let them decode it!', enText: 'Sweet Penalty! Describe your bestie using only three emojis!', hiSpoken: 'स्वीट पेनल्टी! सिर्फ तीन इमोजी में अपने बेस्टी को बयान कीजिए!', bnSpoken: 'সুইট পেনাল্টি! মাত্র তিনটি ইমোজিতে তোমার বেস্টিকে বর্ণনা করো!' },
+        { id: 'td6_b', task: 'Act out a movie title using only 4 emojis and make your partner guess!', enText: 'Sweet Penalty! Send four emojis for a famous movie and let your partner guess!', hiSpoken: 'स्वीट पेनल्टी! चार इमोजी में किसी मशहूर फिल्म का नाम बताइए!', bnSpoken: 'সুইট পেনাল্টি! চারটে ইমোজি দিয়ে একটা সিনেমার নাম বোঝাও!' },
+        { id: 'td6_c', task: 'Rate your partner’s meme game out of 10 with a dramatic explanation!', enText: 'Sweet Penalty! Rate your partner’s meme sense out of ten with drama!', hiSpoken: 'स्वीट पेनल्टी! अपने पार्टनर के मीम सेंस को 10 में से नंबर दीजिए!', bnSpoken: 'সুইট পেনাল্টি! তোমার পার্টনারের মিম সেন্সকে ১০-এ কত দেবে, নাটকীয়ভাবে বলো!' }
+      ]
     },
     {
       id: 'td7', kind: 'DARE', label: 'Movie Dialogue', color: '#db2777',
       task: 'Deliver a dramatic Bollywood or Hollywood dialogue with full energy!',
       enText: 'Dare! Deliver your best dramatic movie dialogue with full energy!',
       hiSpoken: 'डेयर! पूरे जोश के साथ अपना सबसे फिल्मी डायलॉग सुनाइए!',
-      bnSpoken: 'ডেয়ার! পুরো এনার্জি দিয়ে একটা দারুণ সিনেমার ডায়লগ বলো!'
+      bnSpoken: 'ডেয়ার! পুরো এনার্জি দিয়ে একটা দারুণ সিনেমার ডায়লগ বলো!',
+      variants: [
+        { id: 'td7_a', task: 'Deliver a dramatic Bollywood or Hollywood dialogue with full energy!', enText: 'Dare! Deliver a dramatic movie dialogue with full energy!', hiSpoken: 'डेयर! पूरे जोश के साथ कोई फिल्मी डायलॉग सुनाइए!', bnSpoken: 'ডেয়ার! পুরো এনার্জি দিয়ে একটা সিনেমার ডায়লগ বলো!' },
+        { id: 'td7_b', task: 'Say a tongue twister 3 times fast without laughing!', enText: 'Dare! Say a tricky tongue twister three times fast without laughing!', hiSpoken: 'डेयर! बिना हंसे एक मुश्किल टंग ट्विस्टर तीन बार तेज़ी से बोलिए!', bnSpoken: 'ডেয়ার! না হেসে একটা কঠিন টাং টুইস্টার তিনবার দ্রুত বলো!' },
+        { id: 'td7_c', task: 'Hype up your duo like a stadium sports commentator for 15 seconds!', enText: 'Dare! Hype up your duo like a cricket commentator for fifteen seconds!', hiSpoken: 'डेयर! क्रिकेट कमेंटेटर के स्टाइल में 15 सेकंड अपनी जोड़ी की तारीफ कीजिए!', bnSpoken: 'ডেয়ার! ক্রিকেট ধারাভাষ্যকারের মতো ১৫ সেকেন্ড তোমাদের জুটির প্রশংসা করো!' }
+      ]
     },
     {
       id: 'td8', kind: 'TRUTH', label: 'Dream Memory', color: '#9333ea',
       task: 'What is your favorite shared memory or dream hangout spot?',
       enText: 'Truth! What is your favorite shared memory or dream hangout spot?',
       hiSpoken: 'ट्रुथ! आप दोनों की सबसे प्यारी याद या ड्रीम हैंगआउट जगह कौन-सी है?',
-      bnSpoken: 'ট্রুথ! তোমাদের সবচেয়ে প্রিয় স্মৃতি বা স্বপ্নের আড্ডার জায়গা কোনটা?'
+      bnSpoken: 'ট্রুথ! তোমাদের সবচেয়ে প্রিয় স্মৃতি বা স্বপ্নের আড্ডার জায়গা কোনটা?',
+      variants: [
+        { id: 'td8_a', task: 'What is your favorite shared memory or dream hangout spot?', enText: 'Truth! What is your favorite shared memory or dream hangout spot?', hiSpoken: 'ट्रुथ! आप दोनों की सबसे प्यारी याद या ड्रीम हैंगआउट जगह कौन-सी है?', bnSpoken: 'ট্রুথ! তোমাদের সবচেয়ে প্রিয় স্মৃতি বা স্বপ্নের আড্ডার জায়গা কোনটা?' },
+        { id: 'td8_b', task: 'If we could teleport anywhere for 2 hours right now, where would you take us?', enText: 'Truth! If we could teleport anywhere for two hours, where would you choose?', hiSpoken: 'ट्रुथ! अगर हम अभी 2 घंटे के लिए कहीं भी टेलीपोर्ट हो सकें, तो आप कहाँ ले जाएंगे?', bnSpoken: 'ট্রুথ! এখনই ২ ঘণ্টার জন্য কোথাও টেলিপোর্ট হতে পারলে কোথায় নিয়ে যাবে?' },
+        { id: 'td8_c', task: 'What is one bucket-list adventure you definitely want to do together?', enText: 'Truth! Name one bucket-list adventure you want to do together!', hiSpoken: 'ट्रुथ! ऐसा कौन-सा बकेट-लिस्ट एडवेंचर है जो आप दोनों साथ करना चाहते हैं?', bnSpoken: 'ট্রুথ! কোন বাকেট-লিস্ট অ্যাডভেঞ্চারটা তোমরা একসাথে করতে চাও?' }
+      ]
     }
   ];
 
+  function pickTruthDareChallenge(wedge, seenIds = [], rng = Math.random) {
+    if (!wedge) return { challenge: null, seenIds: Array.isArray(seenIds) ? seenIds : [] };
+    const variants = Array.isArray(wedge.variants) && wedge.variants.length
+      ? wedge.variants
+      : [{ id: wedge.id, task: wedge.task, enText: wedge.enText, hiSpoken: wedge.hiSpoken, bnSpoken: wedge.bnSpoken }];
+    const res = drawNonRepeatingBatch(variants, 1, seenIds, v => v.id, rng);
+    const chosen = res.items[0] || variants[0];
+    return {
+      challenge: { ...wedge, ...chosen },
+      seenIds: res.seenIds
+    };
+  }
+
   const MOST_LIKELY_PROMPTS = [
-    {
-      id: 'ml1', prompt: 'Who is most likely to forget where they kept their phone?',
-      enText: 'Who is most likely to forget where they kept their phone?',
-      hiSpoken: 'सबसे ज़्यादा चांस किसके हैं कि वो अपना फोन रखकर भूल जाए?',
-      bnSpoken: 'কে সবচেয়ে বেশি নিজের ফোন কোথায় রেখেছে ভুলে যায়?'
-    },
-    {
-      id: 'ml2', prompt: 'Who is most likely to start laughing during a serious moment?',
-      enText: 'Who is most likely to start laughing during a serious moment?',
-      hiSpoken: 'सीरियस मौके पर सबसे पहले हंसी किसे आ जाती है?',
-      bnSpoken: 'সিরিয়াস মুহূর্তে সবার আগে কে হেসে ফেলে?'
-    },
-    {
-      id: 'ml3', prompt: 'Who is most likely to plan a surprise midnight snack run?',
-      enText: 'Who is most likely to plan a surprise midnight snack run?',
-      hiSpoken: 'आधी रात को सरप्राइज़ स्नैक प्लान सबसे पहले कौन बनाता है?',
-      bnSpoken: 'মাঝরাতে সারপ্রাইজ খাবার প্ল্যান সবার আগে কে করে?'
-    },
-    {
-      id: 'ml4', prompt: 'Who is most likely to win a ₹1 Cr game show jackpot?',
-      enText: 'Who is most likely to win a One Crore game show jackpot?',
-      hiSpoken: 'एक करोड़ का गेम शो जैकपॉट जीतने के सबसे ज़्यादा चांस किसके हैं?',
-      bnSpoken: 'এক কোটি টাকার গেম শো জ্যাকপট জেতার সম্ভাবনা কার সবচেয়ে বেশি?'
-    },
-    {
-      id: 'ml5', prompt: 'Who is most likely to send 10 voice notes in a row?',
-      enText: 'Who is most likely to send ten voice notes in a row?',
-      hiSpoken: 'लगातार दस वॉइस नोट भेजने में सबसे आगे कौन रहता है?',
-      bnSpoken: 'টানা দশটা ভয়েস নোট পাঠাতে কে সবচেয়ে ওস্তাদ?'
-    }
+    { id: 'ml1', prompt: 'Who is most likely to forget where they kept their phone?', enText: 'Who is most likely to forget where they kept their phone?', hiSpoken: 'सबसे ज़्यादा चांस किसके हैं कि वो अपना फोन रखकर भूल जाए?', bnSpoken: 'কে সবচেয়ে বেশি নিজের ফোন কোথায় রেখেছে ভুলে যায়?' },
+    { id: 'ml2', prompt: 'Who is most likely to start laughing during a serious moment?', enText: 'Who is most likely to start laughing during a serious moment?', hiSpoken: 'सीरियस मौके पर सबसे पहले हंसी किसे आ जाती है?', bnSpoken: 'সিরিয়াস মুহূর্তে সবার আগে কে হেসে ফেলে?' },
+    { id: 'ml3', prompt: 'Who is most likely to plan a surprise midnight snack run?', enText: 'Who is most likely to plan a surprise midnight snack run?', hiSpoken: 'आधी रात को सरप्राइज़ स्नैक प्लान सबसे पहले कौन बनाता है?', bnSpoken: 'মাঝরাতে সারপ্রাইজ খাবার প্ল্যান সবার আগে কে করে?' },
+    { id: 'ml4', prompt: 'Who is most likely to win a ₹1 Cr game show jackpot?', enText: 'Who is most likely to win a One Crore game show jackpot?', hiSpoken: 'एक करोड़ का गेम शो जैकपॉट जीतने के सबसे ज़्यादा चांस किसके हैं?', bnSpoken: 'এক কোটি টাকার গেম শো জ্যাকপট জেতার সম্ভাবনা কার সবচেয়ে বেশি?' },
+    { id: 'ml5', prompt: 'Who is most likely to send 10 voice notes in a row?', enText: 'Who is most likely to send ten voice notes in a row?', hiSpoken: 'लगातार दस वॉइस नोट भेजने में सबसे आगे कौन रहता है?', bnSpoken: 'টানা দশটা ভয়েস নোট পাঠাতে কে সবচেয়ে ওস্তাদ?' },
+    { id: 'ml6', prompt: 'Who is most likely to fall asleep during a movie night?', enText: 'Who is most likely to fall asleep halfway through a movie?', hiSpoken: 'मूवी नाइट के बीच में सबसे पहले कौन सो जाएगा?', bnSpoken: 'মুভি নাইটের মাঝখানে সবার আগে কে ঘুমিয়ে পড়বে?' },
+    { id: 'ml7', prompt: 'Who is most likely to accidentally spoil a web series ending?', enText: 'Who is most likely to accidentally spoil a show ending?', hiSpoken: 'वेब सीरीज़ का स्पॉइलर गलती से कौन बता देगा?', bnSpoken: 'ওয়েব সিরিজের স্পয়লার ভুল করে কে বলে ফেলবে?' },
+    { id: 'ml8', prompt: 'Who is most likely to spend 20 minutes choosing what to order?', enText: 'Who is most likely to take twenty minutes just picking food?', hiSpoken: 'खाना ऑर्डर करने में 20 मिनट सिर्फ मेन्यू देखने में कौन लगाएगा?', bnSpoken: 'খাবার অর্ডার করতে গিয়ে ২০ মিনিট ধরে মেনু কে দেখবে?' },
+    { id: 'ml9', prompt: 'Who is most likely to become a viral creator overnight?', enText: 'Who is most likely to go viral overnight?', hiSpoken: 'रातों-रात वायरल क्रिएटर बनने के सबसे ज़्यादा चांस किसके हैं?', bnSpoken: 'রাতারাতি ভাইরাল ক্রিয়েটর হওয়ার চান্স কার সবচেয়ে বেশি?' },
+    { id: 'ml10', prompt: 'Who is most likely to survive longest on a deserted island?', enText: 'Who is most likely to survive longest on a deserted island?', hiSpoken: 'सुनसान टापू पर सबसे ज़्यादा दिन कौन सर्वाइव कर पाएगा?', bnSpoken: 'নির্জন দ্বীপে কে সবচেয়ে বেশি দিন টিকে থাকতে পারবে?' },
+    { id: 'ml11', prompt: 'Who is most likely to double-text before getting a reply?', enText: 'Who is most likely to send five messages before getting one reply?', hiSpoken: 'रिप्लाई आने से पहले ही लगातार मैसेज कौन भेजता है?', bnSpoken: 'রিপ্লাই আসার আগেই পরপর মেসেজ কে পাঠায়?' },
+    { id: 'ml12', prompt: 'Who is most likely to book a spontaneous weekend trip?', enText: 'Who is most likely to plan a sudden spontaneous roadtrip?', hiSpoken: 'अचानक वीकेंड ट्रिप का प्लान कौन बना लेगा?', bnSpoken: 'হঠাৎ করে উইকেন্ড ট্রিপের প্ল্যান কে করে ফেলবে?' },
+    { id: 'ml13', prompt: 'Who is most likely to take 50 photos to get one perfect selfie?', enText: 'Who is most likely to take fifty selfies for one perfect shot?', hiSpoken: 'एक परफेक्ट सेल्फी के लिए 50 फोटो कौन खींचेगा?', bnSpoken: 'একটা পারফেক্ট সেলফির জন্য ৫০টা ছবি কে তুলবে?' },
+    { id: 'ml14', prompt: 'Who is most likely to keep calm in total chaos?', enText: 'Who stays calm when everything goes completely chaotic?', hiSpoken: 'पूरी अफरा-तफरी में भी सबसे शांत कौन रहता है?', bnSpoken: 'চরম ঝামেলার মধ্যেও কে সবচেয়ে শান্ত থাকে?' },
+    { id: 'ml15', prompt: 'Who is most likely to remember every small birthday and anniversary?', enText: 'Who never forgets a single birthday or special date?', hiSpoken: 'हर छोटा बर्थडे और खास तारीख किसे हमेशा याद रहती है?', bnSpoken: 'সব জন্মদিন আর স্পেশাল তারিখ কার সবসময় মনে থাকে?' },
+    { id: 'ml16', prompt: 'Who is most likely to challenge everyone to a Ludo rematch at 2 AM?', enText: 'Who is most likely to demand a Ludo rematch at two in the morning?', hiSpoken: 'रात 2 बजे लूडो का रीमैच सबसे पहले कौन मांगेगा?', bnSpoken: 'রাত ২টোয় লুডো রিম্যাচ সবার আগে কে চাইবে?' }
   ];
 
   const LOVE_METER_QUESTIONS = [
-    {
-      id: 'lm1', q: 'How fast do you reply to each other?',
-      opts: [{ label: 'Instant Reply ⚡', pts: 20 }, { label: 'Within Minutes 💬', pts: 16 }, { label: 'Chaotic Timing 😂', pts: 12 }],
-      enText: 'Question 1: How fast do you reply to each other?',
-      hiSpoken: 'सवाल एक: आप दोनों एक-दूसरे को कितनी जल्दी रिप्लाई करते हैं?',
-      bnSpoken: 'প্রশ্ন এক: তোমরা একে অপরকে কত দ্রুত রিপ্লাই দাও?'
-    },
-    {
-      id: 'lm2', q: 'Your shared humor level?',
-      opts: [{ label: 'Telepathic Memes 😂', pts: 20 }, { label: 'Inside Jokes 24/7 🔥', pts: 18 }, { label: 'Roast Each Other 💀', pts: 15 }],
-      enText: 'Question 2: How strong is your shared humor level?',
-      hiSpoken: 'सवाल दो: आप दोनों का ह्यूमर और मज़ाक का लेवल कैसा है?',
-      bnSpoken: 'প্রশ্ন দুই: তোমাদের দুজনের মজার আর হাসাহাসির লেভেল কেমন?'
-    },
-    {
-      id: 'lm3', q: 'When drama strikes, how do you react?',
-      opts: [{ label: 'Calm + Drama Balance 👑', pts: 20 }, { label: 'Team Up Instantly 🛡️', pts: 19 }, { label: 'Panic Together 😱', pts: 14 }],
-      enText: 'Question 3: When drama strikes, how does your duo react?',
-      hiSpoken: 'सवाल तीन: जब कोई ड्रामा या टेंशन हो, तो आप दोनों कैसे रिएक्ट करते हैं?',
-      bnSpoken: 'প্রশ্ন তিন: কোনো নাটকীয় পরিস্থিতি এলে তোমরা কীভাবে সামলাও?'
-    },
-    {
-      id: 'lm4', q: 'Late-night talk duration?',
-      opts: [{ label: '3+ Hours Non-Stop 🌙', pts: 20 }, { label: '1 Hour Daily ✨', pts: 17 }, { label: 'Short Sweet Calls 💖', pts: 14 }],
-      enText: 'Question 4: How long do your late-night conversations last?',
-      hiSpoken: 'सवाल चार: आपकी लेट-नाइट बातें कितनी देर तक चलती हैं?',
-      bnSpoken: 'প্রশ্ন চার: তোমাদের রাতের আড্ডা কতক্ষণ চলে?'
-    },
-    {
-      id: 'lm5', q: 'Teamwork in party games?',
-      opts: [{ label: 'Unstoppable Duo 🏆', pts: 20 }, { label: 'Fun Chaos Agents 🎉', pts: 17 }, { label: 'Friendly Rivals ⚔️', pts: 15 }],
-      enText: 'Final Question: How is your teamwork in party games?',
-      hiSpoken: 'आखिरी सवाल: पार्टी गेम्स में आप दोनों की टीमवर्क कैसी है?',
-      bnSpoken: 'শেষ প্রশ্ন: পার্টি গেমসে তোমাদের টিমওয়ার্ক কেমন?'
-    }
+    { id: 'lm1', q: 'How fast do you reply to each other?', opts: [{ label: 'Instant Reply ⚡', pts: 20 }, { label: 'Within Minutes 💬', pts: 16 }, { label: 'Chaotic Timing 😂', pts: 12 }], enText: 'How fast do you reply to each other?', hiSpoken: 'आप दोनों एक-दूसरे को कितनी जल्दी रिप्लाई करते हैं?', bnSpoken: 'তোমরা একে অপরকে কত দ্রুত রিপ্লাই দাও?' },
+    { id: 'lm2', q: 'Your shared humor level?', opts: [{ label: 'Telepathic Memes 😂', pts: 20 }, { label: 'Inside Jokes 24/7 🔥', pts: 18 }, { label: 'Roast Each Other 💀', pts: 15 }], enText: 'How strong is your shared humor level?', hiSpoken: 'आप दोनों का ह्यूमर और मज़ाक का लेवल कैसा है?', bnSpoken: 'তোমাদের দুজনের মজার আর হাসাহাসির লেভেল কেমন?' },
+    { id: 'lm3', q: 'When drama strikes, how do you react?', opts: [{ label: 'Calm + Drama Balance 👑', pts: 20 }, { label: 'Team Up Instantly 🛡️', pts: 19 }, { label: 'Panic Together 😱', pts: 14 }], enText: 'When drama strikes, how does your duo react?', hiSpoken: 'जब कोई ड्रामा या टेंशन हो, तो आप दोनों कैसे रिएक्ट करते हैं?', bnSpoken: 'কোনো নাটকীয় পরিস্থিতি এলে তোমরা কীভাবে সামলাও?' },
+    { id: 'lm4', q: 'Late-night talk duration?', opts: [{ label: '3+ Hours Non-Stop 🌙', pts: 20 }, { label: '1 Hour Daily ✨', pts: 17 }, { label: 'Short Sweet Calls 💖', pts: 14 }], enText: 'How long do your late-night conversations last?', hiSpoken: 'आपकी लेट-नाइट बातें कितनी देर तक चलती हैं?', bnSpoken: 'তোমাদের রাতের আড্ডা কতক্ষণ চলে?' },
+    { id: 'lm5', q: 'Teamwork in party games?', opts: [{ label: 'Unstoppable Duo 🏆', pts: 20 }, { label: 'Fun Chaos Agents 🎉', pts: 17 }, { label: 'Friendly Rivals ⚔️', pts: 15 }], enText: 'How is your teamwork in party games?', hiSpoken: 'पार्टी गेम्स में आप दोनों की टीमवर्क कैसी है?', bnSpoken: 'পার্টি গেমসে তোমাদের টিমওয়ার্ক কেমন?' },
+    { id: 'lm6', q: 'How well do you know each other’s food order?', opts: [{ label: 'Order Without Asking 🍕', pts: 20 }, { label: 'Know Top 3 Favorites 😋', pts: 17 }, { label: 'Still Guessing Daily 😅', pts: 13 }], enText: 'Can you guess your partner’s favorite food order instantly?', hiSpoken: 'क्या आप बिना पूछे अपने पार्टनर का फेवरेट खाना ऑर्डर कर सकते हैं?', bnSpoken: 'না জিজ্ঞাসা করেই কি পার্টনারের প্রিয় খাবার অর্ডার করতে পারো?' },
+    { id: 'lm7', q: 'Music playlist compatibility?', opts: [{ label: 'Same Vibe 100% 🎧', pts: 20 }, { label: 'Mix of Two Worlds 🎶', pts: 17 }, { label: 'DJ Battle Every Time 🔊', pts: 14 }], enText: 'How well do your music playlists match?', hiSpoken: 'आप दोनों की म्यूज़िक प्लेलिस्ट कितनी मैच करती है?', bnSpoken: 'তোমাদের দুজনের গানের প্লেলিস্ট কতটা মেলে?' },
+    { id: 'lm8', q: 'How do you handle a tiny disagreement?', opts: [{ label: 'Talk & Laugh It Off 💖', pts: 20 }, { label: 'Food Fixes Everything 🍔', pts: 18 }, { label: 'Dramatic Silent Mode 😤', pts: 13 }], enText: 'How quickly does your duo bounce back from a tiny argument?', hiSpoken: 'छोटी-सी नोकझोंक होने पर आप दोनों कैसे सुलझाते हैं?', bnSpoken: 'ছোটখাটো ঝগড়া হলে তোমরা কীভাবে মিটিয়ে নাও?' },
+    { id: 'lm9', q: 'Secret keeping trust meter?', opts: [{ label: 'Vault Level Locked 🔐', pts: 20 }, { label: 'Bestie Certified 🛡️', pts: 18 }, { label: 'Spills With Memes 😂', pts: 13 }], enText: 'How strong is your secret-keeping trust?', hiSpoken: 'सीक्रेट रखने के मामले में आप दोनों का भरोसा कितना मजबूत है?', bnSpoken: 'গোপন কথা রাখার ব্যাপারে তোমাদের বিশ্বাস কতটা মজবুত?' },
+    { id: 'lm10', q: 'Photo gallery of you two?', opts: [{ label: '100+ Cute & Goofy Pics 📸', pts: 20 }, { label: 'Best Highlights Only ✨', pts: 17 }, { label: 'All Chaotic Screenshots 😂', pts: 15 }], enText: 'What does your shared photo gallery look like?', hiSpoken: 'आप दोनों की फोटो गैलरी कैसी दिखती है?', bnSpoken: 'তোমাদের দুজনের ফটো গ্যালারি কেমন?' },
+    { id: 'lm11', q: 'Support level during tough days?', opts: [{ label: 'Always First Call 🫂', pts: 20 }, { label: 'Instant Cheerleader 🌟', pts: 18 }, { label: 'Meme Therapy Squad 😂', pts: 16 }], enText: 'How does your duo show up on tough days?', hiSpoken: 'मुश्किल दिनों में आप दोनों एक-दूसरे का साथ कैसे देते हैं?', bnSpoken: 'কঠিন দিনে তোমরা কীভাবে একে অপরের পাশে থাকো?' },
+    { id: 'lm12', q: 'Surprise gifting style?', opts: [{ label: 'Thoughtful & Personal 🎁', pts: 20 }, { label: 'Spontaneous Treats 🍫', pts: 18 }, { label: 'Last-Minute Legends 🏃', pts: 14 }], enText: 'What is your surprise gifting style?', hiSpoken: 'सरप्राइज़ गिफ्ट देने का आपका स्टाइल कैसा है?', bnSpoken: 'সারপ্রাইজ গিফট দেওয়ার স্টাইল কেমন তোমাদের?' },
+    { id: 'lm13', q: 'Eye-contact telepathy in a crowd?', opts: [{ label: 'One Look Says Everything 👀', pts: 20 }, { label: 'Secret Signal Pros 🤫', pts: 18 }, { label: 'Texting Across Room 📱', pts: 15 }], enText: 'Can one glance across the room say everything?', hiSpoken: 'भीड़ में क्या एक नज़र से ही आप एक-दूसरे की बात समझ जाते हैं?', bnSpoken: 'ভিড়ের মধ্যে কি এক চোখের ইশারাতেই সব বুঝে যাও?' },
+    { id: 'lm14', q: 'Roadtrip co-pilot vibe?', opts: [{ label: 'DJ + Snack Chief 🚗', pts: 20 }, { label: 'Window View Dreamer 🌄', pts: 17 }, { label: 'Sleeping Passenger 😴', pts: 14 }], enText: 'What is your duo’s roadtrip energy?', hiSpoken: 'रोडट्रिप पर आप दोनों की वाइब कैसी रहती है?', bnSpoken: 'রোডট্রিপে তোমাদের দুজনের এনার্জি কেমন থাকে?' },
+    { id: 'lm15', q: 'Matching outfits or vibes?', opts: [{ label: 'Unplanned Twinning ✨', pts: 20 }, { label: 'Color Coordinated 🎨', pts: 18 }, { label: 'Opposite Aesthetics ⚡', pts: 15 }], enText: 'Do you ever match outfits without planning?', hiSpoken: 'क्या बिना प्लान किए भी आपके आउटफिट मैच हो जाते हैं?', bnSpoken: 'প্ল্যান না করেও কি তোমাদের পোশাক মিলে যায়?' }
   ];
 
   function evaluateMindSync(p1Choice, p2Choice) {
@@ -681,6 +961,110 @@ const ShowGamesRules = (() => {
     } catch {}
     const m = s.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})/);
     return m ? m[1] : '';
+  }
+
+  function parseVideoSource(input) {
+    const s = String(input || '').trim();
+    if (!s) return null;
+    const ytId = parseYouTubeId(s);
+    if (ytId) {
+      return { kind: 'youtube', videoId: ytId, videoUrl: '' };
+    }
+    if (/^(https?:\/\/.+\.(mp4|webm|ogg|m4v)(\?.*)?$|blob:|data:video\/)/i.test(s)) {
+      return { kind: 'direct', videoId: '', videoUrl: s };
+    }
+    return null;
+  }
+
+  function normalizeVideoSyncState(raw, fallbackVideoId = '') {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const videoUrl = String(r.videoUrl || '').trim();
+    const videoId = String(r.videoId || fallbackVideoId || '').trim();
+    const kind = r.kind === 'direct' || (!videoId && videoUrl) ? 'direct' : 'youtube';
+    const seekSec = Math.max(0, Number(r.seekSec) || 0);
+    const durationSec = Math.max(0, Number(r.durationSec) || 0);
+    const playbackRate = Math.min(2, Math.max(0.5, Number(r.playbackRate) || 1));
+    const updatedAt = Math.max(0, Number(r.updatedAt) || Date.now());
+    const seq = Math.max(0, Math.floor(Number(r.seq) || 0));
+    return {
+      kind,
+      videoId,
+      videoUrl,
+      playing: Boolean(r.playing),
+      seekSec,
+      durationSec,
+      playbackRate,
+      updatedAt,
+      updatedBy: String(r.updatedBy || ''),
+      seq
+    };
+  }
+
+  function computeTargetVideoTime(videoSync, nowMs = Date.now(), clockOffsetMs = 0) {
+    const vs = normalizeVideoSyncState(videoSync);
+    let target = vs.seekSec;
+    if (vs.playing) {
+      const elapsedSec = Math.max(0, ((Number(nowMs) + Number(clockOffsetMs || 0)) - vs.updatedAt) / 1000);
+      target = vs.seekSec + elapsedSec * vs.playbackRate;
+    }
+    if (vs.durationSec > 0) {
+      target = Math.min(vs.durationSec, target);
+    }
+    return Math.max(0, Math.round(target * 100) / 100);
+  }
+
+  function shouldResyncVideoTime(localSec, targetSec, thresholdSec = 1.5) {
+    const local = Number(localSec);
+    const target = Number(targetSec);
+    if (!Number.isFinite(local) || !Number.isFinite(target)) return true;
+    return Math.abs(local - target) > Math.max(0.25, Number(thresholdSec) || 1.5);
+  }
+
+  function formatVideoClock(sec) {
+    const total = Math.max(0, Math.floor(Number(sec) || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  // ---------- 6B. ON-DEMAND TAB / VIEW LIFECYCLE MANAGER ----------
+  function createViewLifecycleManager(initialTab = 'tools') {
+    let activeTab = String(initialTab || 'tools');
+    const mountedTabs = new Set();
+    const dirtyTabs = new Set([activeTab]);
+
+    return {
+      getActiveTab: () => activeTab,
+      isMounted: (tab) => mountedTabs.has(String(tab)),
+      isDirty: (tab) => dirtyTabs.has(String(tab)),
+      getMountedTabs: () => Array.from(mountedTabs),
+      getDirtyTabs: () => Array.from(dirtyTabs),
+      markDirty(tabs) {
+        const list = Array.isArray(tabs) ? tabs : [tabs];
+        let activeNeedsRender = false;
+        list.forEach(t => {
+          if (!t) return;
+          const key = String(t);
+          dirtyTabs.add(key);
+          if (key === activeTab) activeNeedsRender = true;
+        });
+        return activeNeedsRender;
+      },
+      markRendered(tab) {
+        const key = String(tab || activeTab);
+        mountedTabs.add(key);
+        dirtyTabs.delete(key);
+      },
+      switchTab(nextTab) {
+        const prev = activeTab;
+        const next = String(nextTab || 'tools');
+        activeTab = next;
+        const shouldRender = !mountedTabs.has(next) || dirtyTabs.has(next);
+        return { prevTab: prev, nextTab: next, changed: prev !== next, shouldRender };
+      }
+    };
   }
 
   function canDeleteChatMessage({ msgUid, currentUid, isDev = false } = {}) {
@@ -797,6 +1181,11 @@ const ShowGamesRules = (() => {
     validateShowBet,
     settleStrictGameReward,
     formatINR,
+    shuffleArray,
+    drawNonRepeatingBatch,
+    loadSeenQuestionIds,
+    saveSeenQuestionIds,
+    drawPersistentQuestions,
     createTenVsCrRound,
     createAsliNakliRound,
     createSastaMehngaPair,
@@ -804,10 +1193,17 @@ const ShowGamesRules = (() => {
     applyBudgetLifeline,
     evaluateMindSync,
     resolveWheelWedge,
+    pickTruthDareChallenge,
     calculateLoveVibeResult,
     checkBudgetExclusiveUnlocks,
     checkCoupleExclusiveUnlocks,
     parseYouTubeId,
+    parseVideoSource,
+    normalizeVideoSyncState,
+    computeTargetVideoTime,
+    shouldResyncVideoTime,
+    formatVideoClock,
+    createViewLifecycleManager,
     canDeleteChatMessage,
     mergeRoomMessages,
     classifyCleanupUser,

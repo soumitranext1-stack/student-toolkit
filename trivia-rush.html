@@ -14,6 +14,8 @@
   .vn-langs{display:inline-flex;gap:4px;background:rgba(2,6,23,.55);padding:3px;border-radius:999px}
   .vn-lang{border:0;background:transparent;color:#94a3b8;font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:999px;cursor:pointer}
   .vn-lang.on{background:linear-gradient(135deg,#6366f1,#ec4899);color:#fff}
+  .chips.tr-cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .chips.tr-cats button{min-width:0;width:100%;padding:9px 6px}
 </style>
 </head>
 <body>
@@ -28,7 +30,8 @@
 const main=$('#main');
 /* Clean English on-screen UI + natural parallel EN / HI / BN voice narration */
 const BANK=[];
-const Q=(c,q,hi,bn,a,...w)=>BANK.push({c,q,hi,bn,a,w});
+let _qid=0;
+const Q=(c,q,hi,bn,a,...w)=>BANK.push({id:'tr_'+(++_qid),c,q,hi,bn,a,w});
 Q('Science','Chemical symbol of Gold?','Sone ka chemical symbol kya hai?','Shonar chemical symbol ki?','Au','Ag','Gd','Go');
 Q('Science','Which planet is famous for its bright rings?','Sabse mashhoor rings kis planet ke hain?','Kon groher charkona ring shobcheye bikhyato?','Saturn','Jupiter','Uranus','Mars');
 Q('Science','Most abundant gas in Earth’s air?','Hawa mein sabse zyada kaunsi gas hoti hai?','Batashe shobcheye beshi kon gas thake?','Nitrogen','Oxygen','Carbon dioxide','Argon');
@@ -38,6 +41,9 @@ Q('Science','Boiling point of water (°C)?','Pani ka boiling point kitne degree 
 Q('Science','Study of earthquakes is called?','Bhukamp ke study ko kya kehte hain?','Bhumikomper gobeshona ke ki bole?','Seismology','Geology','Meteorology','Ecology');
 Q('Science','Largest organ in the human body?','Insaan ke sharir ka sabse bada organ kaunsa hai?','Manusher shorirer shobcheye boro ongo konti?','Skin','Liver','Heart','Lungs');
 Q('Science','Approximate speed of light?','Prakash ki gati lagbhag kitni hoti hai?','Alor gotibeg pray koto?','3×10⁸ m/s','3×10⁶ m/s','3×10⁵ m/s','3×10¹⁰ m/s');
+Q('Science','Powerhouse of the living cell?','Cell ka powerhouse kise kaha jata hai?','Kosher powerhouse kake bola hoy?','Mitochondria','Nucleus','Ribosome','Vacuole');
+Q('Science','Chemical symbol of Silver?','Chandi ka chemical symbol kya hai?','Rupar chemical symbol ki?','Ag','Si','Sr','Au');
+Q('Science','Which metal is liquid at room temperature?','Room temperature par kaunsi metal liquid hoti hai?','Room temperature e kon dhatu torol thake?','Mercury','Iron','Sodium','Lead');
 Q('History','First Prime Minister of India?','Bharat ke pehle Prime Minister kaun the?','Bharoter prothom prodhanmontri ke chilen?','Jawaharlal Nehru','Sardar Patel','Lal Bahadur Shastri','Rajendra Prasad');
 Q('History','Year India gained independence?','Bharat kis saal azaad hua tha?','Bharot kon bochor shadhin hoyechilo?','1947','1942','1950','1935');
 Q('History','Who wrote India’s national anthem?','Bharat ka rashtra gaan kisne likha tha?','Bharoter jatiyo shongit ke likhechen?','Rabindranath Tagore','Bankim Chandra','Sarojini Naidu','Iqbal');
@@ -45,6 +51,10 @@ Q('History','Founder of the Mughal Empire?','Mughal samrajya ke sansthapak kaun 
 Q('History','Who built the Taj Mahal?','Taj Mahal kisne banwaya tha?','Taj Mahal ke toiri korechilen?','Shah Jahan','Akbar','Jahangir','Babur');
 Q('History','First human to walk on the Moon?','Chand par kadam rakhne wale pehle insaan kaun the?','Chande pa rakha prothom manush ke?','Neil Armstrong','Buzz Aldrin','Yuri Gagarin','Michael Collins');
 Q('History','Year World War II ended?','Dusra vishwa yuddh kis saal khatam hua?','Ditiyo bishwojuddho kon bochor shesh hoy?','1945','1939','1918','1950');
+Q('History','Who was known as the Iron Man of India?','Iron Man of India kise kaha jata hai?','Bharoter louho manob kake bola hoy?','Sardar Vallabhbhai Patel','Subhas Chandra Bose','Bhagat Singh','Mahatma Gandhi');
+Q('History','Ancient university located in Bihar, India?','Bihar mein sthit prachin vishwavidyalaya kaunsa tha?','Bihare obosthito prachin bishwobidyaloy konti?','Nalanda','Takshashila','Oxford','Bologna');
+Q('History','Year the Indian Constitution came into effect?','Bharat ka samvidhan kis saal laagu hua?','Bharoter shongbidhan kon bochor karjokor hoy?','1950','1947','1949','1952');
+Q('History','Who discovered penicillin in 1928?','1928 mein penicillin ki khoj kisne ki thi?','1928 shale penicillin ke abishkar koren?','Alexander Fleming','Louis Pasteur','Marie Curie','Isaac Newton');
 Q('Geography','Capital city of Japan?','Japan ki rajdhani kaunsi hai?','Japan er rajdhani konti?','Tokyo','Kyoto','Osaka','Seoul');
 Q('Geography','Longest river in the world?','Duniya ki sabse lambi nadi kaunsi hai?','Prithibir dirghotomo nodi konti?','Nile','Amazon','Ganga','Yangtze');
 Q('Geography','Largest ocean on Earth?','Duniya ka sabse bada mahasagar kaunsa hai?','Prithibir brihottomo mohashagor konti?','Pacific','Atlantic','Indian','Arctic');
@@ -52,45 +62,96 @@ Q('Geography','Highest mountain peak on Earth?','Duniya ki sabse unchi choti kau
 Q('Geography','Largest country by area?','Area ke hisaab se sabse bada desh kaunsa hai?','Ayotone prithibir brihottomo desh konti?','Russia','Canada','China','USA');
 Q('Geography','Capital city of Australia?','Australia ki rajdhani kaunsi hai?','Australia er rajdhani konti?','Canberra','Sydney','Melbourne','Perth');
 Q('Geography','How many continents are on Earth?','Duniya mein kul kitne mahadweep hain?','Prithibite mot koyti mohadesh ache?','7','5','6','8');
+Q('Geography','Largest hot desert in the world?','Duniya ka sabse bada garam registan kaunsa hai?','Prithibir shobcheye boro morubhumi konti?','Sahara','Thar','Gobi','Kalahari');
+Q('Geography','Which country has the city of Venice?','Venice shehar kis desh mein hai?','Venice shohor kon deshe obosthito?','Italy','France','Spain','Greece');
+Q('Geography','Capital city of Canada?','Canada ki rajdhani kaunsi hai?','Canada er rajdhani konti?','Ottawa','Toronto','Vancouver','Montreal');
+Q('Geography','Which mountain range separates India and Tibet?','Bharat aur Tibet ke beech kaunsi parvat shreni hai?','Bharot ar Tibboter majhe kon porbotmala ache?','Himalayas','Alps','Andes','Rockies');
 Q('India','National animal of India?','Bharat ka rashtriya pashu kaunsa hai?','Bharoter jatiyo poshu konti?','Bengal Tiger','Lion','Elephant','Leopard');
 Q('India','National flower of India?','Bharat ka rashtriya phool kaunsa hai?','Bharoter jatiyo phul konti?','Lotus','Rose','Marigold','Jasmine');
 Q('India','Longest river flowing inside India?','Bharat ke andar behne wali sabse lambi nadi kaunsi hai?','Bharoter modhye probahito dirghotomo nodi konti?','Ganga','Yamuna','Godavari','Brahmaputra');
 Q('India','Largest Indian state by area?','Area ke hisaab se Bharat ka sabse bada rajya kaunsa hai?','Ayotone Bharoter brihottomo rajyo konti?','Rajasthan','Madhya Pradesh','Maharashtra','Uttar Pradesh');
 Q('India','Which city is the Gateway of India in?','Gateway of India kis shehar mein hai?','Gateway of India kon shohore obosthito?','Mumbai','Kolkata','Chennai','Goa');
+Q('India','Which Indian city is called the Pink City?','Bharat ka kaunsa shehar Pink City kehlata hai?','Bharoter kon shohor ke Pink City bole?','Jaipur','Udaipur','Jodhpur','Agra');
+Q('India','Which city is known as the Silicon Valley of India?','Silicon Valley of India kis shehar ko kehte hain?','Bharoter Silicon Valley kon shohor?','Bengaluru','Hyderabad','Pune','Noida');
+Q('India','National bird of India?','Bharat ka rashtriya pakshi kaunsa hai?','Bharoter jatiyo pakhi konti?','Indian Peacock','Eagle','Parrot','Swan');
+Q('India','Which state is famous for the Sundarbans mangrove forest?','Sundarbans mangrove forest kis rajya mein hai?','Sundorbon kon rajye obosthito?','West Bengal','Assam','Odisha','Kerala');
+Q('India','How many spokes are in the Ashoka Chakra on India’s flag?','Tirange ke Ashoka Chakra mein kitni teeliyan hoti hain?','Bharoter potakar Ashoka Chakre koyti dondo ache?','24','20','18','32');
+Q('India','Which festival is known as the Festival of Lights?','Roshni ka tyohar kise kaha jata hai?','Alor utshob kon pujo ba utshob ke bole?','Diwali','Holi','Pongal','Bihu');
 Q('GK','How many colors are in a rainbow?','Indradhanush mein kitne rang hote hain?','Rongdhonute koyti rong thake?','7','5','6','8');
 Q('GK','Days in a leap year?','Leap year mein kitne din hote hain?','Leap year e koyti din thake?','366','365','364','367');
 Q('GK','Fastest land animal on Earth?','Zameen par sabse tez daudne wala janwar kaunsa hai?','Sthole shobcheye druto douraono prani konti?','Cheetah','Lion','Horse','Leopard');
 Q('GK','HTML stands for?','HTML ka full form kya hota hai?','HTML er purno rup ki?','HyperText Markup Language','HighText Machine Language','HyperTool Markup Language','Home Text Markup Language');
 Q('GK','Largest mammal on Earth?','Duniya ka sabse bada mammal kaunsa hai?','Prithibir shobcheye boro stonnyopayi prani konti?','Blue Whale','Elephant','Giraffe','Shark');
 Q('GK','Total pieces per player in Chess?','Chess mein har player ke paas kitne pieces hote hain?','Daba khelay protiti player er koto gulo guti thake?','16','12','14','18');
+Q('GK','How many players are on a Cricket team on the field?','Cricket team mein maidan par kitne khiladi hote hain?','Cricket dol e mathe koyjon khelowar thaken?','11','9','10','12');
+Q('GK','Which currency is used in Japan?','Japan ki mudra kaunsi hai?','Japan er mudrar nam ki?','Yen','Won','Yuan','Baht');
+Q('GK','How many minutes are in 3 hours?','3 ghante mein kitne minute hote hain?','3 ghontay koto minute hoy?','180','150','120','200');
+Q('GK','Which instrument has 88 standard keys?','Kis musical instrument mein 88 keys hoti hain?','Kon badyojontre 88 ti key thake?','Piano','Guitar','Flute','Drums');
+Q('GK','Which country hosts the Eiffel Tower?','Eiffel Tower kis desh mein hai?','Eiffel Tower kon deshe obosthito?','France','Germany','UK','Switzerland');
+Q('GK','What does CPU stand for in computers?','Computer mein CPU ka full form kya hai?','Computere CPU er purno rup ki?','Central Processing Unit','Core Power Utility','Central Program User','Control Panel Unit');
 
 const CATS=['All','Science','History','Geography','India','GK'];
-let cat='All',iv=0;
+let cat='All',iv=0,nextTimer=0;
+
+function drawNonRepeatingTrivia(category, count){
+  const normCat=String(category||'All').trim().toLowerCase();
+  const list=BANK.filter(x=>normCat==='all'||String(x.c||'').toLowerCase()===normCat);
+  const storeKey='sg_seen_q_trivia_'+normCat;
+  let seen=[];
+  try{const raw=localStorage.getItem(storeKey);if(raw)seen=JSON.parse(raw)||[]}catch{}
+  if(!Array.isArray(seen))seen=[];
+  const seenSet=new Set(seen);
+  const unseen=shuffle(list.filter(q=>!seenSet.has(q.id)));
+  const picked=[];
+  let nextSeen=[...seen];
+  while(picked.length<count && unseen.length){
+    const item=unseen.shift();
+    picked.push(item);
+    nextSeen.push(item.id);
+  }
+  if(picked.length<count){
+    const pickedIds=new Set(picked.map(x=>x.id));
+    const recentIds=new Set(seen.slice(-Math.min(count,Math.max(1,list.length-1))));
+    const firstPool=shuffle(list.filter(q=>!pickedIds.has(q.id)&&!recentIds.has(q.id)));
+    const restPool=shuffle(list.filter(q=>!pickedIds.has(q.id)&&recentIds.has(q.id)));
+    const fresh=[...firstPool,...restPool];
+    nextSeen=picked.map(x=>x.id);
+    while(picked.length<count && fresh.length){
+      const item=fresh.shift();
+      picked.push(item);
+      nextSeen.push(item.id);
+    }
+  }
+  if(nextSeen.length>=list.length)nextSeen=picked.map(x=>x.id);
+  try{localStorage.setItem(storeKey,JSON.stringify(nextSeen))}catch{}
+  return picked;
+}
 
 function menu(){
-  clearInterval(iv);
+  clearInterval(iv);clearTimeout(nextTimer);
   if(window.VoiceNarrator)window.VoiceNarrator.stop();
   cat='All';
   main.innerHTML=`<div class="card"><h3>🎓 Trivia Rush <span class="tag">FREE</span></h3>
-    <p class="mu">10 rapid questions, 15s each. Fast answers earn bonus points. Lifelines: ✂️ 50-50 &amp; ⏭ Skip. Switch EN / HI / BN voice narration anytime!</p>
-    <label>Category</label><div class="chips" id="cat">${CATS.map(c=>`<button data-v="${c}" ${c==='All'?'class="on"':''}>${c}</button>`).join('')}</div>
+    <p class="mu">10 rapid questions, 15s each. Smart non-repeating shuffle keeps every round fresh. Lifelines: ✂️ 50-50 &amp; ⏭ Skip.</p>
+    <label>Category</label><div class="chips tr-cats" id="cat">${CATS.map(c=>`<button data-v="${c}" ${c==='All'?'class="on"':''}>${c}</button>`).join('')}</div>
     <p class="mu" style="margin-top:10px">🏆 Best: <b>${bestGet('tr_best')}</b></p>
     <button class="btn full" id="go">Start Quiz</button></div>`;
   pick('#cat',v=>cat=v);$('#go').onclick=play;
 }
 
 function play(){
-  const pool=shuffle(BANK.filter(x=>cat==='All'||x.c===cat)).slice(0,10);
+  clearInterval(iv);clearTimeout(nextTimer);
+  const pool=drawNonRepeatingTrivia(cat,10);
   let n=0,score=0,correct=0,use5050=false,useSkip=false;
   const ask=()=>{
-    clearInterval(iv);
+    clearInterval(iv);clearTimeout(nextTimer);
     if(n>=pool.length)return finish();
     const q=pool[n];n++;
     const opts=shuffle([q.a,...q.w]);
     let lock=false;const t0=Date.now(),limit=15000;
     main.innerHTML=`<div class="hud"><span class="pill">Q ${n}/${pool.length}</span><span class="pill">${esc(q.c)}</span><span class="pill">Score ${score}</span></div>
       <div id="trVoiceHost">${window.VoiceNarrator?window.VoiceNarrator.renderBar('tr'):''}</div>
-      <div class="tbar" id="tbar"><i id="tb"></i></div><div class="qbox sm">${esc(q.q)}</div>
+      <div class="tbar" id="tbar"><i id="tb"></i></div><div class="qbox sm" data-qid="${esc(q.id)}">${esc(q.q)}</div>
       <div id="o">${opts.map(o=>`<button class="opt" data-a="${esc(o)}">${esc(o)}</button>`).join('')}</div>
       <div class="row"><button class="btn ghost sm" style="flex:1" id="l1" ${use5050?'disabled':''}>✂️ 50-50</button><button class="btn ghost sm" style="flex:1" id="l2" ${useSkip?'disabled':''}>⏭ Skip</button></div><div class="fb" id="fb"></div>`;
     if(window.VoiceNarrator){
@@ -103,18 +164,21 @@ function play(){
       if(ok){correct++;const p=10+Math.round(left);score+=p;if(typeof gkPlaySfx==='function')gkPlaySfx('good');$('#fb').textContent=`✅ Correct! +${p}`}
       else{if(typeof gkPlaySfx==='function')gkPlaySfx('bad');$('#fb').textContent=pickVal==null?'⏰ Time up!':'❌ Wrong'}
       $$('.opt').forEach(x=>{if(x.dataset.a===q.a)x.classList.add('good');else if(x.dataset.a===pickVal)x.classList.add('bad');else x.classList.add('off')});
-      setTimeout(ask,1300);
+      nextTimer=setTimeout(ask,1300);
     };
     $('#o').onclick=e=>{const b=e.target.closest('.opt');if(b)settle(b.dataset.a)};
     $('#l1').onclick=()=>{if(lock||use5050)return;use5050=true;$('#l1').disabled=true;shuffle($$('.opt').filter(x=>x.dataset.a!==q.a)).slice(0,2).forEach(x=>x.classList.add('off'))};
     $('#l2').onclick=()=>{if(lock||useSkip)return;useSkip=true;lock=true;clearInterval(iv);ask()};
     iv=setInterval(()=>{
       const left=Math.max(0,limit-(Date.now()-t0));
-      $('#tb').style.width=(left/limit*100)+'%';$('#tbar').classList.toggle('low',left<5000);
+      const tb=$('#tb'), tbar=$('#tbar');
+      if(tb)tb.style.width=(left/limit*100)+'%';
+      if(tbar)tbar.classList.toggle('low',left<5000);
       if(left<=0)settle(null);
     },100);
   };
   async function finish(){
+    clearInterval(iv);clearTimeout(nextTimer);
     if(window.VoiceNarrator)window.VoiceNarrator.stop();
     const nb=bestSet('tr_best',score);
     const r=await award('trivia',Math.floor(score/25),score/8);
@@ -122,6 +186,7 @@ function play(){
   }
   ask();
 }
+window.addEventListener('pagehide',()=>{clearInterval(iv);clearTimeout(nextTimer);if(window.VoiceNarrator)window.VoiceNarrator.stop()});
 menu();
 </script>
 </body>

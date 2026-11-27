@@ -727,7 +727,8 @@ function ingestClans(list) {
   if (!Array.isArray(list)) return;
   clansList = list.sort((a, b) => Number(b.weeklyGlory || 0) - Number(a.weeklyGlory || 0));
   ls.set('sg_clans_cache', clansList);
-  if (typeof renderRanking === 'function') renderRanking();
+  if (typeof markTabsDirty === 'function') markTabsDirty('ranking');
+  else if (typeof renderRanking === 'function') renderRanking();
 }
 
 function addClanGlory(pts) {
@@ -1291,6 +1292,7 @@ window.openDevAdminCleanupModal = openDevAdminCleanupModal;
 
 /* Online Activity Chest Timer (ticks every 10 seconds while active) */
 setInterval(() => {
+  if (document.hidden) return;
   if (typeof me !== 'undefined' && me && !me.banned) {
     me.activitySec = clampSafeInt(Number(me.activitySec || 0) + 10, 0, 8640000);
     if (me.activitySec % 30 === 0) saveMe();
