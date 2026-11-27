@@ -386,6 +386,66 @@ const SFX = (() => {
     noiseBurst({ delay: 0.06, dur: 0.12, freq: 3200, vol: 0.035 });
   }
 
+  /* ===== Couple Chronicles Cinematic Story Sound FX ===== */
+  function sceneOpen() {
+    tone(220, { dur: 0.35, type: 'sine', vol: 0.085, endFreq: 261.63 });
+    tone(329.63, { delay: 0.08, dur: 0.38, type: 'triangle', vol: 0.075 });
+    tone(493.88, { delay: 0.18, dur: 0.45, type: 'sine', vol: 0.065 });
+    noiseBurst({ dur: 0.28, freq: 900, filterType: 'bandpass', vol: 0.025 });
+  }
+
+  function choiceLock() {
+    tone(520, { dur: 0.06, type: 'triangle', vol: 0.09, endFreq: 740 });
+    tone(880, { delay: 0.055, dur: 0.12, type: 'sine', vol: 0.1 });
+  }
+
+  function doorCreak() {
+    tone(190, { dur: 0.32, type: 'sawtooth', vol: 0.045, endFreq: 285 });
+    tone(285, { delay: 0.26, dur: 0.26, type: 'sawtooth', vol: 0.04, endFreq: 168 });
+    noiseBurst({ delay: 0.04, dur: 0.42, freq: 1100, filterType: 'bandpass', vol: 0.03 });
+  }
+
+  function heartbeat() {
+    tone(68, { dur: 0.13, type: 'sine', vol: 0.16, endFreq: 42 });
+    tone(62, { delay: 0.18, dur: 0.16, type: 'sine', vol: 0.13, endFreq: 38 });
+    tone(68, { delay: 0.62, dur: 0.13, type: 'sine', vol: 0.15, endFreq: 42 });
+    tone(62, { delay: 0.8, dur: 0.16, type: 'sine', vol: 0.12, endFreq: 38 });
+  }
+
+  function thunder() {
+    noiseBurst({ dur: 0.22, freq: 1400, filterType: 'bandpass', vol: 0.095 });
+    noiseBurst({ delay: 0.12, dur: 0.95, freq: 180, filterType: 'lowpass', vol: 0.13 });
+    tone(74, { delay: 0.08, dur: 0.72, type: 'sawtooth', vol: 0.065, endFreq: 36 });
+  }
+
+  function lockClick() {
+    noiseBurst({ dur: 0.035, freq: 3400, filterType: 'highpass', vol: 0.07 });
+    tone(980, { dur: 0.04, type: 'square', vol: 0.05, endFreq: 620 });
+    tone(1320, { delay: 0.07, dur: 0.06, type: 'triangle', vol: 0.075, endFreq: 1040 });
+  }
+
+  function dangerSting() {
+    tone(155.56, { dur: 0.42, type: 'sawtooth', vol: 0.08, endFreq: 146.83 });
+    tone(220, { delay: 0.02, dur: 0.4, type: 'sawtooth', vol: 0.065, endFreq: 207.65 });
+    tone(311.13, { delay: 0.04, dur: 0.36, type: 'triangle', vol: 0.07, endFreq: 293.66 });
+    noiseBurst({ dur: 0.22, freq: 720, filterType: 'bandpass', vol: 0.05 });
+  }
+
+  function clueFound() {
+    [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((f, i) => {
+      tone(f, { delay: i * 0.055, dur: 0.22, type: 'sine', vol: 0.095 });
+    });
+    noiseBurst({ delay: 0.1, dur: 0.18, freq: 3600, vol: 0.03 });
+  }
+
+  function endingReveal() {
+    const chord = [261.63, 329.63, 392.0, 493.88, 587.33, 783.99, 1046.5];
+    chord.forEach((f, i) => {
+      tone(f, { delay: i * 0.075, dur: 0.55, type: i % 2 === 0 ? 'triangle' : 'sine', vol: 0.09 });
+    });
+    noiseBurst({ delay: 0.3, dur: 0.36, freq: 2800, vol: 0.035 });
+  }
+
   function play(name, opts = {}) {
     if (muted) return false;
     switch (name) {
@@ -449,6 +509,15 @@ const SFX = (() => {
       case 'heartPop': heartPop(); break;
       case 'jackpotRoll': jackpotRoll(); break;
       case 'wheelStop': wheelStop(); break;
+      case 'sceneOpen': sceneOpen(); break;
+      case 'choiceLock': choiceLock(); break;
+      case 'doorCreak': doorCreak(); break;
+      case 'heartbeat': heartbeat(); break;
+      case 'thunder': thunder(); break;
+      case 'lockClick': lockClick(); break;
+      case 'dangerSting': dangerSting(); break;
+      case 'clueFound': clueFound(); break;
+      case 'endingReveal': endingReveal(); break;
       default: click();
     }
     return true;

@@ -7,10 +7,13 @@ function applyDevUI(){
   $$('.dev-only').forEach(el=>el.hidden=!devMode);
 }
 
-function switchToIdentity(nextUid,nextProfileObj){
-  const isAccountSwitch=nextUid!==uid||(nextProfileObj&&nextProfileObj.accountType&&nextProfileObj.accountType!==me.accountType);
-  if(isAccountSwitch)$$('#modals .mb').forEach(b=>b.remove());
-  cur=null;$('#thread').hidden=true;
+function switchToIdentity(nextUid,nextProfileObj,opts){
+  const o=opts||{};
+  const prevAccountType=me&&me.accountType;
+  const nextAccountType=(nextProfileObj&&nextProfileObj.accountType)||'guest';
+  const isExplicitAccountSwitch=Boolean(o.forceHome)||(prevAccountType==='account'&&nextAccountType!=='account')||(prevAccountType!=='account'&&nextAccountType==='account');
+  if(isExplicitAccountSwitch)$$('#modals .mb').forEach(b=>b.remove());
+  if(isExplicitAccountSwitch){cur=null;$('#thread').hidden=true;}
   uid=nextUid;localStorage.setItem('sg_uid',uid);
   me=normalizeProfile(nextProfileObj,nextUid);
   refreshDevMode();
@@ -20,7 +23,8 @@ function switchToIdentity(nextUid,nextProfileObj){
   if(typeof checkPendingWarnings==='function')checkPendingWarnings();
   if(typeof checkPendingProposals==='function')checkPendingProposals();
   dbOp(()=>F.setDoc(userRef(uid),{...base(),createdAt:Date.now()},{merge:true}));
-  claimRankReward();updateUnreadDots();updateHud();buildProfile();renderAll();showTab('tools');
+  claimRankReward();updateUnreadDots();updateHud();buildProfile();renderAll();
+  if(isExplicitAccountSwitch)showTab('tools');
 }
 
 function openAuthModal(){

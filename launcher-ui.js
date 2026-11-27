@@ -441,6 +441,16 @@
       ${renderHeroCarouselHtml('games')}
       ${renderCompactMpBarHtml()}
 
+      <button type="button" class="gl-chronicles-strip" id="glOpenChroniclesBtn" data-testid="games-hub-chronicles-btn">
+        <span class="gl-ch-thumb" style="background-image:url('assets/chronicles/velvet-cover.jpg')" aria-hidden="true"></span>
+        <span class="gl-ch-copy">
+          <span class="gl-ch-kicker">COUPLE CHRONICLES · 2-PARTNER STORY MODE</span>
+          <b class="gl-ch-title">The Midnight Express: Velvet &amp; Shadow</b>
+          <span class="gl-ch-sub">Dual choices · Split paths · EN / HI / BN Voice · Custom Story Book PDF</span>
+        </span>
+        <span class="gl-ch-cta">Open ›</span>
+      </button>
+
       <div class="gl-cat-sticky" role="tablist" aria-label="Game Categories" data-testid="category-tabs">
         <div class="gl-cat-scroll">
           ${cats.map(c => `
@@ -486,6 +496,14 @@
     `;
 
     bindHeroCarousel(root, 'games');
+
+    const chBtn = $('#glOpenChroniclesBtn', root);
+    if (chBtn) {
+      chBtn.onclick = () => {
+        if (typeof playSfx === 'function') playSfx('tap');
+        if (typeof showTab === 'function') showTab('stories');
+      };
+    }
 
     // Category tabs
     $$('[data-glcat]', root).forEach(btn => {

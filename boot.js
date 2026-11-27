@@ -100,16 +100,20 @@ try{
   }
   const sp=new URLSearchParams(location.search);
   const urlRoom=sp.get('room')||sp.get('jkRoom')||'';
+  const urlRoomId=sp.get('rid')||'';
   const urlParty=sp.get('party')||'';
   const urlGame=sp.get('game')||(sp.get('jkRoom')?'jackaroo':'');
   const urlMode=sp.get('mode')||'';
-  if(urlRoom||urlParty){
+  if(urlRoom||urlRoomId||urlParty){
     const inv=typeof parseRoomInviteFromText==='function'
-      ? parseRoomInviteFromText(location.search,{roomCode:urlRoom,roomId:urlParty,gameId:urlGame,mode:urlMode})
+      ? parseRoomInviteFromText(location.search,{roomCode:urlRoom,roomId:urlParty||urlRoomId,gameId:urlGame,mode:urlMode})
       : null;
     try{history.replaceState(null,'',location.pathname);}catch{}
     if(inv&&typeof joinFromInvitePayload==='function'){
-      setTimeout(()=>joinFromInvitePayload(inv),520);
+      const readyP=typeof window.waitForFirebaseReady==='function'
+        ? window.waitForFirebaseReady(4500)
+        : new Promise(r=>setTimeout(r,520));
+      readyP.then(()=>joinFromInvitePayload(inv)).catch(()=>joinFromInvitePayload(inv));
     }
   }
 }catch{}

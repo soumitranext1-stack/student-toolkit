@@ -132,16 +132,16 @@ const LANGS={
 };
 let langKey=localStorage.getItem('sg_lang')||'en';
 const I18N={
-en:{home:'Home',games:'Games',rank:'Rank',tasks:'Tasks',store:'Store',chat:'Chat',profile:'Profile',tools:'Student Tools',poems:'Poems & Writing Wall',req:'Request Poem',gamesH:'Games Hub',lb:'Daily Leaderboard',d5:'Daily 5 Tasks',storeH:'Store',msgs:'Messages',addf:'Add friend',yp:'Your Profile',streak:'day streak'},
-hi:{home:'होम',games:'गेम्स',rank:'रैंक',tasks:'टास्क',store:'स्टोर',chat:'चैट',profile:'प्रोफ़ाइल',tools:'स्टूडेंट टूल्स',poems:'कविता और लेखन दीवार',req:'कविता भेजें',gamesH:'गेम्स हब',lb:'दैनिक लीडरबोर्ड',d5:'आज के 5 टास्क',storeH:'स्टोर',msgs:'संदेश',addf:'दोस्त जोड़ें',yp:'आपकी प्रोफ़ाइल',streak:'दिन की स्ट्रीक'},
-bn:{home:'হোম',games:'গেমস',rank:'র‍্যাঙ্ক',tasks:'টাস্ক',store:'স্টোর',chat:'চ্যাট',profile:'প্রোফাইল',tools:'স্টুডেন্ট টুলস',poems:'কবিতা ও লেখার দেয়াল',req:'কবিতা পাঠান',gamesH:'গেমস হাব',lb:'দৈনিক লিডারবোর্ড',d5:'আজকের ৫টি টাস্ক',storeH:'স্টোর',msgs:'বার্তা',addf:'বন্ধু যোগ করুন',yp:'আপনার প্রোফাইল',streak:'দিনের স্ট্রিক'},
-es:{home:'Inicio',games:'Juegos',rank:'Ranking',tasks:'Tareas',store:'Tienda',chat:'Chat',profile:'Perfil',tools:'Herramientas',poems:'Muro de poemas y textos',req:'Enviar poema',gamesH:'Centro de juegos',lb:'Clasificación diaria',d5:'5 tareas diarias',storeH:'Tienda',msgs:'Mensajes',addf:'Añadir amigo',yp:'Tu perfil',streak:'días seguidos'},
-fr:{home:'Accueil',games:'Jeux',rank:'Classement',tasks:'Tâches',store:'Boutique',chat:'Chat',profile:'Profil',tools:'Outils Étudiant',poems:'Mur de poèmes et textes',req:'Proposer un poème',gamesH:'Espace jeux',lb:'Classement du jour',d5:'5 tâches du jour',storeH:'Boutique',msgs:'Messages',addf:'Ajouter un ami',yp:'Votre profil',streak:'jours de suite'},
-ta:{home:'முகப்பு',games:'விளையாட்டு',rank:'தரவரிசை',tasks:'பணிகள்',store:'கடை',chat:'அரட்டை',profile:'சுயவிவரம்',tools:'மாணவர் கருவிகள்',poems:'கவிதை & எழுத்துச் சுவர்',req:'கவிதை அனுப்பு',gamesH:'விளையாட்டு மையம்',lb:'தினசரி தரவரிசை',d5:'தினசரி 5 பணிகள்',storeH:'கடை',msgs:'செய்திகள்',addf:'நண்பரைச் சேர்',yp:'உங்கள் சுயவிவரம்',streak:'நாள் தொடர்'},
-te:{home:'హోమ్',games:'గేమ్స్',rank:'ర్యాంక్',tasks:'టాస్క్‌లు',store:'స్టोर',chat:'చాట్',profile:'ప్రొఫైల్',tools:'విద్యార్థి టూల్స్',poems:'కవితలు & రచనల గోడ',req:'కవిత పంపండి',gamesH:'గేమ్స్ హబ్',lb:'రోజువారీ లీడర్‌బోర్డ్',d5:'రోజువారీ 5 టాస్క్‌లు',storeH:'స్టోర్',msgs:'సందేశాలు',addf:'స్నేహితుని జోడించు',yp:'మీ ప్రొఫైల్',streak:'రోజుల స్ట్రీక్'}
+en:{home:'Home',games:'Games',stories:'Stories',rank:'Rank',tasks:'Tasks',store:'Store',chat:'Chat',profile:'Profile',tools:'Student Tools',poems:'Poems & Writing Wall',req:'Request Poem',gamesH:'Games Hub',lb:'Daily Leaderboard',d5:'Daily 5 Tasks',storeH:'Store',msgs:'Messages',addf:'Add friend',yp:'Your Profile',streak:'day streak'},
+hi:{home:'होम',games:'गेम्स',stories:'कहानी',rank:'रैंक',tasks:'टास्क',store:'स्टोर',chat:'चैट',profile:'प्रोफ़ाइल',tools:'स्टूडेंट टूल्स',poems:'कविता और लेखन दीवार',req:'कविता भेजें',gamesH:'गेम्स हब',lb:'दैनिक लीडरबोर्ड',d5:'आज के 5 टास्क',storeH:'स्टोर',msgs:'संदेश',addf:'दोस्त जोड़ें',yp:'आपकी प्रोफ़ाइल',streak:'दिन की स्ट्रीक'},
+bn:{home:'হোম',games:'গেমস',stories:'গল্প',rank:'র‍্যাঙ্ক',tasks:'টাস্ক',store:'স্টোর',chat:'চ্যাট',profile:'প্রোফাইল',tools:'স্টুডেন্ট টুলস',poems:'কবিতা ও লেখার দেয়াল',req:'কবিতা পাঠান',gamesH:'গেমস হাব',lb:'দৈনিক লিডারবোর্ড',d5:'আজকের ৫টি টাস্ক',storeH:'স্টোর',msgs:'বার্তা',addf:'বন্ধু যোগ করুন',yp:'আপনার প্রোফাইল',streak:'দিনের স্ট্রিক'},
+es:{home:'Inicio',games:'Juegos',stories:'Historias',rank:'Ranking',tasks:'Tareas',store:'Tienda',chat:'Chat',profile:'Perfil',tools:'Herramientas',poems:'Muro de poemas y textos',req:'Enviar poema',gamesH:'Centro de juegos',lb:'Clasificación diaria',d5:'5 tareas diarias',storeH:'Tienda',msgs:'Mensajes',addf:'Añadir amigo',yp:'Tu perfil',streak:'días seguidos'},
+fr:{home:'Accueil',games:'Jeux',stories:'Histoires',rank:'Classement',tasks:'Tâches',store:'Boutique',chat:'Chat',profile:'Profil',tools:'Outils Étudiant',poems:'Mur de poèmes et textes',req:'Proposer un poème',gamesH:'Espace jeux',lb:'Classement du jour',d5:'5 tâches du jour',storeH:'Boutique',msgs:'Messages',addf:'Ajouter un ami',yp:'Votre profil',streak:'jours de suite'},
+ta:{home:'முகப்பு',games:'விளையாட்டு',stories:'கதைகள்',rank:'தரவரிசை',tasks:'பணிகள்',store:'கடை',chat:'அரட்டை',profile:'சுயவிவரம்',tools:'மாணவர் கருவிகள்',poems:'கவிதை & எழுத்துச் சுவர்',req:'கவிதை அனுப்பு',gamesH:'விளையாட்டு மையம்',lb:'தினசரி தரவரிசை',d5:'தினசரி 5 பணிகள்',storeH:'கடை',msgs:'செய்திகள்',addf:'நண்பரைச் சேர்',yp:'உங்கள் சுயவிவரம்',streak:'நாள் தொடர்'},
+te:{home:'హోమ్',games:'గేమ్స్',stories:'కథలు',rank:'ర్యాంక్',tasks:'టాస్క్‌లు',store:'స్టోర్',chat:'చాట్',profile:'ప్రొఫైల్',tools:'విద్యార్థి టూల్స్',poems:'కవితలు & రచనల గోడ',req:'కవిత పంపండి',gamesH:'గేమ్స్ హబ్',lb:'రోజువారీ లీడర్‌బోర్డ్',d5:'రోజువారీ 5 టాస్క్‌లు',storeH:'స్టోర్',msgs:'సందేశాలు',addf:'స్నేహితుని జోడించు',yp:'మీ ప్రొఫైల్',streak:'రోజుల స్ట్రీక్'}
 };
 const tr=k=>(I18N[langKey]&&I18N[langKey][k])||I18N.en[k]||k;
-const NAV_KEYS={tools:'home',games:'games',ranking:'rank',tasks:'tasks',store:'store',chat:'chat',profile:'profile'};
+const NAV_KEYS={tools:'home',games:'games',stories:'stories',ranking:'rank',tasks:'tasks',store:'store',chat:'chat',profile:'profile'};
 function applyLang(){
   const l=LANGS[langKey]||LANGS.en;$('#langCode').textContent=l.code;document.documentElement.lang=langKey;
   $$('[data-i]').forEach(e=>e.textContent=tr(e.dataset.i));
@@ -1391,27 +1391,28 @@ function buildRoomInviteUrl(opts){
   const o=opts||{};
   const code=String(o.roomCode||'').trim().toUpperCase();
   const gameId=String(o.gameId||'').trim().toLowerCase();
-  const partyId=String(o.roomId||o.partyId||'').trim();
+  const roomId=String(o.roomId||o.partyId||'').trim();
   const mode=String(o.mode||'').trim();
   try{
     const baseHref=(typeof window!=='undefined'&&window.location&&window.location.href)?window.location.href:'https://study-game.app/';
     const u=new URL(baseHref);
     u.search='';
     u.hash='';
-    if(o.type==='party'||partyId.startsWith('pr_')){
-      if(partyId)u.searchParams.set('party',partyId);
+    if(o.type==='party'||roomId.startsWith('pr_')){
+      if(roomId)u.searchParams.set('party',roomId);
       if(code)u.searchParams.set('room',code);
     }else{
       if(code)u.searchParams.set('room',code);
+      if(roomId&&!roomId.startsWith('pr_'))u.searchParams.set('rid',roomId);
       if(gameId)u.searchParams.set('game',gameId);
       if(mode)u.searchParams.set('mode',mode);
     }
     return u.toString();
   }catch{
-    if(o.type==='party'||partyId.startsWith('pr_')){
-      return `?party=${encodeURIComponent(partyId)}&room=${encodeURIComponent(code)}`;
+    if(o.type==='party'||roomId.startsWith('pr_')){
+      return `?party=${encodeURIComponent(roomId)}&room=${encodeURIComponent(code)}`;
     }
-    return `?room=${encodeURIComponent(code)}${gameId?'&game='+encodeURIComponent(gameId):''}${mode?'&mode='+encodeURIComponent(mode):''}`;
+    return `?room=${encodeURIComponent(code)}${roomId?'&rid='+encodeURIComponent(roomId):''}${gameId?'&game='+encodeURIComponent(gameId):''}${mode?'&mode='+encodeURIComponent(mode):''}`;
   }
 }
 window.buildRoomInviteUrl=buildRoomInviteUrl;
@@ -1421,6 +1422,9 @@ function detectInviteGameFromCodeOrText(code, text, explicitGame){
   if(g)return g;
   const c=String(code||'').toUpperCase();
   const t=String(text||'').toLowerCase();
+  if(c.startsWith('CC')||/couple\s*chronicles|chronicles\s*story|midnight\s*express/.test(t))return 'couple_chronicles';
+  if(c.startsWith('BC')||/budget\s*clash/.test(t))return 'budget_clash';
+  if(c.startsWith('CP')||/couple|bestie\s*arena|mind\s*sync/.test(t))return 'couple_arena';
   if(c.startsWith('PL')||/8-?ball|pool/.test(t))return 'pool_8ball';
   if(c.startsWith('CH')||/chess/.test(t))return 'chess_blitz';
   if(c.startsWith('TR')||/tile\s*race/.test(t))return 'tile_race';
@@ -1448,12 +1452,14 @@ function parseRoomInviteFromText(rawText, meta){
   let stake=Number(m.stake||0);
 
   const qRoom=txt.match(/[?&]room=([A-Za-z0-9_-]{3,16})/i);
+  const qRid=txt.match(/[?&]rid=([A-Za-z0-9_-]{4,60})/i);
   const qJk=txt.match(/[?&]jkRoom=([A-Za-z0-9_-]{3,16})/i);
   const qParty=txt.match(/[?&]party=([A-Za-z0-9_-]{3,40})/i);
   const qGame=txt.match(/[?&]game=([A-Za-z0-9_-]{2,24})/i);
   const qMode=txt.match(/[?&]mode=([A-Za-z0-9_-]{2,20})/i);
 
   if(!roomCode && qRoom)roomCode=qRoom[1].toUpperCase();
+  if(!roomId && qRid)roomId=qRid[1];
   if(!roomCode && qJk){roomCode=qJk[1].toUpperCase();if(!gameId)gameId='jackaroo';}
   if(!roomId && qParty){roomId=qParty[1];if(!gameId)gameId='party';}
   if(!gameId && qGame)gameId=qGame[1].toLowerCase();
@@ -1465,12 +1471,15 @@ function parseRoomInviteFromText(rawText, meta){
   }
   if(!roomCode && !roomId)return null;
 
-  const isParty=m.type==='party_invite'||gameId==='party'||Boolean(qParty)||(roomId&&roomId.startsWith('pr_'));
+  const isParty=m.type==='party_invite'||m.inviteType==='party_invite'||gameId==='party'||Boolean(qParty)||(roomId&&roomId.startsWith('pr_'));
   const resolvedGame=isParty?'party':detectInviteGameFromCodeOrText(roomCode,txt,gameId);
   const gameNames={
+    couple_chronicles:'Couple Chronicles',
+    budget_clash:'Budget Clash',
+    couple_arena:'Couple & Bestie Arena',
     pool_8ball:'8-Ball Pool',
-    jackaroo:'Jackaroo',
-    uno:'UNO',
+    jackaroo:'Jackaroo Royal',
+    uno:'UNO Clash',
     chess_blitz:'Chess Blitz',
     tile_race:'60-Second Tile Race',
     trap_door:'Trap Door Duel',
@@ -1485,6 +1494,9 @@ function parseRoomInviteFromText(rawText, meta){
     room:'Multiplayer Room'
   };
   const gameIcons={
+    couple_chronicles:'📖',
+    budget_clash:'💰',
+    couple_arena:'💗',
     pool_8ball:'🎱',
     jackaroo:'🃏',
     uno:'🌈',
@@ -1551,7 +1563,7 @@ function renderClickableInviteCard(inv, opts){
 }
 window.renderClickableInviteCard=renderClickableInviteCard;
 
-function joinFromInvitePayload(raw){
+async function joinFromInvitePayload(raw){
   if(!raw)return;
   let inv=raw;
   if(typeof raw==='string'){
@@ -1582,28 +1594,33 @@ function joinFromInvitePayload(raw){
     return;
   }
 
-  if(inv.roomCode && typeof mpRooms!=='undefined'&&Array.isArray(mpRooms)){
-    const liveR=mpRooms.find(r=>r&&String(r.code||'').toUpperCase()===inv.roomCode&&r.status!=='finished');
-    if(liveR&&typeof joinMultiplayerRoom==='function'){
-      showTab('games');
-      joinMultiplayerRoom(liveR.code);
-      return;
+  // Dedicated Couple Chronicles invite routing (lazy-loads story modules on demand)
+  const isChronicleInvite=inv.gameId==='couple_chronicles'||String(inv.roomCode||'').toUpperCase().startsWith('CC');
+  if(isChronicleInvite&&(inv.roomId||inv.roomCode)){
+    showTab('stories');
+    const ok=await ensureCoupleChroniclesLoaded();
+    if(ok&&typeof window.joinCoupleStoryRoom==='function'){
+      await window.joinCoupleStoryRoom({roomId:inv.roomId||'',roomCode:inv.roomCode||''});
     }
+    return;
   }
 
-  if(['budget_clash','couple_arena','pool_8ball','chess_blitz','tile_race','trap_door','mind_clash','pocket_territory','jackaroo','uno','ludo','number_match'].includes(inv.gameId)){
-    if(typeof openVisualModeSelect==='function'){
-      openVisualModeSelect(inv.gameId, null, { initialTab:'invite', roomCode:inv.roomCode, mode:inv.mode, stake:inv.stake||0 });
-      return;
-    }
-    if(typeof launchStandardizedGame==='function'){
-      launchStandardizedGame(inv.gameId, { modeType:'invite', roomCode:inv.roomCode, subMode:inv.mode, stake:inv.stake||0 });
-      return;
-    }
+  // Always fetch live room directly from Firestore (never rely only on local mpRooms or pass code as id!)
+  if((inv.roomId||inv.roomCode) && typeof window.joinAndOpenWaitingLobby==='function'){
+    const joined=await window.joinAndOpenWaitingLobby({
+      roomId:inv.roomId||'',
+      roomCode:inv.roomCode||'',
+      gameId:inv.gameId||'',
+      mode:inv.mode||'',
+      stake:Number(inv.stake||0)
+    });
+    if(joined)return;
+    return;
   }
-  if(inv.roomCode && typeof joinMultiplayerRoom==='function'){
+
+  if(inv.roomCode && typeof joinMultiplayerRoomByCode==='function'){
     showTab('games');
-    joinMultiplayerRoom(inv.roomCode);
+    joinMultiplayerRoomByCode(inv.roomCode);
     return;
   }
   showTab('games');
@@ -1619,7 +1636,7 @@ function sendUniversalRoomInviteToDm(friend, payload){
   const gameId=String(p.gameId||'room').trim().toLowerCase();
   const isParty=p.type==='party'||gameId==='party';
   const url=buildRoomInviteUrl({type:isParty?'party':'game',gameId,roomCode,roomId:p.roomId,mode:p.mode});
-  const gameName=p.gameName||(gameId==='ludo'?'Ludo Royal':gameId==='number_match'?'Number Match':gameId==='jackaroo'?'Jackaroo Royal':gameId==='uno'?'UNO Garden':isParty?'Voice Party Room':'Game Room');
+  const gameName=p.gameName||(gameId==='couple_chronicles'?'Couple Chronicles':gameId==='budget_clash'?'Budget Clash':gameId==='couple_arena'?'Couple & Bestie Arena':gameId==='ludo'?'Ludo Royal 3D':gameId==='number_match'?'Number Match':gameId==='jackaroo'?'Jackaroo Royal':gameId==='uno'?'UNO Clash':isParty?'Voice Party Room':'Game Room');
   const txt=p.text||`${isParty?'🎙️':'🎮'} Join my ${gameName}${p.mode?' ('+p.mode.toUpperCase()+')':''}${Number(p.stake||0)>0?' · '+p.stake+' 🪙':''}! Room Code: ${roomCode} ${url}`;
   const msgId='dm_inv_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   const msgObj={
@@ -2314,13 +2331,37 @@ async function ensureGameModule(gameId){
 }
 window.ensureGameModule=ensureGameModule;
 
+let _chroniclesLoadPromise=null;
+async function ensureCoupleChroniclesLoaded(){
+  if(typeof window.renderCoupleChroniclesHub==='function'&&typeof window.StoryRules!=='undefined'&&Array.isArray(window.STORIES_CATALOG)){
+    return true;
+  }
+  if(_chroniclesLoadPromise)return _chroniclesLoadPromise;
+  const files=['voice-narrator.js?v=32','story-rules.js?v=32','story-data.js?v=32','story.js?v=32'];
+  _chroniclesLoadPromise=(async ()=>{
+    try{
+      for(const f of files){
+        await loadScriptOnce(f);
+      }
+      return typeof window.renderCoupleChroniclesHub==='function';
+    }catch(err){
+      console.warn('ensureCoupleChroniclesLoaded error:',err);
+      _chroniclesLoadPromise=null;
+      if(typeof toast==='function')toast('Could not load Couple Chronicles. Check connection & retry.');
+      return false;
+    }
+  })();
+  return _chroniclesLoadPromise;
+}
+window.ensureCoupleChroniclesLoaded=ensureCoupleChroniclesLoaded;
+
 /* ===== Page-By-Page On-Demand View Lifecycle & Active-Tab-Only Rendering ===== */
 const appViewLifecycle=(window.ShowGamesRules&&typeof window.ShowGamesRules.createViewLifecycleManager==='function')
   ? window.ShowGamesRules.createViewLifecycleManager('tools')
   : (()=>{
       let active='tools';
       const mounted=new Set();
-      const dirty=new Set(['tools','games','ranking','tasks','store','chat','profile']);
+      const dirty=new Set(['tools','games','stories','ranking','tasks','store','chat','profile']);
       return {
         getActiveTab:()=>active,
         isMounted:t=>mounted.has(t),
@@ -2340,6 +2381,20 @@ function renderTabView(tab){
     else if(typeof renderHomeHub==='function')renderHomeHub();
   }else if(t==='games'){
     if(typeof renderGameSlots==='function')renderGameSlots();
+  }else if(t==='stories'){
+    const root=$('#coupleChroniclesRoot');
+    if(typeof window.renderCoupleChroniclesHub==='function'){
+      window.renderCoupleChroniclesHub();
+    }else{
+      if(root&&!root.innerHTML.trim()){
+        root.innerHTML='<div class="cc-loading-shell"><div class="cc-loading-ring"></div><b>Opening Couple Chronicles…</b><small>Loading atmospheric chapters &amp; dual-choice engine</small></div>';
+      }
+      ensureCoupleChroniclesLoaded().then(ok=>{
+        if(ok&&activeAppTab==='stories'&&typeof window.renderCoupleChroniclesHub==='function'){
+          window.renderCoupleChroniclesHub();
+        }
+      });
+    }
   }else if(t==='ranking'){
     if(typeof renderRanking==='function')renderRanking();
   }else if(t==='tasks'){
@@ -2384,6 +2439,9 @@ function showTab(tab,opts){
   if(prevTab!==nextTab&&typeof window.pauseLauncherHeroTimer==='function'){
     window.pauseLauncherHeroTimer();
   }
+  if(prevTab==='stories'&&nextTab!=='stories'&&typeof window.cleanupCoupleChronicles==='function'){
+    window.cleanupCoupleChronicles();
+  }
   activeAppTab=nextTab;
   /* Always close transient Student Tools Drawer & open Chat Thread when switching tabs so Back returns to Home */
   if(typeof closeToolsDrawer==='function')closeToolsDrawer();
@@ -2411,7 +2469,7 @@ if($('#sfxBtn'))$('#sfxBtn').onclick=()=>{
 /* Arm initial back-button guard sentinel once DOM loads */
 try{pushBackGuardState('init')}catch{}
 function renderAll(){
-  markTabsDirty(['tools','games','ranking','tasks','store','chat','profile']);
+  markTabsDirty(['tools','games','stories','ranking','tasks','store','chat','profile']);
   if(typeof renderPoems==='function')renderPoems();
   if(typeof updateUnreadDots==='function')updateUnreadDots();
 }

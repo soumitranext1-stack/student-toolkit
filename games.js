@@ -238,7 +238,15 @@ let activeRoomId=null;
 let activeRoomModal=null;
 let activeRoomPlayState=null;
 
-function mpModeById(id){return DUEL_GAMES.find(g=>g.id===id)||DUEL_GAMES[0]}
+function mpModeById(id){
+  const duel=DUEL_GAMES.find(g=>g.id===id);
+  if(duel)return duel;
+  if(window.RoomLobbyRules&&typeof window.RoomLobbyRules.getGameMeta==='function'){
+    const meta=window.RoomLobbyRules.getGameMeta(id);
+    return {id:String(id||'room'),name:meta.name,icon:'duel',questions:DUEL_GAMES[0].questions};
+  }
+  return DUEL_GAMES[0];
+}
 function genRoomCode(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let out='SG-';
@@ -267,6 +275,7 @@ function ingestMultiplayerRooms(list){
   saveMpRoomsLocal();
   renderMultiplayerRooms();
   refreshActiveRoomModal();
+  if(typeof syncActiveWaitingLobbyFromRooms==='function')syncActiveWaitingLobbyFromRooms(mpRooms);
   if(typeof syncActiveJackarooLobbyFromRooms==='function')syncActiveJackarooLobbyFromRooms(mpRooms);
 }
 
@@ -423,26 +432,81 @@ function shareRoomToWorldChat(room){
 }
 
 function openCreateRoomModal(){
+  const arenaOpts=[
+    {id:'ludo',name:'🎲 Ludo Royal 3D (4P / 1v1)',defaultMax:4,subMode:'4p',isArena:true},
+    {id:'jackaroo',name:'🃏 Jackaroo Royal (2v2 / 1v1)',defaultMax:4,subMode:'2v2',isArena:true},
+    {id:'uno',name:'🌈 UNO Clash (4P / 1v1)',defaultMax:4,subMode:'classic',isArena:true},
+    {id:'budget_clash',name:'💰 Budget Clash (2P Show)',defaultMax:2,subMode:'ten_vs_cr',isArena:true},
+    {id:'couple_arena',name:'💗 Couple & Bestie Arena (2P)',defaultMax:2,subMode:'mind_sync',isArena:true},
+    {id:'number_match',name:'🔢 Number Match (1v1 Duel)',defaultMax:2,subMode:'duel',isArena:true},
+    {id:'pool_8ball',name:'🎱 8-Ball Pool (1v1)',defaultMax:2,subMode:'1v1',isArena:true},
+    {id:'chess_blitz',name:'♟️ Chess Blitz (1v1)',defaultMax:2,subMode:'1v1',isArena:true}
+  ];
+  const quizOpts=DUEL_GAMES.filter(g=>['math','science','vocab','gk'].includes(g.id));
   const m=modal('Create Live Multiplayer Room',`
-    <label for="mpModeSel">Game Mode</label>
-    <select id="mpModeSel">${DUEL_GAMES.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}</select>
+    <label for="mpModeSel">Select Game</label>
+    <select id="mpModeSel">
+      <optgroup label="Arena Games (Seat Lobby)">
+        ${arenaOpts.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}
+      </optgroup>
+      <optgroup label="Quiz Sprints">
+        ${quizOpts.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}
+      </optgroup>
+    </select>
     <label for="mpStakeSel">Entry Mode</label>
     <select id="mpStakeSel">
-      <option value="0">Free Friendly (Winner +15 🪙 &amp; +25 EXP)</option>
-      <option value="20">Coin Match — 20 🪙 stake (Winner takes 90% pot)</option>
-      <option value="50">High Stakes — 50 🪙 stake (Winner takes 90% pot)</option>
+      <option value="0">Free Friendly (0 🪙)</option>
+      <option value="25">Coin Match — 25 🪙 stake</option>
+      <option value="50">High Stakes — 50 🪙 stake</option>
+      <option value="100">Pro Stakes — 100 🪙 stake</option>
     </select>
-    <label for="mpMaxSel">Max Players</label>
-    <select id="mpMaxSel"><option value="2">2 Players</option><option value="4" selected>4 Players</option><option value="6">6 Players</option></select>
-    <label class="row" style="gap:8px;margin-top:10px;cursor:pointer"><input id="mpPostWorld" type="checkbox" checked style="width:auto"><span>Post join card to World Chat</span></label>
-    <button type="button" class="btn full" id="mpCreateGo">Create &amp; Enter Room</button>
+    <label for="mpMaxSel">Seats</label>
+    <select id="mpMaxSel"><option value="2">2 Players (1v1)</option><option value="4" selected>4 Players (4P / 2v2)</option></select>
+    <label class="row" style="gap:8px;margin-top:10px;cursor:pointer"><input id="mpPostWorld" type="checkbox" checked style="width:auto"><span>Post invite card to World Chat</span></label>
+    <button type="button" class="btn gold full" id="mpCreateGo" style="margin-top:10px">Create Live Waiting Lobby</button>
   `);
-  $('#mpCreateGo',m).onclick=()=>{
-    const mode=$('#mpModeSel',m).value||'math';
+  const modeSel=$('#mpModeSel',m);
+  const maxSel=$('#mpMaxSel',m);
+  const syncSeatSelect=()=>{
+    const sel=arenaOpts.find(x=>x.id===modeSel.value);
+    if(sel){
+      maxSel.value=String(sel.defaultMax);
+      const can4=['ludo','jackaroo','uno'].includes(sel.id);
+      const opt4=maxSel.querySelector('option[value="4"]');
+      if(opt4)opt4.disabled=!can4;
+      if(!can4)maxSel.value='2';
+    }else{
+      const opt4=maxSel.querySelector('option[value="4"]');
+      if(opt4)opt4.disabled=false;
+    }
+  };
+  modeSel.onchange=syncSeatSelect;
+  syncSeatSelect();
+
+  $('#mpCreateGo',m).onclick=async ()=>{
+    const mode=modeSel.value||'ludo';
     const entryCoins=clampSafeInt($('#mpStakeSel',m).value,0,500);
-    const maxPlayers=clampSafeInt($('#mpMaxSel',m).value,2,6);
+    const maxPlayers=clampSafeInt(maxSel.value,2,4);
     if(entryCoins>0&&me.coins<entryCoins)return toast(`Need ${entryCoins} coins to host this stake`);
     const postWorld=Boolean($('#mpPostWorld',m)?.checked);
+    const arenaItem=arenaOpts.find(x=>x.id===mode);
+
+    if(arenaItem&&typeof window.createAndOpenWaitingLobby==='function'){
+      let subMode=arenaItem.subMode;
+      if(mode==='ludo')subMode=maxPlayers===2?'1v1':'4p';
+      else if(mode==='jackaroo')subMode=maxPlayers===2?'1v1':'2v2';
+      else if(mode==='uno')subMode=maxPlayers===2?'1v1':'classic';
+      m.close();
+      await window.createAndOpenWaitingLobby({
+        gameId:mode,
+        subMode,
+        stake:entryCoins,
+        maxPlayers,
+        postToWorldChat:postWorld
+      });
+      return;
+    }
+
     const now=Date.now();
     const code=genRoomCode();
     const roomId='room_'+now.toString(36)+Math.random().toString(36).slice(2,5);
@@ -472,15 +536,30 @@ function openCreateRoomModal(){
   };
 }
 
-function joinMultiplayerRoomByCode(codeRaw){
+async function joinMultiplayerRoomByCode(codeRaw){
   const clean=String(codeRaw||'').trim().toUpperCase();
+  if(!clean)return toast('Enter a room code');
+  if(typeof window.joinAndOpenWaitingLobby==='function'){
+    await window.joinAndOpenWaitingLobby({roomCode:clean});
+    return;
+  }
   const room=mpRooms.find(r=>String(r.code||'').toUpperCase()===clean);
   if(!room)return toast('Room not found or expired: '+clean);
   joinMultiplayerRoom(room.id);
 }
 
-function joinMultiplayerRoom(roomId){
-  const room=mpRooms.find(r=>r.id===roomId);
+async function joinMultiplayerRoom(roomIdOrCode){
+  const raw=String(roomIdOrCode||'').trim();
+  if(!raw)return toast('Room is no longer active');
+  const localMatch=mpRooms.find(r=>r&&(r.id===raw||String(r.code||'').toUpperCase()===raw.toUpperCase()));
+  if(typeof window.joinAndOpenWaitingLobby==='function'){
+    await window.joinAndOpenWaitingLobby({
+      roomId:localMatch?localMatch.id:(raw.startsWith('room_')?raw:''),
+      roomCode:localMatch?localMatch.code:(!raw.startsWith('room_')?raw.toUpperCase():'')
+    });
+    return;
+  }
+  const room=localMatch;
   if(!room)return toast('Room is no longer active');
   room.players=room.players||{};
   const count=Object.keys(room.players).length;
@@ -493,21 +572,6 @@ function joinMultiplayerRoom(roomId){
     persistMpRoom(room);
   }
   if(typeof playSfx==='function')playSfx('click');
-  if(room.mode==='jackaroo'){
-    Promise.resolve(typeof ensureGameModule==='function'?ensureGameModule('jackaroo'):null).then(()=>{
-      if(typeof openJackarooTableLobby==='function'){
-        openJackarooTableLobby({
-          mode:room.subMode==='1v1'?'1v1':'2v2',
-          tier:room.tierLabel||(room.subMode==='1v1'?'1v1 | Junior':'Basic | Junior'),
-          stake:Number(room.entryCoins||0),
-          roomCode:room.code,
-          roomId:room.id,
-          joinExistingRoom:room
-        });
-      }else openMultiplayerRoom(room.id);
-    });
-    return;
-  }
   openMultiplayerRoom(room.id);
 }
 

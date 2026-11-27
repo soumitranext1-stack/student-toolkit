@@ -929,8 +929,10 @@ function sendWorldMsg(text, meta){
   const now=Date.now();
   const id='wm_'+mid();
   const extra=meta&&typeof meta==='object'?meta:{};
+  const isInviteType=extra.type==='game_invite'||extra.type==='party_invite';
+  const safeType=isInviteType?'text':(extra.type||'text');
   const item={
-    id,type:extra.type||'text',uid,name:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
+    id,type:safeType,inviteType:isInviteType?extra.type:'',uid,name:me.name,avatar:me.avatar,frame:me.frame,banner:me.banner,
     textStyle:me.textStyle||'',msgStyle:me.msgStyle||'',tags:me.tags||[],exp:me.exp||0,
     vipTier:me.vipTier||'',vipUntil:me.vipUntil||0,clanTag:me.clanTag||'',title:me.title||'',
     isDev:devMode,text:clean,ts:now,

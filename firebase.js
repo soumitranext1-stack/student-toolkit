@@ -11,6 +11,26 @@ const firebaseConfig = {
 
 /* ===== Firebase Auth helpers ===== */
 let AUTH=null,auth=null,userUnsubs=[],devListening=false;
+let _fbReadySettled=false,_fbReadyResolvers=[];
+function _resolveFirebaseReady(ok){
+  if(_fbReadySettled)return;
+  _fbReadySettled=true;
+  const list=_fbReadyResolvers.slice();
+  _fbReadyResolvers=[];
+  list.forEach(fn=>{try{fn(Boolean(ok))}catch{}});
+}
+function waitForFirebaseReady(timeoutMs){
+  if(_fbReadySettled){
+    return Promise.resolve(Boolean(typeof online!=='undefined'&&online&&typeof db!=='undefined'&&db));
+  }
+  return new Promise(resolve=>{
+    let done=false;
+    const finish=val=>{if(done)return;done=true;clearTimeout(t);resolve(Boolean(val))};
+    const t=setTimeout(()=>finish(false),Math.max(400,Number(timeoutMs)||4000));
+    _fbReadyResolvers.push(finish);
+  });
+}
+window.waitForFirebaseReady=waitForFirebaseReady;
 function authMsg(e){
   const c=String((e&&e.code)||'');
   if(c.includes('popup-closed-by-user')||c.includes('cancelled-popup-request'))return 'Google sign-in cancelled';
@@ -282,10 +302,11 @@ async function initFirebase(){
     }
     let u=redirectUser||await new Promise(res=>{const un=AU.onAuthStateChanged(auth,x=>{un();res(x)})});
     if(!u)u=(await AU.signInAnonymously(auth)).user;
-    online=true;
     await adoptAuthUser(u);
+    online=true;
     if(redirectUser)toast('Signed in with Google ✓');
     setStatus(true);
+    _resolveFirebaseReady(true);
     AU.onAuthStateChanged(auth,x=>{if(x&&x.uid!==uid)adoptAuthUser(x)});
 
     S.getDoc(userRef(uid)).then(s=>{
@@ -448,5 +469,5 @@ async function initFirebase(){
       const code=getInviteCode();if(!code)return;
       snap.docs.forEach(d=>{const r=d.data();if(r.code===code&&!r.paid&&d.id!==uid&&!me.done['ref_'+d.id]){me.done['ref_'+d.id]=1;addReward(50,10);saveMe();dbOp(()=>F.setDoc(F.doc(db,'referrals',d.id),{paid:true},{merge:true}));toast('Referral bonus +50 coins!')}});
     },()=>{});
-  }catch(e){console.warn('firebase init',e);setStatus(false);if(e&&e.code)toast(authMsg(e))}
+  }catch(e){console.warn('firebase init',e);setStatus(false);_resolveFirebaseReady(false);if(e&&e.code)toast(authMsg(e))}
 }

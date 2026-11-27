@@ -558,14 +558,19 @@ function launchUnoGame(stakeRaw, rival, modeRaw, botTierRaw, roomCodeRaw, launch
   const roomCode = roomCodeRaw || ('UN' + Math.floor(1000 + Math.random() * 9000));
   const modeTitle = mode === 'fun' ? 'Fun Play' : (mode === '1v1' ? '1v1 Duel' : 'Classic Free');
 
-  // Build players array: Seat 0 = Me (or spectated friend), Seat 1..N-1 = Rivals/Bots
+  // Build players array: Seat 0 = Me (or spectated friend), Seat 1..N-1 = Seated Friends / Rivals / Bots
   const pool = UNO_BOT_ROSTER.slice();
+  const invitedList = Array.isArray(lOpts.invitedFriends) ? lOpts.invitedFriends.slice() : [];
+  if (rival && rival.name && !isSpectating && !invitedList.some(x => x && x.uid === rival.uid)) {
+    invitedList.unshift(rival);
+  }
   const pickBot = (idx) => {
-    if (idx === 0 && rival && rival.name && !isSpectating) {
+    const inv = !isSpectating ? invitedList[idx] : null;
+    if (inv && inv.name) {
       return {
-        id: rival.uid || 'rival_1',
-        name: rival.name,
-        avatar: rival.avatar || 'av_b1',
+        id: inv.uid || ('rival_' + (idx + 1)),
+        name: inv.name,
+        avatar: inv.avatar || 'av_b1',
         gender: '♂',
         isBot: true
       };

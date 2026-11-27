@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v30';
+const CACHE_NAME = 'study-game-v32';
 const CORE_SHELL = [
   './',
   './index.html',
@@ -18,6 +18,7 @@ const CORE_SHELL = [
   './style.css',
   './fx-pack.css',
   './launcher-show.css',
+  './story.css',
   './gamekit.css',
   './sfx.js',
   './quickvoice.js',
@@ -25,11 +26,21 @@ const CORE_SHELL = [
   './fx-frames.js',
   './arcade-rules.js',
   './show-games-rules.js',
+  './room-lobby-rules.js',
   './voice-narrator.js',
+  './story-rules.js',
+  './story-data.js',
+  './story.js',
+  './assets/chronicles/velvet-cover.jpg',
+  './assets/chronicles/dining-car.jpg',
+  './assets/chronicles/engine-corridor.jpg',
+  './assets/chronicles/compartment-archive.jpg',
+  './assets/chronicles/bridge-finale.jpg',
   './core.js',
   './social.js',
   './party.js',
   './launcher-ui.js',
+  './room-lobby.js',
   './ludo-rules.js',
   './ludo.js',
   './number-match-rules.js',
