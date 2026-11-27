@@ -132,10 +132,32 @@
       window.location.hostname === '127.0.0.1';
     if (!isSecure) return;
     try {
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController) return;
+        try {
+          if (sessionStorage.getItem('sg_sw_reloaded_v38')) return;
+          sessionStorage.setItem('sg_sw_reloaded_v38', '1');
+        } catch {}
+        window.location.reload();
+      });
       navigator.serviceWorker
-        .register('./sw.js', { scope: './' })
+        .register('./sw.js?v=38', { scope: './', updateViaCache: 'none' })
         .then((reg) => {
-          if (reg && typeof reg.update === 'function') {
+          if (!reg) return;
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          reg.addEventListener('updatefound', () => {
+            const nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener('statechange', () => {
+              if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                nw.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          });
+          if (typeof reg.update === 'function') {
             reg.update().catch(() => {});
           }
         })

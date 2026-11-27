@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v36';
+const CACHE_NAME = 'study-game-v38';
 const CORE_SHELL = [
   './',
   './index.html',
@@ -19,6 +19,7 @@ const CORE_SHELL = [
   './fx-pack.css',
   './launcher-show.css',
   './story.css',
+  './rings.css',
   './gamekit.css',
   './sfx.js',
   './quickvoice.js',
@@ -30,6 +31,8 @@ const CORE_SHELL = [
   './pvp-sync-rules.js',
   './pvp-sync.js',
   './party-room-rules.js',
+  './ring-rules.js',
+  './ring-art.js',
   './voice-narrator.js',
   './story-rules.js',
   './story-data.js',
@@ -180,7 +183,7 @@ self.addEventListener('fetch', (event) => {
   // with clean offline fallback to cached app shell.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(new Request(request, { cache: 'no-cache' }))
         .then((response) => {
           if (response && response.ok && response.type === 'basic') {
             const copy = response.clone();
@@ -222,7 +225,7 @@ self.addEventListener('fetch', (event) => {
   // Same-origin scripts, styles, JSON & subpages: Network-First with MIME-validated cache fallback
   // so an HTML error/fallback page can never be cached or executed as JS/CSS.
   event.respondWith(
-    fetch(request)
+    fetch(new Request(request, { cache: 'no-cache' }))
       .then(async (response) => {
         if (isValidAssetResponse(request, response)) {
           const copy = response.clone();

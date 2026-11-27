@@ -105,25 +105,45 @@ const GIFT_CATALOG = [
   { id: 'g77_bugatti', name: 'Bugatti Sovereign', tier: 7, price: 160000, charm: 32000, icon: 'bugatti', fx: 'car', c1: '#38bdf8', c2: '#1e3a8a' },
   { id: 'g78_dream_palace', name: 'Dream Palace', tier: 7, price: 200000, charm: 40000, icon: 'dreampalace', fx: 'palace', c1: '#ffd36b', c2: '#9333ea' },
 
-  /* Luxury Couple Rings & Squad Bond Gifts */
+  /* Luxury Couple Rings & Squad Bond Gifts (Upgraded + 27 New Wedding Rings via RingRules) */
   { id: 'g_bond_bestie', name: 'Golden Bestie Locket', tier: 4, cat: 'ring', bondType: 'bestie', price: 300, charm: 60, icon: 'locket', c1: '#f472b6', c2: '#db2777' },
-  { id: 'g_bond_bro', name: 'Squad Bro Crest', tier: 4, cat: 'ring', bondType: 'bro', price: 300, charm: 60, icon: 'bro_crest', c1: '#38bdf8', c2: '#1d4ed8' },
-  { id: 'g_ring_silver', name: 'Silver Promise Ring', tier: 4, cat: 'ring', bondType: 'couple', weddingDays: 3, price: 500, charm: 100, icon: 'ring_band', c1: '#e2e8f0', c2: '#64748b' },
-  { id: 'g_ring_rose', name: 'Rose Gold Love Ring', tier: 5, cat: 'ring', bondType: 'couple', weddingDays: 3, price: 2500, charm: 500, icon: 'ring_band', c1: '#fda4af', c2: '#e11d48' },
-  { id: 'g_ring_diamond', name: 'Diamond Eternity Ring', tier: 6, cat: 'ring', bondType: 'couple', weddingDays: 7, price: 5000, charm: 1000, icon: 'ring_band', fx: 'ring', c1: '#bae6fd', c2: '#0284c7' },
-  { id: 'g_ring_royal', name: 'Royal Crown Ring', tier: 6, cat: 'ring', bondType: 'couple', weddingDays: 7, price: 15000, charm: 3000, icon: 'ring_band', fx: 'ring', c1: '#ffd36b', c2: '#b45309' },
-  { id: 'g_ring_cosmic', name: 'Cosmic Soulmate Ring', tier: 7, cat: 'ring', bondType: 'couple', weddingDays: 7, price: 50000, charm: 10000, icon: 'ring_band', fx: 'ring', c1: '#e879f9', c2: '#6d28d9' }
+  { id: 'g_bond_bro', name: 'Squad Bro Crest', tier: 4, cat: 'ring', bondType: 'bro', price: 300, charm: 60, icon: 'bro_crest', c1: '#38bdf8', c2: '#1d4ed8' }
 ];
 
 /* Enforce strict 5:1 Gold Coin-to-Charm ratio across every gift in the catalog */
 function calcExactCharmForCoins(coins) {
   return Math.max(1, Math.floor(Math.max(0, Number(coins || 0)) / 5));
 }
-GIFT_CATALOG.forEach(g => {
-  g.charm = calcExactCharmForCoins(g.price);
-});
 
-const GIFT_BY_ID = Object.fromEntries(GIFT_CATALOG.map(g => [g.id, g]));
+const GIFT_BY_ID = {};
+function ensureWeddingRingsSynced() {
+  if (typeof RingRules !== 'undefined' && Array.isArray(RingRules.WEDDING_RING_CATALOG)) {
+    const byId = new Map(GIFT_CATALOG.map(g => [g.id, g]));
+    RingRules.WEDDING_RING_CATALOG.forEach(r => {
+      const merged = { ...r, charm: calcExactCharmForCoins(r.price) };
+      if (byId.has(r.id)) {
+        Object.assign(byId.get(r.id), merged);
+      } else {
+        GIFT_CATALOG.push(merged);
+        byId.set(r.id, merged);
+      }
+    });
+  } else if (!GIFT_CATALOG.some(g => g.id === 'g_ring_silver')) {
+    GIFT_CATALOG.push(
+      { id: 'g_ring_silver', name: 'Silver Promise Ring', tier: 4, cat: 'ring', bondType: 'couple', weddingDays: 3, price: 500, charm: 100, icon: 'ring_band', c1: '#e2e8f0', c2: '#64748b' },
+      { id: 'g_ring_rose', name: 'Rose Gold Love Ring', tier: 5, cat: 'ring', bondType: 'couple', weddingDays: 3, price: 2500, charm: 500, icon: 'ring_band', c1: '#fda4af', c2: '#e11d48' },
+      { id: 'g_ring_diamond', name: 'Diamond Eternity Ring', tier: 6, cat: 'ring', bondType: 'couple', weddingDays: 7, price: 5000, charm: 1000, icon: 'ring_band', fx: 'ring', c1: '#bae6fd', c2: '#0284c7' },
+      { id: 'g_ring_royal', name: 'Royal Crown Ring', tier: 6, cat: 'ring', bondType: 'couple', weddingDays: 7, price: 15000, charm: 3000, icon: 'ring_band', fx: 'ring', c1: '#ffd36b', c2: '#b45309' },
+      { id: 'g_ring_cosmic', name: 'Cosmic Soulmate Ring', tier: 7, cat: 'ring', bondType: 'couple', weddingDays: 7, price: 50000, charm: 10000, icon: 'ring_band', fx: 'ring', c1: '#e879f9', c2: '#6d28d9' }
+    );
+  }
+  GIFT_CATALOG.forEach(g => {
+    g.charm = calcExactCharmForCoins(g.price);
+    GIFT_BY_ID[g.id] = g;
+  });
+}
+ensureWeddingRingsSynced();
+window.ensureWeddingRingsSynced = ensureWeddingRingsSynced;
 
 /* ===== v13 Photorealistic 3D Luxury Gift & Ring Engine + 10,000+ Coin Continuous FX ===== */
 const LUXURY_ANIM_MIN_COINS = 10000;
@@ -361,6 +381,12 @@ let _giftSvgSeq = 0;
 function giftSvg(giftOrId, size = 44) {
   const g = typeof giftOrId === 'string' ? GIFT_BY_ID[giftOrId] : giftOrId;
   if (!g) return '';
+  if (typeof RingArt !== 'undefined' && typeof RingRules !== 'undefined') {
+    const artKey = RingRules.getArtKeyForGift(g);
+    if (artKey) {
+      return RingArt.renderRingSvg(g, size, { plate: true, cls: 'gift-ring-art' });
+    }
+  }
   const tier = GIFT_TIERS[g.tier] || GIFT_TIERS[1];
   const gid = esc(g.id || 'g') + '_' + (++_giftSvgSeq);
   const isLux10k = isLuxuryAnimatedGift(g);
@@ -488,8 +514,11 @@ function luxuryShowcaseSvg(gift) {
 
   if (gift.id !== 'g78_dream_palace') {
     /* High-Value 5,000+ Coin Grand Emblem Stage (Rings, Supernova, Pegasus, Citadel, Airship, Singularity) */
+    const stageArt = (typeof RingArt !== 'undefined' && typeof RingRules !== 'undefined' && RingRules.getArtKeyForGift(gift))
+      ? RingArt.renderRingSvg(gift, 134, { plate: true, cls: 'lux-ring-stage' })
+      : giftSvg(gift, 118);
     return `<div class="lux-grand-emblem" style="border-color:${gift.c1}">
-      ${giftSvg(gift, 118)}
+      ${stageArt}
     </div>`;
   }
 
@@ -951,9 +980,13 @@ function acceptPendingBondProposal(propId) {
 
   me.pendingProposals = (me.pendingProposals || []).filter(x => x.id !== propId);
   me.bonds = normalizeExclusiveUserBonds([...normalizeExclusiveUserBonds(me.bonds).filter(b => b.type !== prop.bondType), myBond]);
+  if (isCouple && typeof RingRules !== 'undefined' && RingRules.isWeddingRing(g.id)) {
+    me.ownedRings = [...new Set([...(Array.isArray(me.ownedRings) ? me.ownedRings : []), g.id])];
+    me.equippedRing = g.id;
+  }
   saveMe();
-  patchUser(uid, { bonds: me.bonds, pendingProposals: me.pendingProposals });
-  dbOp(() => F.setDoc(userRef(uid), { bonds: me.bonds, pendingProposals: me.pendingProposals }, { merge: true }));
+  patchUser(uid, { bonds: me.bonds, pendingProposals: me.pendingProposals, ownedRings: me.ownedRings || [], equippedRing: me.equippedRing || '' });
+  dbOp(() => F.setDoc(userRef(uid), { bonds: me.bonds, pendingProposals: me.pendingProposals, ownedRings: me.ownedRings || [], equippedRing: me.equippedRing || '' }, { merge: true }));
 
   const sender = allUsers().find(u => u.uid === prop.fromUid) || { uid: prop.fromUid, bonds: [] };
   const sBonds = normalizeExclusiveUserBonds([...normalizeExclusiveUserBonds(sender.bonds).filter(b => b.type !== prop.bondType), partnerBond]);
@@ -1562,13 +1595,15 @@ function bindGiftWallEvents(rootEl, targetUser, isSelf, onAfterGiftSent) {
 
 /* ===== Send Gift Modal (3D Luxury 10k+ Continuous FX + Exclusive 1-to-1 Bond Request Flow) ===== */
 function openGiftSendModal(targetUid, opts) {
+  ensureWeddingRingsSynced();
   opts = opts || {};
   const otherPlayers = allUsers().filter(u => u.uid !== uid);
   let selectedTargetUid = targetUid && targetUid !== uid ? targetUid : (otherPlayers[0]?.uid || '');
   if (!selectedTargetUid) return toast('No other players available to gift yet');
 
   let selectedFilter = opts.preselectFilter || 'all';
-  let selectedGiftId = opts.preselectGiftId && GIFT_BY_ID[opts.preselectGiftId] ? opts.preselectGiftId : (selectedFilter === 'lux10k' ? 'g75_ferrari' : (selectedFilter === 'rings' ? 'g_ring_royal' : GIFT_CATALOG[0].id));
+  const defaultRingId = GIFT_BY_ID['g_wring_diamond'] ? 'g_wring_diamond' : 'g_ring_royal';
+  let selectedGiftId = opts.preselectGiftId && GIFT_BY_ID[opts.preselectGiftId] ? opts.preselectGiftId : (selectedFilter === 'lux10k' ? 'g75_ferrari' : (selectedFilter === 'rings' ? defaultRingId : GIFT_CATALOG[0].id));
   let sendMode = 'single';
   let qty = 1;
 
@@ -1613,25 +1648,41 @@ function openGiftSendModal(targetUid, opts) {
       `<button type="button" class="gw-tbtn ${selectedFilter === k ? 'on' : ''}" data-gst="${k}">${lbl}</button>`
     ).join('');
 
-    const list = GIFT_CATALOG.filter(item => matchVaultFilter(item, selectedFilter));
+    const rawList = GIFT_CATALOG.filter(item => matchVaultFilter(item, selectedFilter));
+    const list = selectedFilter === 'rings'
+      ? [
+          ...rawList.filter(item => item.bondType === 'couple'),
+          ...rawList.filter(item => item.bondType !== 'couple')
+        ]
+      : rawList;
+    if (list.length && !list.some(item => item.id === selectedGiftId)) {
+      selectedGiftId = list[0].id;
+    }
+    const gActive = GIFT_BY_ID[selectedGiftId] || list[0] || g;
+    const activeRange = calcGiftLuckyRange(gActive, qty);
+    const activeCharm = calcExactCharmForCoins(activeRange.totalCost);
+
     $('#gsGrid', m).innerHTML = list.map(item => {
       const tMeta = GIFT_TIERS[item.tier];
-      const active = item.id === selectedGiftId;
+      const active = item.id === gActive.id;
       const isLux10k = isLuxuryAnimatedGift(item);
-      return `<button type="button" class="gs-item ${active ? 'on' : ''} ${isLux10k ? 'lux-10k-card' : ''}" data-gsid="${esc(item.id)}" data-lux10k="${isLux10k ? '1' : '0'}" style="${active ? `border-color:${tMeta.color}` : ''}">
+      const srcTag = item.sourceLabel
+        ? `<small class="gs-iprice"><span class="wr-source-tag ${item.source === 'family' ? 'family' : 'activity'}">${esc(item.sourceLabel)}</span></small>`
+        : `<small class="gs-iprice">${item.cat === 'ring' ? String(item.price) : fmtNum(item.price)} 🪙 · +${fmtNum(item.charm)}</small>`;
+      return `<button type="button" class="gs-item ${active ? 'on' : ''} ${isLux10k ? 'lux-10k-card' : ''}" data-gsid="${esc(item.id)}" data-lux10k="${isLux10k ? '1' : '0'}" style="${active ? `border-color:${item.glow || tMeta.color}` : ''}">
         ${isLux10k ? renderLuxury10kFxHtml(item, true) : ''}
         <span class="gw-stars" style="color:${tMeta.color}">${isLux10k ? '✦ 10k+' : (item.cat === 'ring' ? '💍' : esc(tMeta.stars.slice(0, 5)))}</span>
-        ${giftSvg(item, 46)}
+        ${giftSvg(item, 48)}
         <b class="gs-iname">${esc(item.name)}</b>
-        <small class="gs-iprice">${fmtNum(item.price)} 🪙 · +${fmtNum(item.charm)}</small>
+        ${srcTag}
       </button>`;
     }).join('');
 
     const bondNote = $('#gsBondNote', m);
     if (bondNote) {
-      if (g.bondType && BOND_SLOT_META[g.bondType]) {
-        const meta = BOND_SLOT_META[g.bondType];
-        const myCur = getUserBondInSlot(me, g.bondType);
+      if (gActive.bondType && BOND_SLOT_META[gActive.bondType]) {
+        const meta = BOND_SLOT_META[gActive.bondType];
+        const myCur = getUserBondInSlot(me, gActive.bondType);
         bondNote.hidden = false;
         bondNote.className = 'gs-bond-note ' + (myCur ? 'occupied' : 'open');
         bondNote.innerHTML = myCur
@@ -1642,26 +1693,27 @@ function openGiftSendModal(targetUid, opts) {
       }
     }
 
-    const animProf = getGiftAnimProfile(g, qty);
-    const fxLabels = { burst: '✨ Burst FX', orbit: '🪐 Orbit FX', spotlight: '🔦 Spotlight FX', fullscreen: isLuxuryAnimatedGift(g) ? '🎬 10k+ Continuous 3D' : '🎬 5k+ Full-Screen' };
+    const animProf = getGiftAnimProfile(gActive, qty);
+    const fxLabels = { burst: '✨ Burst FX', orbit: '🪐 Orbit FX', spotlight: '🔦 Spotlight FX', fullscreen: isLuxuryAnimatedGift(gActive) ? '🎬 10k+ Continuous 3D' : '🎬 5k+ Full-Screen' };
+    const costDisplay = gActive.cat === 'ring' ? String(activeRange.totalCost) : fmtNum(activeRange.totalCost);
     $('#gsCombos', m).hidden = sendMode !== 'combo';
     $('#gsSummary', m).innerHTML = `
-      <span><b>${esc(g.name)} ×${qty}</b></span>
-      <span>Cost: <b>${fmtNum(range.totalCost)} 🪙</b></span>
-      <span>Charm: <b style="color:#f472b6">+${fmtNum(totalCharm)}</b></span>
+      <span><b>${esc(gActive.name)} ×${qty}</b></span>
+      <span>Cost: <b>${costDisplay} 🪙</b></span>
+      <span>Charm: <b style="color:#f472b6">+${gActive.cat === 'ring' ? String(activeCharm) : fmtNum(activeCharm)}</b></span>
       <span class="gs-fx-pill style-${animProf.style}">${fxLabels[animProf.style] || '✨ Burst FX'}${animProf.comboLabel ? ' · ' + animProf.comboLabel : ''}</span>
     `;
 
     const sendBtn = $('#gsSendBtn', m);
-    const isBondOccupied = Boolean(g.bondType && getUserBondInSlot(me, g.bondType));
+    const isBondOccupied = Boolean(gActive.bondType && getUserBondInSlot(me, gActive.bondType));
     sendBtn.textContent = isBondOccupied
-      ? `Manage / Unbind ${(BOND_SLOT_META[g.bondType] || BOND_SLOT_META.couple).label}`
-      : (g.bondType
-        ? `Send ${(BOND_SLOT_META[g.bondType] || BOND_SLOT_META.couple).short} Request (${fmtNum(range.totalCost)} 🪙)`
+      ? `Manage / Unbind ${(BOND_SLOT_META[gActive.bondType] || BOND_SLOT_META.couple).label}`
+      : (gActive.bondType
+        ? `Send ${(BOND_SLOT_META[gActive.bondType] || BOND_SLOT_META.couple).short} Request (${costDisplay} 🪙)`
         : (sendMode === 'combo'
-          ? `Send ×${qty} (${fmtNum(range.totalCost)} 🪙)`
-          : `Send ${g.name} (${fmtNum(range.totalCost)} 🪙)`));
-    sendBtn.disabled = !isBondOccupied && me.coins < range.totalCost;
+          ? `Send ×${qty} (${costDisplay} 🪙)`
+          : `Send ${gActive.name} (${costDisplay} 🪙)`));
+    sendBtn.disabled = !isBondOccupied && me.coins < activeRange.totalCost;
   };
 
   /* Add Preview FX button next to Send */
@@ -1693,7 +1745,7 @@ function openGiftSendModal(targetUid, opts) {
       charm: calcExactCharmForCoins(prof.totalCost),
       luckyCoins: Math.round(prof.totalCost * 0.25)
     };
-    if (prof.style === 'fullscreen') showLuxuryGiftShowcase(evPreview, g);
+    if (prof.style === 'fullscreen' || g.cat === 'ring') showLuxuryGiftShowcase(evPreview, g);
     else {
       showGiftBroadcastAnim(evPreview);
       if (typeof playSfx === 'function') playSfx('giftSend', { tier: g.tier, qty: prof.qty, style: prof.style });

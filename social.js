@@ -132,9 +132,12 @@ const GLOSSY_SVG = {
     <polygon points="38.5,14 57.5,14 48,9.5" fill="#ffffff" fill-opacity=".62"/>
     <circle cx="24" cy="20" r="2.2" fill="#ffffff"/><circle cx="72" cy="20" r="2.2" fill="#fef08a"/>
   </svg>`,
-  bondEmblem(type) {
+  bondEmblem(type, giftId) {
     const uid = ++GLOSSY_SVG._seq;
     if (type === 'couple') {
+      if (typeof RingArt !== 'undefined') {
+        return RingArt.renderRingSvg(giftId || 'g_ring_royal', 42, { plate: false, cls: 'g3d-bond' });
+      }
       return `<svg class="g3d-bond" viewBox="0 0 56 56" fill="none" aria-hidden="true">
         <defs>
           <linearGradient id="beCpV_${uid}" x1="10" y1="28" x2="46" y2="52" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#4a044e"/><stop offset="100%" stop-color="#170624"/></linearGradient>
@@ -253,7 +256,7 @@ function renderBondsGridHtml(userObj, isSelf) {
           <span class="wp-bond-days">${days}d</span>
         </div>
         <button type="button" class="wp-bond-mainbtn" data-open-bonds="${esc(userObj.uid || '')}" aria-label="View ${esc(cfg.label)} with ${esc(b.partnerName)}">
-          <div class="wp-bond-art">${GLOSSY_SVG.bondEmblem(cfg.slot)}</div>
+          <div class="wp-bond-art">${GLOSSY_SVG.bondEmblem(cfg.slot, b.giftId)}</div>
           <div class="wp-bond-av">${av({ avatar: b.partnerAvatar, frame: 'none' }, 34)}</div>
           <b class="wp-bond-name">${esc(b.partnerName)}</b>
           <small class="wp-bond-exc">1-to-1 Active</small>
@@ -261,13 +264,35 @@ function renderBondsGridHtml(userObj, isSelf) {
         ${isSelf ? `<button type="button" class="wp-bond-unbind" data-unbind-slot="${cfg.slot}" aria-label="Unbind ${esc(cfg.label)}">Unbind</button>` : ''}
       </div>`;
     }
-    return `<button type="button" class="wp-bond-card empty-slot exclusive-open" data-unlock-bond="${esc(userObj.uid || '')}" data-bond-gift="${cfg.giftId}" data-bond-slot="${cfg.slot}" aria-label="Send ${esc(cfg.label)} Request">
+    const previewRingId = cfg.slot === 'couple' ? (userObj?.equippedRing || cfg.giftId) : cfg.giftId;
+    return `<button type="button" class="wp-bond-card empty-slot exclusive-open" data-unlock-bond="${esc(userObj.uid || '')}" data-bond-gift="${esc(previewRingId)}" data-bond-slot="${cfg.slot}" aria-label="Send ${esc(cfg.label)} Request">
       <span class="wp-bond-lv muted">${esc(cfg.label)}</span>
-      <div class="wp-bond-art ghost-art">${GLOSSY_SVG.bondEmblem(cfg.slot)}</div>
+      <div class="wp-bond-art ghost-art">${GLOSSY_SVG.bondEmblem(cfg.slot, previewRingId)}</div>
       <span class="wp-bond-plus">+</span>
       <small>${isSelf ? 'Send Request' : 'Open Slot'}</small>
     </button>`;
   }).join('');
+
+  const eqRingId = userObj?.equippedRing || (bySlot.couple && bySlot.couple.giftId) || '';
+  const eqRing = typeof RingRules !== 'undefined' && eqRingId ? RingRules.getRingById(eqRingId) : null;
+  const ownedRingsCount = typeof RingRules !== 'undefined'
+    ? RingRules.getUserOwnedRingIds(userObj, typeof getGiftWallStatsForUser === 'function' ? getGiftWallStatsForUser(userObj) : null).length
+    : 0;
+  const ringShowcaseHtml = (eqRing || isSelf) ? `
+    <div class="pf-ring-row" data-testid="profile-equipped-ring">
+      <div class="pf-ring-left">
+        ${typeof RingArt !== 'undefined' ? RingArt.renderRingSvg(eqRing || 'g_wring_diamond', 44, { plate: true }) : ''}
+        <div class="pf-ring-copy">
+          <small>Equipped Wedding Ring${ownedRingsCount ? ` · ${ownedRingsCount} Owned` : ''}</small>
+          <b>${esc(eqRing ? eqRing.name : 'No ring equipped yet')}</b>
+        </div>
+      </div>
+      ${isSelf ? `<div class="row" style="gap:6px;flex-shrink:0">
+        <button type="button" class="btn ghost sm" data-open-ring-bag>Ring Bag</button>
+        <button type="button" class="btn gold sm" data-open-wedding-store>Rings</button>
+      </div>` : ''}
+    </div>
+  ` : '';
 
   return `
     <div class="wp-section-card wp-bff-card v13-bonds-card">
@@ -280,6 +305,7 @@ function renderBondsGridHtml(userObj, isSelf) {
         <span class="wp-chev">›</span>
       </div>
       <div class="wp-bond-grid">${cards}</div>
+      ${ringShowcaseHtml}
       ${isSelf ? renderPendingBondRequestsBannerHtml(false) : ''}
     </div>
   `;
@@ -309,7 +335,7 @@ function openBondsShowcaseModal(targetUser) {
       return `<div class="wp-bond-card ${cfg.cls} exclusive-active">
         <div class="wp-bond-toprow"><span class="wp-bond-lv">${esc(cfg.label)}</span><span class="wp-bond-days">${days}d</span></div>
         <button type="button" class="wp-bond-mainbtn" data-bp-uid="${esc(b.partnerUid)}">
-          <div class="wp-bond-art">${GLOSSY_SVG.bondEmblem(cfg.slot)}</div>
+          <div class="wp-bond-art">${GLOSSY_SVG.bondEmblem(cfg.slot, b.giftId)}</div>
           <div class="wp-bond-av">${av({ avatar: b.partnerAvatar, frame: 'none' }, 36)}</div>
           <b class="wp-bond-name">${esc(b.partnerName)}</b>
           <small class="wp-bond-sub">Exclusive 1-to-1</small>
@@ -317,13 +343,18 @@ function openBondsShowcaseModal(targetUser) {
         ${isSelf ? `<button type="button" class="wp-bond-unbind" data-modal-unbind="${cfg.slot}">Unbind</button>` : ''}
       </div>`;
     }
-    return `<button type="button" class="wp-bond-card empty-slot" data-modal-send-slot="${cfg.giftId}">
+    const previewId = cfg.slot === 'couple' ? (u.equippedRing || cfg.giftId) : cfg.giftId;
+    return `<button type="button" class="wp-bond-card empty-slot" data-modal-send-slot="${esc(previewId)}">
       <span class="wp-bond-lv muted">${esc(cfg.label)}</span>
-      <div class="wp-bond-art ghost-art">${GLOSSY_SVG.bondEmblem(cfg.slot)}</div>
+      <div class="wp-bond-art ghost-art">${GLOSSY_SVG.bondEmblem(cfg.slot, previewId)}</div>
       <span class="wp-bond-plus">+</span>
       <small>Send Request</small>
     </button>`;
   }).join('');
+
+  const bannerRingArt = typeof RingArt !== 'undefined'
+    ? RingArt.renderRingSvg((cp && cp.giftId) || u.equippedRing || 'g_wring_diamond', 58, { plate: true })
+    : GLOSSY_SVG.coupleRings;
 
   const m = modal('Exclusive 1-to-1 Bonds', `
     <div class="wp-cp-banner">
@@ -334,7 +365,7 @@ function openBondsShowcaseModal(targetUser) {
           <b>${esc(u.name || 'Player')}</b>
         </div>
         <div class="wp-cp-mid">
-          ${GLOSSY_SVG.coupleRings}
+          ${bannerRingArt}
           <span class="wp-cp-days">${cp ? `Together ${daysTogether}d` : '1-to-1 Exclusive'}</span>
         </div>
         <div class="wp-cp-person">

@@ -626,6 +626,16 @@ function buildProfile(){
   $$('[data-open-bonds]',$('#v-profile')).forEach(el=>{
     el.onclick=e=>{e.stopPropagation();if(typeof openBondsShowcaseModal==='function')openBondsShowcaseModal(me)};
   });
+  $$('[data-open-ring-bag]',$('#v-profile')).forEach(el=>{
+    el.onclick=e=>{e.stopPropagation();if(typeof openRingInventoryModal==='function')openRingInventoryModal()};
+  });
+  $$('[data-open-wedding-store]',$('#v-profile')).forEach(el=>{
+    el.onclick=e=>{
+      e.stopPropagation();
+      if(typeof openWeddingRingsStore==='function')openWeddingRingsStore();
+      else showTab('store');
+    };
+  });
   $$('[data-unlock-bond]',$('#v-profile')).forEach(el=>{
     el.onclick=e=>{
       e.stopPropagation();

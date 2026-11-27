@@ -70,6 +70,7 @@ let storeItems = [...DEFAULT_ITEMS, ...customItems];
 
 const CATS = [
   ['all', 'All'],
+  ['rings', '💍 Wedding Rings'],
   ['luxgifts', '💎 3D Gifts & Rings'],
   ['vip', '👑 VIP Pass'],
   ['frame', 'Frames'],
@@ -80,7 +81,10 @@ const CATS = [
   ['text', 'Name Glow'],
   ['msg', 'Msg Border']
 ];
-let storeCat = 'all';
+let storeCat = 'rings';
+let ringFilter = 'all';
+let ringQuery = '';
+let selectedRingId = 'g_wring_diamond';
 const itemKey = it => `${it.kind}:${it.value || it.id}`;
 
 function itemPreview(it) {
@@ -104,34 +108,45 @@ function itemPreview(it) {
 }
 
 function renderStoreLuxGiftsShowcase(onlyFeatured) {
+  if (typeof ensureWeddingRingsSynced === 'function') ensureWeddingRingsSynced();
   if (typeof GIFT_CATALOG === 'undefined' || typeof giftSvg !== 'function') return '';
   const luxList = GIFT_CATALOG.filter(g => (typeof isLuxuryAnimatedGift === 'function' && isLuxuryAnimatedGift(g)) || g.cat === 'ring')
     .sort((a, b) => b.price - a.price);
   const shown = onlyFeatured ? luxList.slice(0, 6) : luxList;
+  const totalRings = typeof RingRules !== 'undefined' ? RingRules.getAllWeddingRings().length : 32;
+  const ownedRingCount = getMyOwnedRingIds().length;
   return `
-    <div class="store-lux-showcase" style="grid-column:1/-1">
+    <div class="store-lux-showcase" style="grid-column:1/-1" data-testid="store-lux-showcase">
       <div class="store-lux-head">
         <div>
           <b>✨ 3D Luxury 10,000+ Gifts &amp; Exclusive Rings</b>
-          <small>Photorealistic 3D metallic art · Continuous shimmer &amp; ambient Gift Wall particles</small>
+          <small>Photorealistic 3D metallic art · All ${totalRings} upgraded Wedding &amp; Couple Rings synced live</small>
         </div>
-        ${onlyFeatured ? `<button type="button" class="btn ghost sm" id="stViewAllLux">View All (${luxList.length})</button>` : ''}
+        <div class="row wrap" style="gap:6px">
+          <button type="button" class="btn gold sm" data-open-wring-tab>💍 Wedding Rings (${totalRings})</button>
+          <button type="button" class="wr-bag-btn" data-wr-openbag>🎒 Ring Bag (${ownedRingCount})</button>
+          ${onlyFeatured ? `<button type="button" class="btn ghost sm" id="stViewAllLux">View All (${luxList.length})</button>` : ''}
+        </div>
       </div>
       <div class="store-lux-grid">
         ${shown.map(g => {
           const is10k = typeof isLuxuryAnimatedGift === 'function' && isLuxuryAnimatedGift(g);
+          const isRing = g.cat === 'ring';
           const tMeta = (typeof GIFT_TIERS !== 'undefined' && GIFT_TIERS[g.tier]) || { color: '#ffd36b', name: 'Luxury' };
+          const priceHtml = g.sourceLabel
+            ? `<span class="wr-source-tag ${g.source === 'family' ? 'family' : 'activity'}">${esc(g.sourceLabel)}</span>`
+            : `<span class="slt-price">${isRing ? fmtRingCoins(g.price) : fmtNum(g.price)} 🪙</span>`;
           return `<div class="store-lux-tile ${is10k ? 'lux-10k-card' : ''}" data-lux10k="${is10k ? '1' : '0'}">
             ${is10k && typeof renderLuxury10kFxHtml === 'function' ? renderLuxury10kFxHtml(g, false) : ''}
             <div class="slt-top">
-              <span class="slt-badge" style="color:${tMeta.color}">${is10k ? '✦ 10k+ LIVE 3D' : (g.bondType ? '💎 1-to-1 BOND' : '💍 RING')}</span>
-              <span class="slt-price">${fmtNum(g.price)} 🪙</span>
+              <span class="slt-badge" style="color:${tMeta.color}">${isRing ? '💍 RING' : (is10k ? '✦ 10k+ LIVE 3D' : '💎 1-to-1 BOND')}</span>
+              ${priceHtml}
             </div>
             <div class="slt-art">${giftSvg(g, 66)}</div>
             <b class="slt-name">${esc(g.name)}</b>
-            <small class="slt-sub">+${fmtNum(g.charm)} Charm${g.bondType ? ' · Request → Accept' : ''}</small>
+            <small class="slt-sub">+${isRing ? fmtRingCoins(g.charm) : fmtNum(g.charm)} Charm${g.bondType ? ' · Request → Accept' : ''}</small>
             <div class="row" style="gap:6px;margin-top:8px;width:100%">
-              ${g.price >= 5000 ? `<button type="button" class="btn ghost sm" style="flex:1" data-st-prevgift="${esc(g.id)}">Preview</button>` : ''}
+              ${(g.price >= 5000 || isRing) ? `<button type="button" class="btn ghost sm" style="flex:1" data-st-prevgift="${esc(g.id)}">Preview</button>` : ''}
               <button type="button" class="btn gold sm" style="flex:1" data-st-sendgift="${esc(g.id)}">${g.bondType ? 'Request' : 'Send'}</button>
             </div>
           </div>`;
@@ -141,6 +156,318 @@ function renderStoreLuxGiftsShowcase(onlyFeatured) {
   `;
 }
 
+function getMyOwnedRingIds() {
+  if (typeof RingRules === 'undefined') return [];
+  const gst = typeof getGiftWallStatsForUser === 'function' ? getGiftWallStatsForUser(me) : null;
+  return RingRules.getUserOwnedRingIds(me, gst);
+}
+
+function persistRingWalletUpdate(toastMsg) {
+  saveMe();
+  patchUser(uid, { ...base(), coins: me.coins, giftWallet: me.giftWallet || {}, ownedRings: me.ownedRings || [], equippedRing: me.equippedRing || '' });
+  dbOp(() => F.setDoc(userRef(uid), { ...base(), coins: me.coins, giftWallet: me.giftWallet || {}, ownedRings: me.ownedRings || [], equippedRing: me.equippedRing || '' }, { merge: true }));
+  updateHud();
+  if (typeof markTabsDirty === 'function') markTabsDirty(['profile', 'store']);
+  if (typeof activeAppTab !== 'undefined' && activeAppTab === 'profile' && typeof buildProfile === 'function') buildProfile();
+  if (typeof activeAppTab !== 'undefined' && activeAppTab === 'store') renderStore();
+  if (toastMsg) toast(toastMsg);
+}
+
+function handleEquipRingAction(ringId) {
+  if (typeof RingRules === 'undefined') return false;
+  const gst = typeof getGiftWallStatsForUser === 'function' ? getGiftWallStatsForUser(me) : null;
+  const res = RingRules.equipRingState(me, ringId, gst);
+  if (!res.ok) {
+    toast(res.reason === 'not_owned' ? 'Unlock or buy this ring first to equip it' : 'Ring not found');
+    return false;
+  }
+  me.equippedRing = res.equippedRing;
+  if (!Array.isArray(me.ownedRings)) me.ownedRings = [];
+  if (!me.ownedRings.includes(res.equippedRing)) me.ownedRings.push(res.equippedRing);
+  if (typeof playSfx === 'function') playSfx('taskClaim');
+  persistRingWalletUpdate(`💍 Equipped ${res.ring.name}!`);
+  return true;
+}
+
+function handleAcquireRingAction(ringId, opts) {
+  if (typeof RingRules === 'undefined') return false;
+  const ring = RingRules.getRingById(ringId);
+  if (!ring) return false;
+  const gst = typeof getGiftWallStatsForUser === 'function' ? getGiftWallStatsForUser(me) : null;
+  const res = RingRules.unlockOrBuyRingState(me, ringId, {
+    giftStats: gst,
+    activityDays: Array.isArray(me.activeDays) ? me.activeDays.length : 1,
+    gamesPlayed: Number((typeof stats !== 'undefined' && stats.games_played) || 0),
+    payWithCoins: Boolean(opts && opts.payWithCoins)
+  });
+
+  if (!res.ok) {
+    if (res.reason === 'need_family') {
+      toast('Join a Clan/Family to claim free, or unlock with coins!');
+      return false;
+    }
+    if (res.reason === 'insufficient_coins') {
+      toast(`Need ${fmtNum(res.needed)} coins (You have ${fmtNum(res.have)})`);
+      return false;
+    }
+    toast('Could not unlock ring');
+    return false;
+  }
+
+  if (res.cost > 0) {
+    me.coins = clampCoins(me.coins - res.cost);
+    bumpStat('store_buy');
+  }
+  me.ownedRings = res.ownedRings;
+  me.giftWallet = me.giftWallet && typeof me.giftWallet === 'object' ? me.giftWallet : {};
+  me.giftWallet[ring.id] = Math.max(1, Number(me.giftWallet[ring.id] || 0));
+  me.equippedRing = ring.id;
+
+  if (typeof playSfx === 'function') playSfx(ring.price >= 50000 ? 'weddingBells' : 'chestOpen');
+  const msg = res.mode === 'activity_claim'
+    ? `✨ Claimed ${ring.name} from Activity & Equipped!`
+    : (res.mode === 'family_claim'
+      ? `🛡️ Claimed ${ring.name} from Family & Equipped!`
+      : `💍 Unlocked & Equipped ${ring.name}!`);
+  persistRingWalletUpdate(msg);
+  return true;
+}
+
+function fmtRingCoins(n) {
+  return String(Math.max(0, Math.round(Number(n || 0))));
+}
+
+function renderWeddingRingTileHtml(ring, ownedSet, isSelected, isEquipped) {
+  const isOwned = ownedSet.has(ring.id);
+  const footHtml = ring.sourceLabel
+    ? `<span class="wr-source-tag ${ring.source === 'family' ? 'family' : 'activity'}">${esc(ring.sourceLabel)}</span>`
+    : `<span class="wr-price"><span class="wr-coin-dot" aria-hidden="true">✦</span>${fmtRingCoins(ring.price)}</span>`;
+  const cornerMark = isEquipped
+    ? `<span class="wr-corner-mark">EQUIPPED</span>`
+    : (isOwned ? `<span class="wr-corner-mark owned">OWNED</span>` : '');
+  const artHtml = typeof RingArt !== 'undefined'
+    ? RingArt.renderRingSvg(ring, 88, { plate: true })
+    : (typeof giftSvg === 'function' ? giftSvg(ring, 68) : '');
+
+  return `<button type="button" class="wr-card ${isSelected ? 'selected' : ''} ${isEquipped ? 'equipped' : ''}" data-wr-select="${esc(ring.id)}" style="--ring-glow:${esc(ring.glow || '#7dd3fc')}" aria-pressed="${isSelected ? 'true' : 'false'}" aria-label="${esc(ring.name)}">
+    <div class="wr-stage-wrap">
+      ${cornerMark}
+      ${artHtml}
+    </div>
+    <span class="wr-name">${esc(ring.name)}</span>
+    <div class="wr-foot">${footHtml}</div>
+  </button>`;
+}
+
+function renderWeddingRingInspectorHtml(ring, ownedSet) {
+  if (!ring) return '';
+  const isOwned = ownedSet.has(ring.id);
+  const isEquipped = me.equippedRing === ring.id;
+  const artHtml = typeof RingArt !== 'undefined'
+    ? RingArt.renderRingSvg(ring, 82, { plate: true })
+    : '';
+  let statusTxt = ring.group === 'luxury' ? 'Luxury Collection' : 'Classic Collection';
+  let statusCls = '';
+  if (isEquipped) { statusTxt = 'Equipped on Profile'; statusCls = 'eq'; }
+  else if (isOwned) { statusTxt = 'In Your Ring Bag'; statusCls = 'fam'; }
+  else if (ring.sourceLabel) { statusTxt = ring.sourceLabel; statusCls = ring.source === 'family' ? 'fam' : ''; }
+
+  let primaryBtnHtml = '';
+  if (isEquipped) {
+    primaryBtnHtml = `<button type="button" class="btn sm" disabled>Equipped ✓</button>`;
+  } else if (isOwned) {
+    primaryBtnHtml = `<button type="button" class="btn gold sm" data-wr-equip="${esc(ring.id)}">Equip Ring</button>`;
+  } else if (ring.source === 'activity') {
+    primaryBtnHtml = `<button type="button" class="btn gold sm" data-wr-acquire="${esc(ring.id)}">Claim Activity Ring</button>`;
+  } else if (ring.source === 'family') {
+    primaryBtnHtml = me.clanId
+      ? `<button type="button" class="btn gold sm" data-wr-acquire="${esc(ring.id)}">Claim Family Ring</button>`
+      : `<button type="button" class="btn gold sm" data-wr-acquire="${esc(ring.id)}" data-wr-pay="1">Unlock · ${fmtRingCoins(ring.price)} 🪙</button>`;
+  } else {
+    primaryBtnHtml = `<button type="button" class="btn gold sm" data-wr-acquire="${esc(ring.id)}">Buy &amp; Equip · ${fmtRingCoins(ring.price)} 🪙</button>`;
+  }
+
+  return `<div class="wr-inspector" style="--sel-glow:${esc(ring.glow || '#7dd3fc')}" data-testid="wedding-ring-inspector">
+    ${artHtml}
+    <div class="wr-insp-meta">
+      <div class="wr-insp-title-row">
+        <b>${esc(ring.name)}</b>
+        <span class="wr-insp-status ${statusCls}">${esc(statusTxt)}</span>
+      </div>
+      <p class="wr-insp-lore">${esc(ring.lore || 'Exclusive 1-to-1 Couple & Wedding Ring.')}</p>
+      <div class="wr-insp-stats">
+        <span>${ring.sourceLabel ? `<strong>${esc(ring.sourceLabel)}</strong>` : `<strong>${fmtRingCoins(ring.price)} 🪙</strong>`}</span>
+        <span aria-hidden="true">·</span>
+        <span><em>+${fmtRingCoins(ring.charm)} Charm</em></span>
+        <span aria-hidden="true">·</span>
+        <span>${ring.weddingDays || 7}d Wedding Room</span>
+      </div>
+    </div>
+    <div class="wr-insp-acts">
+      ${primaryBtnHtml}
+      <div class="wr-insp-subacts">
+        <button type="button" class="btn ghost sm" data-wr-preview="${esc(ring.id)}">Preview 3D</button>
+        <button type="button" class="btn sm" data-wr-request="${esc(ring.id)}">Couple Req</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderWeddingRingsBoutique(onlyFeatured) {
+  if (typeof RingRules === 'undefined') return '';
+  const allRings = RingRules.getAllWeddingRings();
+  const ownedIds = getMyOwnedRingIds();
+  const ownedSet = new Set(ownedIds);
+
+  if (onlyFeatured) {
+    const featured = allRings.slice(0, 6);
+    return `
+      <div class="wr-boutique" data-testid="wedding-rings-featured">
+        <div class="wr-header">
+          <div class="wr-header-copy">
+            <b>💍 Wedding &amp; Couple Rings (${allRings.length})</b>
+            <small>Glowing SVG jewelry collection · Equip on Profile or send 1-to-1 Couple Requests</small>
+          </div>
+          <div class="wr-header-acts">
+            <button type="button" class="wr-bag-btn" data-wr-openbag>🎒 Ring Bag (${ownedIds.length})</button>
+            <button type="button" class="btn ghost sm" id="stViewAllRings">View All (${allRings.length})</button>
+          </div>
+        </div>
+        <div class="wr-grid">
+          ${featured.map(r => renderWeddingRingTileHtml(r, ownedSet, selectedRingId === r.id, me.equippedRing === r.id)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  const filtered = RingRules.filterWeddingRings(allRings, {
+    filter: ringFilter,
+    query: ringQuery,
+    ownedIds
+  });
+  const activeRing = filtered.find(r => r.id === selectedRingId) || RingRules.getRingById(selectedRingId) || filtered[0] || allRings[0];
+  if (activeRing) selectedRingId = activeRing.id;
+
+  const filterChips = [
+    ['all', `All (${allRings.length})`],
+    ['luxury', 'Luxury'],
+    ['classic', 'Classic'],
+    ['activity', 'From Activity'],
+    ['family', 'From Family'],
+    ['owned', `Owned (${ownedIds.length})`]
+  ];
+
+  return `
+    <div class="wr-boutique" data-testid="wedding-rings-boutique">
+      <div class="wr-header">
+        <div class="wr-header-copy">
+          <b>💍 Wedding Ring Boutique</b>
+          <small>Select any ring to preview, equip on your profile, or send an exclusive 1-to-1 Couple Request</small>
+        </div>
+        <div class="wr-header-acts">
+          <button type="button" class="wr-bag-btn" data-wr-openbag>🎒 Ring Bag (${ownedIds.length})</button>
+        </div>
+      </div>
+
+      <div class="wr-controls">
+        <div class="wr-filters" role="group" aria-label="Filter wedding rings">
+          ${filterChips.map(([k, lbl]) => `<button type="button" class="wr-fbtn ${ringFilter === k ? 'on' : ''}" data-wr-filter="${k}">${lbl}</button>`).join('')}
+        </div>
+        <input type="search" class="wr-search" id="wrSearchIn" value="${esc(ringQuery)}" placeholder="Search 32 rings..." aria-label="Search wedding rings">
+      </div>
+
+      ${renderWeddingRingInspectorHtml(activeRing, ownedSet)}
+
+      <div class="wr-grid" data-testid="wedding-rings-grid">
+        ${filtered.length
+          ? filtered.map(r => renderWeddingRingTileHtml(r, ownedSet, activeRing && activeRing.id === r.id, me.equippedRing === r.id)).join('')
+          : '<div class="empty" style="grid-column:1/-1">No rings match your filter. Try switching back to All.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function openRingInventoryModal() {
+  if (typeof RingRules === 'undefined') return toast('Rings catalog unavailable');
+  let bagSelectedId = me.equippedRing || getMyOwnedRingIds()[0] || 'g_wring_diamond';
+  const m = modal('🎒 My Ring Bag', `<div id="wrBagBody" class="wr-bag-modal"></div>`, 'wr-bag-sheet');
+
+  const paintBag = () => {
+    const ownedIds = getMyOwnedRingIds();
+    const ownedSet = new Set(ownedIds);
+    const ownedRings = RingRules.getAllWeddingRings().filter(r => ownedSet.has(r.id));
+    const active = ownedRings.find(r => r.id === bagSelectedId) || ownedRings[0] || null;
+    if (active) bagSelectedId = active.id;
+
+    const body = $('#wrBagBody', m);
+    if (!body) return;
+    if (!ownedRings.length) {
+      body.innerHTML = `<div class="empty">Your Ring Bag is empty. Browse the Wedding Ring Boutique to collect or claim your first ring!</div>
+        <button type="button" class="btn gold full" id="wrBagBrowse" style="margin-top:10px">Browse Wedding Rings</button>`;
+      if ($('#wrBagBrowse', body)) {
+        $('#wrBagBrowse', body).onclick = () => { m.close(); openWeddingRingsStore(); };
+      }
+      return;
+    }
+
+    body.innerHTML = `
+      ${renderWeddingRingInspectorHtml(active, ownedSet)}
+      <div class="wr-grid" data-testid="ring-bag-grid">
+        ${ownedRings.map(r => renderWeddingRingTileHtml(r, ownedSet, active && active.id === r.id, me.equippedRing === r.id)).join('')}
+      </div>
+      <button type="button" class="btn ghost full" id="wrBagBrowseAll" style="margin-top:10px">Explore All ${RingRules.getAllWeddingRings().length} Wedding Rings</button>
+    `;
+
+    if ($('#wrBagBrowseAll', body)) {
+      $('#wrBagBrowseAll', body).onclick = () => { m.close(); openWeddingRingsStore(); };
+    }
+  };
+
+  paintBag();
+
+  m.onclick = e => {
+    const sel = e.target.closest('[data-wr-select]');
+    if (sel) {
+      bagSelectedId = sel.dataset.wrSelect;
+      if (typeof playSfx === 'function') playSfx('tap');
+      paintBag();
+      return;
+    }
+    const eq = e.target.closest('[data-wr-equip]');
+    if (eq) {
+      handleEquipRingAction(eq.dataset.wrEquip);
+      paintBag();
+      return;
+    }
+    const prev = e.target.closest('[data-wr-preview]');
+    if (prev) {
+      const g = typeof GIFT_BY_ID !== 'undefined' ? GIFT_BY_ID[prev.dataset.wrPreview] : null;
+      if (g && typeof showLuxuryGiftShowcase === 'function') {
+        showLuxuryGiftShowcase({ fromName: me.name || 'You', toName: 'Ring Showcase', qty: 1, charm: g.charm, luckyCoins: Math.round(g.price * 0.25) }, g);
+      }
+      return;
+    }
+    const req = e.target.closest('[data-wr-request]');
+    if (req) {
+      m.close();
+      if (typeof openGiftSendModal === 'function') {
+        openGiftSendModal('', { allowPickPlayer: true, preselectFilter: 'rings', preselectGiftId: req.dataset.wrRequest });
+      }
+    }
+  };
+}
+window.openRingInventoryModal = openRingInventoryModal;
+
+function openWeddingRingsStore(preselectId) {
+  storeCat = 'rings';
+  if (preselectId && typeof RingRules !== 'undefined' && RingRules.getRingById(preselectId)) {
+    selectedRingId = preselectId;
+  }
+  if (typeof showTab === 'function') showTab('store');
+  renderStore();
+}
+window.openWeddingRingsStore = openWeddingRingsStore;
+
 function renderStore() {
   cleanExpiredUnlocks();
   const tabsEl = $('#storeTabs');
@@ -149,24 +476,29 @@ function renderStore() {
 
   tabsEl.innerHTML = CATS.map(c => `<button class="chipbtn ${c[0] === storeCat ? 'on' : ''}" data-cat="${c[0]}">${c[1]}</button>`).join('');
 
+  const ownedRingCount = getMyOwnedRingIds().length;
   const quickBar = `
     <div class="store-quick-banner card" style="grid-column:1/-1">
       <div class="row wrap" style="justify-content:space-between;gap:10px">
         <div>
-          <b style="font-size:15px">💎 3D Luxury Gifts, Rings &amp; Lucky Wheel</b>
-          <p style="font-size:12px;color:var(--mu);margin:3px 0 0">Send exclusive 1-to-1 Couple Rings, Bro/Bestie Tags, or 10,000+ animated luxury gifts.</p>
+          <b style="font-size:15px">💎 3D Luxury Gifts, Wedding Rings &amp; Lucky Wheel</b>
+          <p style="font-size:12px;color:var(--mu);margin:3px 0 0">Collect, equip, or propose with 32 bespoke Wedding &amp; Couple Rings or 10,000+ animated luxury gifts.</p>
         </div>
         <div class="row wrap" style="gap:8px">
-          <button type="button" class="btn gold sm" id="stOpenRings">💍 Rings &amp; Gifts</button>
+          <button type="button" class="btn gold sm" id="stOpenRings">💍 Wedding Rings</button>
+          <button type="button" class="btn ghost sm" id="stOpenRingBag">🎒 Ring Bag (${ownedRingCount})</button>
           <button type="button" class="btn sm" id="stOpenWheel">🎡 Lucky Spin (${fmtNum(me.spinTickets || 0)})</button>
         </div>
       </div>
     </div>
   `;
 
-  if (storeCat === 'luxgifts') {
+  if (storeCat === 'rings') {
+    listEl.innerHTML = renderWeddingRingsBoutique(false);
+  } else if (storeCat === 'luxgifts') {
     listEl.innerHTML = quickBar + renderStoreLuxGiftsShowcase(false);
   } else {
+    const featuredRings = storeCat === 'all' ? renderWeddingRingsBoutique(true) : '';
     const featuredLux = storeCat === 'all' ? renderStoreLuxGiftsShowcase(true) : '';
     const cardsHtml = storeItems
       .filter(it => storeCat === 'all' || it.kind === storeCat)
@@ -193,17 +525,27 @@ function renderStore() {
           ${devMode && String(it.id).startsWith('c_') ? `<button class="btn red sm" style="margin-top:8px" data-delitem="${esc(it.id)}">Delete item</button>` : ''}
         </div>`;
       }).join('');
-    listEl.innerHTML = quickBar + featuredLux + (cardsHtml || '<div class="empty">No items in this category</div>');
+    listEl.innerHTML = quickBar + featuredRings + featuredLux + (cardsHtml || '<div class="empty">No items in this category</div>');
   }
 
   if ($('#stOpenRings', listEl)) {
     $('#stOpenRings', listEl).onclick = () => {
-      if (typeof openGiftSendModal === 'function') openGiftSendModal('', { allowPickPlayer: true, preselectFilter: 'rings' });
+      storeCat = 'rings';
+      renderStore();
     };
+  }
+  if ($('#stOpenRingBag', listEl)) {
+    $('#stOpenRingBag', listEl).onclick = () => openRingInventoryModal();
   }
   if ($('#stOpenWheel', listEl)) {
     $('#stOpenWheel', listEl).onclick = () => {
       if (typeof openLuckySpinModal === 'function') openLuckySpinModal();
+    };
+  }
+  if ($('#stViewAllRings', listEl)) {
+    $('#stViewAllRings', listEl).onclick = () => {
+      storeCat = 'rings';
+      renderStore();
     };
   }
   if ($('#stViewAllLux', listEl)) {
@@ -212,6 +554,65 @@ function renderStore() {
       renderStore();
     };
   }
+  if ($('#wrSearchIn', listEl)) {
+    $('#wrSearchIn', listEl).oninput = e => {
+      ringQuery = e.target.value || '';
+      const pos = e.target.selectionStart || ringQuery.length;
+      renderStore();
+      const fresh = $('#wrSearchIn', listEl);
+      if (fresh) {
+        fresh.focus();
+        try { fresh.setSelectionRange(pos, pos); } catch {}
+      }
+    };
+  }
+  $$('[data-wr-openbag]', listEl).forEach(btn => {
+    btn.onclick = () => openRingInventoryModal();
+  });
+  $$('[data-wr-filter]', listEl).forEach(btn => {
+    btn.onclick = () => {
+      ringFilter = btn.dataset.wrFilter || 'all';
+      if (typeof playSfx === 'function') playSfx('tap');
+      renderStore();
+    };
+  });
+  $$('[data-wr-select]', listEl).forEach(btn => {
+    btn.onclick = () => {
+      selectedRingId = btn.dataset.wrSelect;
+      if (storeCat !== 'rings') storeCat = 'rings';
+      if (typeof playSfx === 'function') playSfx('tap');
+      renderStore();
+    };
+  });
+  $$('[data-wr-equip]', listEl).forEach(btn => {
+    btn.onclick = () => handleEquipRingAction(btn.dataset.wrEquip);
+  });
+  $$('[data-wr-acquire]', listEl).forEach(btn => {
+    btn.onclick = () => handleAcquireRingAction(btn.dataset.wrAcquire, { payWithCoins: btn.dataset.wrPay === '1' });
+  });
+  $$('[data-wr-preview]', listEl).forEach(btn => {
+    btn.onclick = () => {
+      const g = typeof GIFT_BY_ID !== 'undefined' ? GIFT_BY_ID[btn.dataset.wrPreview] : null;
+      if (g && typeof showLuxuryGiftShowcase === 'function') {
+        showLuxuryGiftShowcase({ fromName: me.name || 'You', toName: 'Wedding Showcase', qty: 1, charm: g.charm, luckyCoins: Math.round(g.price * 0.25) }, g);
+      }
+    };
+  });
+  $$('[data-wr-request]', listEl).forEach(btn => {
+    btn.onclick = () => {
+      const gid = btn.dataset.wrRequest;
+      if (typeof openGiftSendModal === 'function') {
+        openGiftSendModal('', { allowPickPlayer: true, preselectFilter: 'rings', preselectGiftId: gid });
+      }
+    };
+  });
+  $$('[data-open-wring-tab]', listEl).forEach(btn => {
+    btn.onclick = () => {
+      storeCat = 'rings';
+      if (typeof playSfx === 'function') playSfx('tap');
+      renderStore();
+    };
+  });
   $$('[data-st-prevgift]', listEl).forEach(btn => {
     btn.onclick = () => {
       const g = typeof GIFT_BY_ID !== 'undefined' ? GIFT_BY_ID[btn.dataset.stPrevgift] : null;
@@ -231,7 +632,15 @@ function renderStore() {
   });
 }
 
-$('#storeTabs').onclick = e => { const c = e.target.dataset.cat; if (c) { storeCat = c; renderStore(); } };
+$('#storeTabs').onclick = e => {
+  const btn = e.target.closest('[data-cat]');
+  const c = btn && btn.dataset.cat;
+  if (c) {
+    storeCat = c;
+    if (typeof playSfx === 'function') playSfx('tap');
+    renderStore();
+  }
+};
 $('#storeList').onclick = e => {
   const del = e.target.dataset.delitem;
   if (del) {

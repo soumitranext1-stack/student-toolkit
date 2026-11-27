@@ -213,6 +213,7 @@ function freshDefaultProfile(targetUid, isGuest){
     vipTier:'',vipUntil:0,
     likesCount:0,likedBy:[],visitors:[],
     bonds:[],pendingProposals:[],
+    equippedRing:'',ownedRings:[],
     clanId:'',clanTag:'',
     warnings:[],mutedUntil:0,banReason:'',banUntil:0,
     streakClaimDay:'',streakDayIndex:0,dailyChestClaimedDay:'',
@@ -254,6 +255,8 @@ function normalizeProfile(p,targetUid){
   o.visitors=Array.isArray(o.visitors)?o.visitors.slice(-20):[];
   o.bonds=Array.isArray(o.bonds)?o.bonds.slice(-10):[];
   o.pendingProposals=Array.isArray(o.pendingProposals)?o.pendingProposals.slice(-15):[];
+  o.ownedRings=Array.isArray(o.ownedRings)?[...new Set(o.ownedRings.filter(Boolean))].slice(-64):[];
+  o.equippedRing=typeof o.equippedRing==='string'?o.equippedRing:'';
   o.warnings=Array.isArray(o.warnings)?o.warnings.slice(-20):[];
   o.unlockedTitles=Array.isArray(o.unlockedTitles)?o.unlockedTitles:[];
   if(!o.activeDays.includes(today()))o.activeDays.push(today());
@@ -489,6 +492,7 @@ const base=()=>({
   vipTier:getActiveVipTier(me),vipUntil:Number(me.vipUntil||0),
   likesCount:Number(me.likesCount||0),likedBy:(me.likedBy||[]).slice(-200),visitors:(me.visitors||[]).slice(-20),
   bonds:(me.bonds||[]).slice(-10),pendingProposals:(me.pendingProposals||[]).slice(-15),
+  equippedRing:me.equippedRing||'',ownedRings:(me.ownedRings||[]).slice(-64),
   clanId:me.clanId||'',clanTag:me.clanTag||'',
   streakDays:calcStreak(me.activeDays),activeDays:me.activeDays,tags:me.tags,
   accountType:me.accountType,accountId:me.accountId,authProvider:me.authProvider||(me.accountType==='account'?'google.com':'anonymous'),

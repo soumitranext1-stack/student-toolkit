@@ -50,12 +50,14 @@ function seedV13GuestShowcaseIfNeeded(){
 
     /* Received 10,000+ Luxury Gifts & Starter Gifts on Gift Wall + Top Gifter Spotlight */
     me.giftWallet=me.giftWallet&&typeof me.giftWallet==='object'?me.giftWallet:{};
-    const seedCounts={g75_ferrari:1,g72_singularity:1,g_ring_diamond:1,g01_rose:4};
+    const seedCounts={g75_ferrari:1,g72_singularity:1,g_ring_diamond:1,g_wring_crystal:1,g01_rose:4};
     Object.keys(seedCounts).forEach(gid=>{
       me.giftWallet[gid]=Math.max(Number(me.giftWallet[gid]||0),seedCounts[gid]);
     });
+    me.ownedRings=[...new Set([...(Array.isArray(me.ownedRings)?me.ownedRings:[]),'g_ring_diamond','g_wring_crystal'])];
+    if(!me.equippedRing)me.equippedRing='g_ring_diamond';
     me.charm=Math.max(Number(me.charm||0),23004);
-    me.coins=Math.max(Number(me.coins||0),2500);
+    me.coins=Math.max(Number(me.coins||0),12500);
 
     if(typeof giftEvents!=='undefined'&&Array.isArray(giftEvents)){
       const hasSeedEv=giftEvents.some(ev=>ev&&ev.id==='gf_v13_seed_ferrari');
