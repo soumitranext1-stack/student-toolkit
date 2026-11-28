@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const CACHE_NAME = 'study-game-v38';
+const CACHE_NAME = 'study-game-v46';
 const CORE_SHELL = [
   './',
   './index.html',
@@ -31,6 +31,9 @@ const CORE_SHELL = [
   './pvp-sync-rules.js',
   './pvp-sync.js',
   './party-room-rules.js',
+  './party-room-extras-rules.js',
+  './party-mode-stages-rules.js',
+  './party-media-catalog.js',
   './ring-rules.js',
   './ring-art.js',
   './voice-narrator.js',
@@ -40,6 +43,8 @@ const CORE_SHELL = [
   './core.js',
   './social.js',
   './party.js',
+  './party-mode-stages.js',
+  './party-room-extras.js',
   './launcher-ui.js',
   './room-lobby.js',
   './ludo-rules.js',

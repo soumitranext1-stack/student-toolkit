@@ -9,6 +9,7 @@ function applyDevUI(){
 
 function switchToIdentity(nextUid,nextProfileObj,opts){
   const o=opts||{};
+  const prevUid=uid;
   const prevAccountType=me&&me.accountType;
   const nextAccountType=(nextProfileObj&&nextProfileObj.accountType)||'guest';
   const isExplicitAccountSwitch=Boolean(o.forceHome)||(prevAccountType==='account'&&nextAccountType!=='account')||(prevAccountType!=='account'&&nextAccountType==='account');
@@ -16,6 +17,9 @@ function switchToIdentity(nextUid,nextProfileObj,opts){
   if(isExplicitAccountSwitch){cur=null;$('#thread').hidden=true;}
   uid=nextUid;localStorage.setItem('sg_uid',uid);
   me=normalizeProfile(nextProfileObj,nextUid);
+  if(prevUid&&prevUid!==nextUid&&!isExplicitAccountSwitch&&typeof migratePartyRoomsIdentity==='function'){
+    migratePartyRoomsIdentity(prevUid,nextUid);
+  }
   refreshDevMode();
   stats={calc_open:0,pdf_open:0,tool_open:0,profile_save:0,games_played:0,store_buy:0,ad_watch:0,gifts_sent:0,party_join:0,...ls.get('sg_stats_'+uid,{})};
   chats=ls.get('sg_chats_'+uid,{});ensureDevChat();
@@ -549,6 +553,8 @@ function buildProfile(){
       </button>
     </div>
 
+    ${typeof renderProfileOwnedRoomSection==='function'?renderProfileOwnedRoomSection(me):''}
+
     ${bondsHtml}
 
     ${visitorsHtml}
@@ -621,6 +627,9 @@ function buildProfile(){
   if($('#scShopBtn'))$('#scShopBtn').onclick=()=>showTab('store');
   if($('#pfClanBtn'))$('#pfClanBtn').onclick=()=>{if(typeof openClansModal==='function')openClansModal()};
   if($('#pfSpinBtn'))$('#pfSpinBtn').onclick=()=>{if(typeof openLuckySpinModal==='function')openLuckySpinModal()};
+  if($('#pfOwnedEnterBtn'))$('#pfOwnedEnterBtn').onclick=()=>{if(typeof openMyOwnedPartyRoom==='function')openMyOwnedPartyRoom()};
+  if($('#pfOwnedManageBtn'))$('#pfOwnedManageBtn').onclick=()=>{if(typeof openMyOwnedRoomSettings==='function')openMyOwnedRoomSettings()};
+  if($('#pfOwnedUnlockBtn'))$('#pfOwnedUnlockBtn').onclick=()=>{if(typeof openAdvancedRoomUnlockModal==='function')openAdvancedRoomUnlockModal()};
   if($('#pfInviteRow'))$('#pfInviteRow').onclick=()=>{if(invCode)openReferShareModal();else openAuthModal()};
 
   $$('[data-open-bonds]',$('#v-profile')).forEach(el=>{

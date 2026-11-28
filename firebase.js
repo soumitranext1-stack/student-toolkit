@@ -141,6 +141,13 @@ function mergeAppearanceFromCloud(m){
   if(Array.isArray(m.pendingProposals))me.pendingProposals=m.pendingProposals.slice(-15);
   if(typeof m.clanId==='string')me.clanId=m.clanId;
   if(typeof m.clanTag==='string')me.clanTag=m.clanTag;
+  if(m.ownedRoom&&typeof m.ownedRoom==='object'&&m.ownedRoom.unlocked){
+    const curUpd=Number((me.ownedRoom&&me.ownedRoom.updatedAt)||0);
+    const cloudUpd=Number(m.ownedRoom.updatedAt||0);
+    if(!me.ownedRoom||!me.ownedRoom.unlocked||cloudUpd>=curUpd){
+      me.ownedRoom={...m.ownedRoom,unlocked:true,isOwnedRoom:true,isAdvanced:true};
+    }
+  }
   if(Array.isArray(m.warnings))me.warnings=m.warnings.slice(-20);
   if(typeof m.mutedUntil==='number')me.mutedUntil=m.mutedUntil;
   if(typeof m.banReason==='string')me.banReason=m.banReason;

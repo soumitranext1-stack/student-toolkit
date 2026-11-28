@@ -52,10 +52,13 @@ function makePortraitSvg(id, bg1, bg2, accent, hairColor, skin, style) {
 
   return `<svg class="av-svg" viewBox="0 0 64 64" fill="none" aria-hidden="true">
     <defs>
-      <radialGradient id="ag_${id}" cx="30%" cy="22%" r="80%">
-        <stop offset="0%" stop-color="${accent}" stop-opacity=".55"/>
-        <stop offset="45%" stop-color="${bg1}"/>
-        <stop offset="100%" stop-color="${bg2}"/>
+      <clipPath id="aclp_${id}">
+        <circle cx="32" cy="32" r="30.5"/>
+      </clipPath>
+      <radialGradient id="ag_${id}" cx="50%" cy="46%" r="54%">
+        <stop offset="0%" stop-color="${accent}" stop-opacity=".22"/>
+        <stop offset="58%" stop-color="${bg1}" stop-opacity=".10"/>
+        <stop offset="100%" stop-color="${bg2}" stop-opacity="0"/>
       </radialGradient>
       <radialGradient id="ask_${id}" cx="38%" cy="30%" r="72%">
         <stop offset="0%" stop-color="#fff4ea" stop-opacity=".42"/>
@@ -82,20 +85,22 @@ function makePortraitSvg(id, bg1, bg2, accent, hairColor, skin, style) {
         <stop offset="100%" stop-color="#d97706"/>
       </linearGradient>
     </defs>
-    <circle cx="32" cy="32" r="32" fill="url(#ag_${id})"/>
-    <ellipse cx="22" cy="14" rx="18" ry="10" fill="#ffffff" opacity=".12"/>
-    ${hairBack}
-    ${outfit}
-    <rect x="27.8" y="39.5" width="8.4" height="8" rx="3.4" fill="${skin}"/>
-    <path d="M28 42.5c2.2 1.2 5.8 1.2 8 0" stroke="#000" stroke-opacity=".18" stroke-width="2" fill="none"/>
-    <circle cx="32" cy="31" r="12.8" fill="${skin}"/>
-    <circle cx="32" cy="31" r="12.8" fill="url(#ask_${id})" opacity=".72"/>
-    ${blush}
-    ${hairTop}
-    ${accessory}
-    ${eyes}
-    <path d="M28.6 37.3c2 1.7 4.8 1.7 6.8 0" stroke="#7c2d12" stroke-opacity=".75" stroke-width="1.6" stroke-linecap="round"/>
-    <circle cx="32" cy="32" r="31" stroke="#ffffff" stroke-opacity=".22" stroke-width="1.5"/>
+    <g clip-path="url(#aclp_${id})">
+      <circle cx="32" cy="32" r="30.5" fill="url(#ag_${id})"/>
+      ${hairBack}
+      ${outfit}
+      <rect x="27.8" y="39.5" width="8.4" height="8" rx="3.4" fill="${skin}"/>
+      <path d="M28 42.5c2.2 1.2 5.8 1.2 8 0" stroke="#000" stroke-opacity=".18" stroke-width="2" fill="none"/>
+      <circle cx="32" cy="31" r="12.8" fill="${skin}"/>
+      <circle cx="32" cy="31" r="12.8" fill="url(#ask_${id})" opacity=".72"/>
+      ${blush}
+      ${hairTop}
+      ${accessory}
+      ${eyes}
+      <path d="M28.6 37.3c2 1.7 4.8 1.7 6.8 0" stroke="#7c2d12" stroke-opacity=".75" stroke-width="1.6" stroke-linecap="round"/>
+    </g>
+    <circle cx="32" cy="32" r="30.5" stroke="${accent}" stroke-opacity=".46" stroke-width="1.35"/>
+    <circle cx="32" cy="32" r="29.4" stroke="#ffffff" stroke-opacity=".22" stroke-width=".75"/>
   </svg>`;
 }
 
@@ -130,11 +135,10 @@ const LB_EXCLUSIVE_AVATARS = {
     name: 'Sovereign Crown Crest',
     svg: `<svg class="av-svg" viewBox="0 0 64 64" fill="none" aria-label="Top 1 Sovereign Crest">
       <defs>
-        <radialGradient id="lb1bg" cx="35%" cy="25%" r="75%"><stop offset="0%" stop-color="#78350f"/><stop offset="100%" stop-color="#1c0d00"/></radialGradient>
+        <radialGradient id="lb1bg" cx="50%" cy="48%" r="54%"><stop offset="0%" stop-color="#ffd036" stop-opacity=".28"/><stop offset="100%" stop-color="#78350f" stop-opacity="0"/></radialGradient>
         <linearGradient id="lb1g" x1="10" y1="12" x2="54" y2="52" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fff9c4"/><stop offset="45%" stop-color="#ffd036"/><stop offset="100%" stop-color="#b45309"/></linearGradient>
       </defs>
-      <circle cx="32" cy="32" r="30" fill="url(#lb1bg)" stroke="url(#lb1g)" stroke-width="3"/>
-      <ellipse cx="26" cy="15" rx="14" ry="7" fill="#fff" opacity=".16"/>
+      <circle cx="32" cy="32" r="30" fill="url(#lb1bg)" stroke="url(#lb1g)" stroke-width="2.6"/>
       <path d="M14 42L10 21l12 9 10-15 10 15 12-9-4 21H14z" fill="url(#lb1g)" stroke="#5c2d00" stroke-width="1.8" stroke-linejoin="round"/>
       <rect x="14" y="44" width="36" height="5.5" rx="2.7" fill="url(#lb1g)"/>
       <circle cx="32" cy="31" r="3.6" fill="#ef4444" stroke="#fff" stroke-width="1"/>
@@ -146,11 +150,10 @@ const LB_EXCLUSIVE_AVATARS = {
     name: 'Celestial Silver Crest',
     svg: `<svg class="av-svg" viewBox="0 0 64 64" fill="none" aria-label="Top 2 Silver Crest">
       <defs>
-        <radialGradient id="lb2bg" cx="35%" cy="25%" r="75%"><stop offset="0%" stop-color="#1e3a5f"/><stop offset="100%" stop-color="#090f1d"/></radialGradient>
+        <radialGradient id="lb2bg" cx="50%" cy="48%" r="54%"><stop offset="0%" stop-color="#bfdbfe" stop-opacity=".26"/><stop offset="100%" stop-color="#1e3a5f" stop-opacity="0"/></radialGradient>
         <linearGradient id="lb2g" x1="12" y1="10" x2="52" y2="54" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffffff"/><stop offset="50%" stop-color="#bfdbfe"/><stop offset="100%" stop-color="#475569"/></linearGradient>
       </defs>
-      <circle cx="32" cy="32" r="30" fill="url(#lb2bg)" stroke="url(#lb2g)" stroke-width="3"/>
-      <ellipse cx="26" cy="15" rx="14" ry="7" fill="#fff" opacity=".15"/>
+      <circle cx="32" cy="32" r="30" fill="url(#lb2bg)" stroke="url(#lb2g)" stroke-width="2.6"/>
       <path d="M32 12l5.8 12.2 13.4 1.8-9.8 9.4 2.4 13.4L32 42.4 20.2 48.8l2.4-13.4-9.8-9.4 13.4-1.8L32 12z" fill="url(#lb2g)" stroke="#1e293b" stroke-width="1.8" stroke-linejoin="round"/>
       <circle cx="32" cy="32" r="4.2" fill="#38bdf8" stroke="#fff" stroke-width="1"/>
     </svg>`
@@ -161,10 +164,10 @@ const LB_EXCLUSIVE_AVATARS = {
     name: 'Ember Bronze Shield',
     svg: `<svg class="av-svg" viewBox="0 0 64 64" fill="none" aria-label="Top 3 Bronze Crest">
       <defs>
-        <radialGradient id="lb3bg" cx="35%" cy="25%" r="75%"><stop offset="0%" stop-color="#5c210b"/><stop offset="100%" stop-color="#1a0902"/></radialGradient>
+        <radialGradient id="lb3bg" cx="50%" cy="48%" r="54%"><stop offset="0%" stop-color="#f4b27a" stop-opacity=".26"/><stop offset="100%" stop-color="#5c210b" stop-opacity="0"/></radialGradient>
         <linearGradient id="lb3g" x1="12" y1="10" x2="52" y2="54" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffedd5"/><stop offset="50%" stop-color="#e3904f"/><stop offset="100%" stop-color="#7c2d12"/></linearGradient>
       </defs>
-      <circle cx="32" cy="32" r="30" fill="url(#lb3bg)" stroke="url(#lb3g)" stroke-width="3"/>
+      <circle cx="32" cy="32" r="30" fill="url(#lb3bg)" stroke="url(#lb3g)" stroke-width="2.6"/>
       <path d="M32 12l17 7v13c0 11-7.4 18.6-17 22-9.6-3.4-17-11-17-22V19l17-7z" fill="url(#lb3g)" stroke="#431407" stroke-width="1.8" stroke-linejoin="round"/>
       <path d="M32 20l4 8.5 9 1.2-6.6 6.2 1.7 9L32 40.6l-8.1 4.3 1.7-9-6.6-6.2 9-1.2L32 20z" fill="#fff7ed"/>
     </svg>`

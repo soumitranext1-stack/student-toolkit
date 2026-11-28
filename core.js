@@ -214,6 +214,7 @@ function freshDefaultProfile(targetUid, isGuest){
     likesCount:0,likedBy:[],visitors:[],
     bonds:[],pendingProposals:[],
     equippedRing:'',ownedRings:[],
+    ownedRoom:null,
     clanId:'',clanTag:'',
     warnings:[],mutedUntil:0,banReason:'',banUntil:0,
     streakClaimDay:'',streakDayIndex:0,dailyChestClaimedDay:'',
@@ -257,6 +258,7 @@ function normalizeProfile(p,targetUid){
   o.pendingProposals=Array.isArray(o.pendingProposals)?o.pendingProposals.slice(-15):[];
   o.ownedRings=Array.isArray(o.ownedRings)?[...new Set(o.ownedRings.filter(Boolean))].slice(-64):[];
   o.equippedRing=typeof o.equippedRing==='string'?o.equippedRing:'';
+  o.ownedRoom=(o.ownedRoom&&typeof o.ownedRoom==='object'&&!Array.isArray(o.ownedRoom)&&o.ownedRoom.unlocked)?{...o.ownedRoom,unlocked:true,isOwnedRoom:true,isAdvanced:true}:null;
   o.warnings=Array.isArray(o.warnings)?o.warnings.slice(-20):[];
   o.unlockedTitles=Array.isArray(o.unlockedTitles)?o.unlockedTitles:[];
   if(!o.activeDays.includes(today()))o.activeDays.push(today());
@@ -493,6 +495,7 @@ const base=()=>({
   likesCount:Number(me.likesCount||0),likedBy:(me.likedBy||[]).slice(-200),visitors:(me.visitors||[]).slice(-20),
   bonds:(me.bonds||[]).slice(-10),pendingProposals:(me.pendingProposals||[]).slice(-15),
   equippedRing:me.equippedRing||'',ownedRings:(me.ownedRings||[]).slice(-64),
+  ownedRoom:me.ownedRoom&&me.ownedRoom.unlocked?me.ownedRoom:null,
   clanId:me.clanId||'',clanTag:me.clanTag||'',
   streakDays:calcStreak(me.activeDays),activeDays:me.activeDays,tags:me.tags,
   accountType:me.accountType,accountId:me.accountId,authProvider:me.authProvider||(me.accountType==='account'?'google.com':'anonymous'),
