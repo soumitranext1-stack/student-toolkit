@@ -41,22 +41,47 @@
     return `pfs-mode-${m}`;
   }
 
-  function getModeBackdropOverride(rm, defaultBgCss) {
+  function getModeBackdropOverride(rm, defaultBgCss, themeId) {
     const m = PMSR() ? PMSR().sanitizeMode(rm && rm.mode) : String((rm && rm.mode) || 'normal');
+    const th = String(themeId || (rm && rm.roomTheme) || 'default').toLowerCase();
+    if (th === 'gradient') return defaultBgCss;
+
     if (m === 'acquaint') {
-      return 'radial-gradient(circle at 50% 18%, rgba(244,63,94,.34), transparent 56%), radial-gradient(circle at 80% 70%, rgba(168,85,247,.26), transparent 55%), linear-gradient(180deg, #250b29 0%, #14091d 55%, #090613 100%)';
+      if (th === 'light') {
+        return 'radial-gradient(circle at 50% 10%, rgba(244, 114, 182, .28), transparent 56%), radial-gradient(circle at 84% 72%, rgba(167, 139, 250, .24), transparent 54%), linear-gradient(180deg, #fae2ec 0%, #f1e6fb 55%, #e2e8fa 100%)';
+      }
+      if (th === 'dark') {
+        return 'radial-gradient(circle at 50% 10%, rgba(244, 114, 182, .22), transparent 54%), radial-gradient(circle at 84% 72%, rgba(167, 139, 250, .16), transparent 52%), linear-gradient(180deg, #160e1d 0%, #191224 55%, #0d0c18 100%)';
+      }
+      return 'radial-gradient(circle at 50% 10%, rgba(244, 114, 182, .26), transparent 56%), radial-gradient(circle at 84% 72%, rgba(167, 139, 250, .22), transparent 54%), linear-gradient(180deg, #241934 0%, #2a1e42 55%, #1a1830 100%)';
     }
     if (m === 'auction') {
-      return 'radial-gradient(circle at 50% 8%, rgba(251,191,36,.32), transparent 52%), radial-gradient(circle at 18% 40%, rgba(217,119,6,.18), transparent 48%), linear-gradient(180deg, #1f1408 0%, #110b09 58%, #09070c 100%)';
+      if (th === 'light') {
+        return 'radial-gradient(circle at 50% 8%, rgba(251, 191, 36, .34), transparent 54%), radial-gradient(circle at 18% 44%, rgba(251, 146, 60, .2), transparent 48%), linear-gradient(180deg, #faefd2 0%, #f5e8cc 55%, #e8e6df 100%)';
+      }
+      if (th === 'dark') {
+        return 'radial-gradient(circle at 50% 8%, rgba(245, 158, 11, .22), transparent 52%), linear-gradient(180deg, #171310 0%, #1d1714 55%, #0e0e14 100%)';
+      }
+      return 'radial-gradient(circle at 50% 8%, rgba(245, 158, 11, .26), transparent 54%), radial-gradient(circle at 18% 44%, rgba(251, 146, 60, .18), transparent 48%), linear-gradient(180deg, #251e22 0%, #2c2430 55%, #191926 100%)';
     }
     if (m === 'games') {
-      return 'radial-gradient(circle at 50% 14%, rgba(56,189,248,.28), transparent 54%), radial-gradient(circle at 85% 65%, rgba(99,102,241,.24), transparent 52%), linear-gradient(180deg, #0b162e 0%, #090f20 58%, #060914 100%)';
+      if (th === 'light') {
+        return 'radial-gradient(circle at 50% 10%, rgba(56, 189, 248, .3), transparent 56%), radial-gradient(circle at 86% 68%, rgba(52, 211, 153, .22), transparent 52%), linear-gradient(180deg, #d7ecfc 0%, #e1edfb 55%, #d9f2ea 100%)';
+      }
+      if (th === 'dark') {
+        return 'radial-gradient(circle at 50% 10%, rgba(56, 189, 248, .22), transparent 54%), radial-gradient(circle at 86% 68%, rgba(52, 211, 153, .16), transparent 50%), linear-gradient(180deg, #0c1724 0%, #101e2f 55%, #0b1620 100%)';
+      }
+      return 'radial-gradient(circle at 50% 10%, rgba(56, 189, 248, .28), transparent 56%), radial-gradient(circle at 86% 68%, rgba(52, 211, 153, .2), transparent 52%), linear-gradient(180deg, #13233a 0%, #192f4a 55%, #122634 100%)';
     }
     return defaultBgCss;
   }
 
   function buildStageSignature(rm) {
     const m = PMSR() ? PMSR().sanitizeMode(rm.mode) : String(rm.mode || 'normal');
+    const prr = typeof window !== 'undefined' && window.PartyRoomRules ? window.PartyRoomRules : null;
+    const ownerInfo = prr && typeof prr.getRoomOwnerDisplayInfo === 'function'
+      ? prr.getRoomOwnerDisplayInfo(rm, Date.now(), prr.DEFAULT_STALE_MS)
+      : { uid: rm.ownerUid || rm.hostUid || '', name: rm.ownerName || rm.hostName || '', avatar: rm.ownerAvatar || '', online: Boolean(rm.seats && rm.seats['0']) };
     const seats = rm.seats || {};
     const seatSig = Object.keys(seats).sort().map(k => {
       const s = seats[k];
@@ -69,7 +94,7 @@
     else if (m === 'auction') modeSig = JSON.stringify(rm.auctionState || {});
     else if (m === 'games') modeSig = JSON.stringify(rm.gamesStageState || {});
     else if (m === 'video') modeSig = `${rm.mediaPlayMode || ''}:${rm.youtubeId || ''}:${(rm.queue || []).length}`;
-    return `${rm.id}::${m}::${rm.partnerSeat ? 1 : 0}::${rm.hostUid || ''}::${seatSig}::${lockSig}::${adminSig}::${modeSig}`;
+    return `${rm.id}::${m}::${rm.partnerSeat ? 1 : 0}::${ownerInfo.uid}:${ownerInfo.name}:${ownerInfo.avatar}:${ownerInfo.online ? 1 : 0}::${seatSig}::${lockSig}::${adminSig}::${modeSig}`;
   }
 
   /* ===== 1. Normal Mode Stage ===== */
@@ -207,13 +232,14 @@
     `;
   }
 
-  /* ===== 4. Video Mode Stage (Compact Speakers + Easy Add Song / Audio) ===== */
+  /* ===== 4. Video Mode Stage (Clean Cinema Seats — Zero Duplicate Add Song Button) ===== */
   function renderVideoStage(rm, renderSeatTile) {
+    const micCount = [0, 1, 2, 3].filter(i => rm.seats && rm.seats[String(i)]).length;
     return `
       <div class="pms-video-stage" data-testid="vr-stage-video">
         <div class="pms-vid-quick-row">
-          <span class="pms-vid-lbl">🎬 Cinema Stage · Mic 1–4</span>
-          <button type="button" class="btn sm ok" data-pfs-act="open-music" data-testid="vr-video-add-song-btn">♪ Add Song / Audio</button>
+          <span class="pms-vid-lbl">Cinema Stage · Mic 1–4</span>
+          <span class="pms-vid-count tabular-nums">${micCount}/4 on mic</span>
         </div>
         <div class="pfs-seats-4col pms-vid-mics">
           ${[0, 1, 2, 3].map(i => renderSeatTile(rm, i)).join('')}
@@ -234,7 +260,11 @@
     const activeGame = catalog.find(g => g.id === st.gameId) || catalog[0] || { id: 'uno', name: 'Oh My Card', icon: '🃏', accent: '#f59e0b', players: '2-4P', desc: '' };
     const activeTier = tiers.find(t => t.id === st.tierId) || tiers[0] || { id: 'classic_free', label: 'Classic Free', fee: 0, badge: 'Free' };
 
-    const hostSeat = (rm.seats && rm.seats['0']) || { uid: rm.hostUid, name: rm.hostName || 'Host', avatar: 'av_b1' };
+    const prr = typeof window !== 'undefined' && window.PartyRoomRules ? window.PartyRoomRules : null;
+    const ownerInfo = prr && typeof prr.getRoomOwnerDisplayInfo === 'function'
+      ? prr.getRoomOwnerDisplayInfo(rm, Date.now(), prr.DEFAULT_STALE_MS)
+      : { uid: rm.ownerUid || rm.hostUid, name: rm.ownerName || rm.hostName || 'Owner', avatar: rm.ownerAvatar || 'av_b1', online: false };
+    const hostSeat = (rm.seats && rm.seats['0']) || { uid: ownerInfo.uid, name: ownerInfo.name || 'Owner', avatar: ownerInfo.avatar || 'av_b1', frame: 'none' };
     const rivalSeat = Object.keys(rm.seats || {})
       .filter(k => rm.seats[k] && rm.seats[k].uid !== hostSeat.uid)
       .map(k => rm.seats[k])[0] || null;

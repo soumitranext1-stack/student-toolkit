@@ -10,25 +10,10 @@
      supporting Video Mode (VR Screen) & Audio / MP3 Mini-Player Mode
    ===================================================================== */
 (function (global) {
-  const FALLBACK_AUDIO_STREAMS = [
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3',
-    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3'
-  ];
-
-  const DEFAULT_SYNTH_NOTES = [261.63, 329.63, 392.0, 440.0, 392.0, 329.63];
+  // Zero fake/dummy instrumental audio streams & zero 30s preview traps: only full-length real songs play.
+  const FALLBACK_AUDIO_STREAMS = [];
+  const FAKE_DEMO_AUDIO_RE = /soundhelix\.com/i;
+  const PREVIEW_30S_AUDIO_RE = /(?:audio-ssl\.itunes\.apple\.com|audio\.itunes\.apple\.com|mzstatic\.com\/.*\/(?:music|audio|mzaf)[^/]*\.m4a)/i;
 
   /**
    * Free public YouTube search endpoints (no API keys needed).
@@ -53,6 +38,19 @@
   const MAX_QUEUE_ITEMS = 40;
   const SEARCH_CACHE_TTL_MS = 180000;
   const searchCache = new Map();
+  const audioSearchCache = new Map();
+
+  const ITUNES_SEARCH_BASE = 'https://itunes.apple.com/search';
+  const AUDIUS_API_BASE = 'https://api.audius.co';
+
+  const AUDIO_BROWSE_TOPICS = [
+    { id: 'hindi_hits', label: 'Hindi Hits', query: 'Arijit Singh Bollywood Hits' },
+    { id: 'bangla_hits', label: 'Bangla', query: 'Bangla Song Anupam Roy Arijit' },
+    { id: 'punjabi', label: 'Punjabi', query: 'Diljit Dosanjh Karan Aujla' },
+    { id: 'english_pop', label: 'English Pop', query: 'The Weeknd Bruno Mars Pop' },
+    { id: 'lofi', label: 'Lo-Fi Chill', query: 'Lofi Hindi Chill Beats' },
+    { id: 'trending_in', label: 'Trending', query: 'Top Bollywood 2024 2025' }
+  ];
 
   function cleanStr(val) {
     return String(val == null ? '' : val).trim();
@@ -66,6 +64,42 @@
     return /^synth:\/\//i.test(cleanStr(url));
   }
 
+  function isFakeDemoAudioUrl(url) {
+    return FAKE_DEMO_AUDIO_RE.test(cleanStr(url));
+  }
+
+  function isPreview30sAudioUrl(url) {
+    return PREVIEW_30S_AUDIO_RE.test(cleanStr(url));
+  }
+
+  function isYtAudioUrl(url) {
+    return /^yt-audio:\/\/[A-Za-z0-9_-]{11}$/.test(cleanStr(url));
+  }
+
+  function extractYtAudioId(url) {
+    const m = cleanStr(url).match(/^yt-audio:\/\/([A-Za-z0-9_-]{11})$/);
+    return m ? m[1] : '';
+  }
+
+  function isYtAudioSearchUrl(url) {
+    return /^yt-audio-search:\/\/.+/i.test(cleanStr(url));
+  }
+
+  function buildYtAudioSearchUrl(query) {
+    const q = cleanStr(query);
+    return q ? `yt-audio-search://${encodeURIComponent(q)}` : '';
+  }
+
+  function extractYtAudioSearchQuery(url) {
+    const m = cleanStr(url).match(/^yt-audio-search:\/\/(.+)$/i);
+    if (!m) return '';
+    try {
+      return decodeURIComponent(m[1]).trim();
+    } catch {
+      return m[1].trim();
+    }
+  }
+
   function isValidYouTubeId(id) {
     return /^[A-Za-z0-9_-]{11}$/.test(cleanStr(id));
   }
@@ -73,6 +107,16 @@
   function buildYouTubeThumb(videoId) {
     const id = cleanStr(videoId);
     return isValidYouTubeId(id) ? `https://i.ytimg.com/vi/${id}/mqdefault.jpg` : '';
+  }
+
+  function parseDurationLabelToSec(label) {
+    const s = cleanStr(label);
+    if (!s || /^live$/i.test(s)) return 0;
+    const parts = s.split(':').map((x) => Number(x));
+    if (parts.some((n) => !Number.isFinite(n) || n < 0)) return 0;
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return 0;
   }
 
   function formatDurationSec(sec) {
@@ -107,20 +151,16 @@
     return Math.abs(h);
   }
 
-  function pickFallbackStreamUrl(seedKey) {
-    const idx = hashString(seedKey) % FALLBACK_AUDIO_STREAMS.length;
-    return FALLBACK_AUDIO_STREAMS[idx];
-  }
-
-  function makeSongEntry(spec, idx) {
+  function makeSongEntry(spec) {
     const id = spec.id;
     const title = spec.title;
     const artist = spec.artist;
     const language = spec.language;
     const ytId = isValidYouTubeId(spec.youtubeId) ? spec.youtubeId : '';
-    const url = spec.url !== undefined
-      ? String(spec.url || '').trim()
-      : FALLBACK_AUDIO_STREAMS[idx % FALLBACK_AUDIO_STREAMS.length];
+    const rawDirect = spec.url !== undefined ? String(spec.url || '').trim() : '';
+    const safeDirect = rawDirect && !isFakeDemoAudioUrl(rawDirect) && !isPreview30sAudioUrl(rawDirect) ? rawDirect : '';
+    const url = safeDirect || (ytId ? `yt-audio://${ytId}` : '');
+    const durLabel = spec.duration || '3:45';
     return {
       id,
       title,
@@ -129,15 +169,19 @@
       channel: artist,
       language,
       tag: language,
-      duration: spec.duration || '3:45',
+      duration: durLabel,
+      durationSec: parseDurationLabelToSec(durLabel),
       accent: spec.accent || (language === 'Bangla' ? '#06b6d4' : '#f59e0b'),
       url,
       youtubeId: ytId,
       videoId: ytId,
       thumbnail: ytId ? buildYouTubeThumb(ytId) : '',
-      kind: ytId ? 'youtube' : 'audio',
-      searchQuery: `${title} ${artist} ${language} song`,
-      synthNotes: Array.isArray(spec.synthNotes) ? spec.synthNotes : DEFAULT_SYNTH_NOTES
+      kind: 'audio',
+      source: ytId ? 'yt_audio' : 'catalog',
+      isFullSong: true,
+      isPreview: false,
+      isFallback: false,
+      searchQuery: `${title} ${artist} ${language} song`
     };
   }
 
@@ -727,6 +771,515 @@
     return res;
   }
 
+  /* ===== Live Full-Length Audio Song Search (Full YouTube Music Audio + Audius Full + Full Search Fallback) ===== */
+
+  function parsePipedAudioSearchResponse(json, maxResults, excludeIds) {
+    const cap = Math.max(1, Math.min(25, Number(maxResults) || 15));
+    const items = Array.isArray(json) ? json : (json && Array.isArray(json.items) ? json.items : []);
+    const skip = new Set(Array.isArray(excludeIds) ? excludeIds.map(cleanStr) : []);
+    const seen = new Set();
+    const fullSongs = [];
+    const shortFallback = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it || typeof it !== 'object') continue;
+      if (it.type && it.type !== 'stream' && it.type !== 'video') continue;
+      if (it.isShort === true) continue;
+      const vid = extractYouTubeIdFromPath(it.url || it.videoId || it.id);
+      if (!vid || seen.has(vid) || skip.has(vid)) continue;
+      seen.add(vid);
+      const title = cleanStr(it.title);
+      if (!title) continue;
+      const artist = cleanStr(it.uploaderName || it.author || 'Artist').replace(/\s*-\s*Topic$/i, '');
+      const durSec = Number(it.duration);
+      const validDur = Number.isFinite(durSec) && durSec > 0 ? Math.floor(durSec) : 0;
+      const duration = validDur > 0 ? formatDurationSec(validDur) : '';
+      const thumb = buildYouTubeThumb(vid);
+      const entry = {
+        id: 'yta_' + vid,
+        songId: 'yta_' + vid,
+        videoId: vid,
+        youtubeId: vid,
+        title,
+        artist,
+        singer: artist,
+        channel: artist,
+        album: '',
+        language: 'Full Song',
+        tag: 'Full Song',
+        duration,
+        durationSec: validDur,
+        thumbnail: thumb,
+        artworkUrl: thumb,
+        url: `yt-audio://${vid}`,
+        externalUrl: `https://www.youtube.com/watch?v=${vid}`,
+        kind: 'audio',
+        isFullSong: true,
+        isPreview: false,
+        isFallback: false,
+        source: 'yt_audio',
+        searchQuery: `${title} ${artist} full song`
+      };
+      // Prefer full-length songs (>= 45s) over tiny teasers/clips
+      if (validDur === 0 || validDur >= 45) fullSongs.push(entry);
+      else shortFallback.push(entry);
+      if (fullSongs.length >= cap) break;
+    }
+    return (fullSongs.length ? fullSongs : shortFallback).slice(0, cap);
+  }
+
+  function parseInvidiousAudioSearchResponse(json, maxResults, excludeIds) {
+    const cap = Math.max(1, Math.min(25, Number(maxResults) || 15));
+    const items = Array.isArray(json) ? json : [];
+    const skip = new Set(Array.isArray(excludeIds) ? excludeIds.map(cleanStr) : []);
+    const seen = new Set();
+    const out = [];
+    for (let i = 0; i < items.length && out.length < cap; i++) {
+      const it = items[i];
+      if (!it || typeof it !== 'object') continue;
+      if (it.type && it.type !== 'video') continue;
+      const vid = extractYouTubeIdFromPath(it.videoId || it.url);
+      if (!vid || seen.has(vid) || skip.has(vid)) continue;
+      seen.add(vid);
+      const title = cleanStr(it.title);
+      if (!title) continue;
+      const artist = cleanStr(it.author || 'Artist').replace(/\s*-\s*Topic$/i, '');
+      const durSec = Number(it.lengthSeconds);
+      const validDur = Number.isFinite(durSec) && durSec > 0 ? Math.floor(durSec) : 0;
+      if (validDur > 0 && validDur < 45) continue;
+      const thumb = buildYouTubeThumb(vid);
+      out.push({
+        id: 'yta_' + vid,
+        songId: 'yta_' + vid,
+        videoId: vid,
+        youtubeId: vid,
+        title,
+        artist,
+        singer: artist,
+        channel: artist,
+        album: '',
+        language: 'Full Song',
+        tag: 'Full Song',
+        duration: validDur > 0 ? formatDurationSec(validDur) : '',
+        durationSec: validDur,
+        thumbnail: thumb,
+        artworkUrl: thumb,
+        url: `yt-audio://${vid}`,
+        externalUrl: `https://www.youtube.com/watch?v=${vid}`,
+        kind: 'audio',
+        isFullSong: true,
+        isPreview: false,
+        isFallback: false,
+        source: 'yt_audio',
+        searchQuery: `${title} ${artist} full song`
+      });
+    }
+    return out;
+  }
+
+  function upgradeItunesArtworkUrl(url) {
+    const raw = cleanStr(url);
+    if (!isValidHttpUrl(raw)) return '';
+    return raw.replace(/\/\d+x\d+bb\.(jpg|jpeg|png|webp)$/i, '/200x200bb.$1');
+  }
+
+  /**
+   * Parses iTunes metadata into FULL-SONG tracks routed through full-length YouTube audio
+   * (`yt-audio-search://`) so users NEVER hit Apple's 30-second preview cutoff!
+   */
+  function parseItunesSearchResponse(json, maxResults) {
+    const cap = Math.max(1, Math.min(25, Number(maxResults) || 15));
+    const items = json && Array.isArray(json.results) ? json.results : [];
+    const seen = new Set();
+    const out = [];
+    for (let i = 0; i < items.length && out.length < cap; i++) {
+      const it = items[i];
+      if (!it || typeof it !== 'object') continue;
+      if (it.kind && it.kind !== 'song' && it.wrapperType !== 'track') continue;
+      const previewUrl = cleanStr(it.previewUrl);
+      const title = cleanStr(it.trackName || it.trackCensoredName);
+      if (!title) continue;
+      const artist = cleanStr(it.artistName || 'Artist');
+      const trackId = cleanStr(it.trackId || '');
+      const dedupeKey = trackId
+        ? `it_${trackId}`
+        : `${title.toLowerCase()}::${artist.toLowerCase()}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
+      const durMs = Number(it.trackTimeMillis);
+      const durSec = Number.isFinite(durMs) && durMs > 0 ? Math.round(durMs / 1000) : 0;
+      const duration = durSec > 0 ? formatDurationSec(durSec) : '';
+      const genre = cleanStr(it.primaryGenreName || 'Music');
+      const album = cleanStr(it.collectionName || '');
+      const thumb = upgradeItunesArtworkUrl(it.artworkUrl100 || it.artworkUrl60 || it.artworkUrl30);
+      const id = trackId ? `itunes_${trackId}` : `itunes_${hashString(title + artist).toString(36)}`;
+      const fullQuery = `${title} ${artist} full song`;
+
+      out.push({
+        id,
+        songId: id,
+        title,
+        artist,
+        singer: artist,
+        channel: artist,
+        album,
+        language: genre,
+        tag: genre,
+        duration,
+        durationSec: durSec,
+        thumbnail: thumb,
+        artworkUrl: thumb,
+        // Route to full-length audio search engine instead of Apple's 30s preview clip!
+        url: buildYtAudioSearchUrl(fullQuery),
+        previewUrl: isValidHttpUrl(previewUrl) ? previewUrl : '',
+        externalUrl: cleanStr(it.trackViewUrl || it.collectionViewUrl || ''),
+        kind: 'audio',
+        isFullSong: true,
+        isPreview: false,
+        isFallback: false,
+        source: 'itunes_full',
+        searchQuery: fullQuery
+      });
+    }
+    return out;
+  }
+
+  function parseAudiusSearchResponse(json, maxResults) {
+    const cap = Math.max(1, Math.min(25, Number(maxResults) || 12));
+    const items = json && Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+    const seen = new Set();
+    const out = [];
+    for (let i = 0; i < items.length && out.length < cap; i++) {
+      const it = items[i];
+      if (!it || typeof it !== 'object') continue;
+      const tid = cleanStr(it.id);
+      const title = cleanStr(it.title);
+      if (!tid || !title || seen.has(tid)) continue;
+      seen.add(tid);
+
+      const artist = cleanStr((it.user && (it.user.name || it.user.handle)) || 'Audius Artist');
+      const durSec = Number(it.duration);
+      const duration = Number.isFinite(durSec) && durSec > 0 ? formatDurationSec(durSec) : '';
+      const genre = cleanStr(it.genre || 'Music');
+      const artObj = it.artwork && typeof it.artwork === 'object' ? it.artwork : {};
+      const thumb = cleanStr(artObj['150x150'] || artObj['480x480'] || '');
+      const streamUrl = `${AUDIUS_API_BASE}/v1/tracks/${encodeURIComponent(tid)}/stream`;
+      const id = `audius_${tid}`;
+
+      out.push({
+        id,
+        songId: id,
+        title,
+        artist,
+        singer: artist,
+        channel: artist,
+        album: cleanStr(it.mood || ''),
+        language: genre,
+        tag: genre,
+        duration,
+        durationSec: Number.isFinite(durSec) && durSec > 0 ? Math.floor(durSec) : 0,
+        thumbnail: isValidHttpUrl(thumb) ? thumb : '',
+        artworkUrl: isValidHttpUrl(thumb) ? thumb : '',
+        url: streamUrl,
+        previewUrl: streamUrl,
+        externalUrl: it.permalink ? `https://audius.co${it.permalink}` : '',
+        kind: 'audio',
+        isFullSong: true,
+        isPreview: false,
+        isFallback: false,
+        source: 'audius',
+        searchQuery: `${title} ${artist} song`
+      });
+    }
+    return out;
+  }
+
+  function findLocalAudioMatches(query, maxResults) {
+    const q = cleanStr(query).toLowerCase();
+    if (!q) return [];
+    const cap = Math.max(1, Math.min(20, Number(maxResults) || 10));
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const out = [];
+    for (let i = 0; i < SONGS_CATALOG.length && out.length < cap; i++) {
+      const s = SONGS_CATALOG[i];
+      if (!s) continue;
+      const hay = `${s.title} ${s.artist} ${s.language}`.toLowerCase();
+      if (hay.includes(q) || (tokens.length > 1 && tokens.every((t) => hay.includes(t)))) {
+        out.push({
+          ...s,
+          songId: s.id,
+          kind: 'audio',
+          source: 'catalog'
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Resolves ANY song title/artist (including legacy iTunes 30s preview entries or unlinked catalog songs)
+   * into a FULL-LENGTH audio stream (`yt-audio://<videoId>` or `yt-audio-search://...`).
+   * Never returns a 30-second preview clip or SoundHelix dummy URL.
+   */
+  async function resolveFullLengthSongUrl(track, opts) {
+    const o = opts || {};
+    const title = cleanStr(track && track.title);
+    const artist = cleanStr(track && (track.artist || track.singer || track.channel));
+    const query = cleanStr(o.query || (track && track.searchQuery) || `${title} ${artist} full song`);
+    if (!query) return { ok: false, url: '', videoId: '' };
+
+    const timeoutMs = Number(o.timeoutMs) || 3800;
+    const fetchFn = o.fetchImpl || null;
+    const excludeIds = Array.isArray(o.excludeVideoIds) ? o.excludeVideoIds : [];
+    const pipedList = Array.isArray(o.pipedInstances) ? o.pipedInstances : PIPED_SEARCH_INSTANCES;
+    const invidiousList = Array.isArray(o.invidiousInstances) ? o.invidiousInstances : INVIDIOUS_SEARCH_INSTANCES;
+    const preferVideosFilter = Boolean(o.preferVideosFilter || excludeIds.length > 0);
+    const filters = preferVideosFilter ? ['videos', 'music_songs'] : ['music_songs', 'videos'];
+    const encoded = encodeURIComponent(query);
+
+    for (let i = 0; i < pipedList.length; i++) {
+      const base = cleanStr(pipedList[i]).replace(/\/+$/, '');
+      if (!base) continue;
+      for (let f = 0; f < filters.length; f++) {
+        try {
+          const json = await fetchJsonWithTimeout(`${base}/search?q=${encoded}&filter=${filters[f]}`, timeoutMs, fetchFn);
+          const parsed = parsePipedAudioSearchResponse(json, 5, excludeIds);
+          if (parsed.length > 0) {
+            const best = parsed[0];
+            return {
+              ok: true,
+              url: best.url,
+              videoId: best.videoId,
+              duration: best.duration,
+              durationSec: best.durationSec,
+              thumbnail: best.thumbnail,
+              source: 'yt_audio'
+            };
+          }
+        } catch {
+          // Try next filter / instance
+        }
+      }
+    }
+
+    for (let i = 0; i < invidiousList.length; i++) {
+      const base = cleanStr(invidiousList[i]).replace(/\/+$/, '');
+      if (!base) continue;
+      try {
+        const json = await fetchJsonWithTimeout(`${base}/api/v1/search?q=${encoded}&type=video`, timeoutMs, fetchFn);
+        const parsed = parseInvidiousAudioSearchResponse(json, 5, excludeIds);
+        if (parsed.length > 0) {
+          const best = parsed[0];
+          return {
+            ok: true,
+            url: best.url,
+            videoId: best.videoId,
+            duration: best.duration,
+            durationSec: best.durationSec,
+            thumbnail: best.thumbnail,
+            source: 'yt_audio'
+          };
+        }
+      } catch {
+        // Try next Invidious instance
+      }
+    }
+
+    return {
+      ok: true,
+      url: buildYtAudioSearchUrl(query),
+      videoId: '',
+      duration: cleanStr(track && track.duration) || '',
+      durationSec: Number((track && track.durationSec) || 0),
+      thumbnail: cleanStr(track && (track.thumbnail || track.artworkUrl)) || '',
+      source: 'yt_audio_search',
+      searchQuery: query
+    };
+  }
+
+  /**
+   * Live FULL-LENGTH song search for Audio / MP3 Mini-Player Mode:
+   * 1) Primary: Full-Length YouTube Music Audio Search via Piped (`music_songs` -> `videos`) + Invidious
+   *    -> returns real 3-6 minute full songs (`yt-audio://<videoId>`) with zero 30s preview cutoff!
+   * 2) Secondary: Audius Full-Length Audio API (real full streams, zero 30s preview).
+   * 3) Tertiary: iTunes metadata search upgraded to full-length `yt-audio-search://` (never 30s preview!).
+   * 4) Offline fallback: Local verified starter catalog matches.
+   */
+  async function searchAudioSongsLive(query, opts) {
+    const q = cleanStr(query);
+    if (!q) {
+      return { ok: false, error: 'Enter a song, artist, or album name to search', items: [], source: 'none', usedFallback: false };
+    }
+    const o = opts || {};
+    const maxResults = Math.max(1, Math.min(25, Number(o.maxResults) || 15));
+    const timeoutMs = Number(o.timeoutMs) || 4500;
+    const fetchFn = o.fetchImpl || null;
+    const country = cleanStr(o.country || 'IN').toUpperCase() || 'IN';
+    const useCache = o.bypassCache !== true && !fetchFn;
+    const cacheKey = `full:${country}:${q.toLowerCase()}`;
+
+    if (useCache && audioSearchCache.has(cacheKey)) {
+      const cached = audioSearchCache.get(cacheKey);
+      if (Date.now() - cached.ts < SEARCH_CACHE_TTL_MS) {
+        return cached.result;
+      }
+      audioSearchCache.delete(cacheKey);
+    }
+
+    const encoded = encodeURIComponent(q);
+    const pipedList = Array.isArray(o.pipedInstances) ? o.pipedInstances : PIPED_SEARCH_INSTANCES;
+    const invidiousList = Array.isArray(o.invidiousInstances) ? o.invidiousInstances : INVIDIOUS_SEARCH_INSTANCES;
+
+    // 1) Primary: Full-length YouTube Music Audio via Piped (`filter=music_songs`, then `filter=videos`)
+    for (let i = 0; i < pipedList.length; i++) {
+      const base = cleanStr(pipedList[i]).replace(/\/+$/, '');
+      if (!base) continue;
+      try {
+        const jsonMusic = await fetchJsonWithTimeout(`${base}/search?q=${encoded}&filter=music_songs`, timeoutMs, fetchFn);
+        let parsed = parsePipedAudioSearchResponse(jsonMusic, maxResults);
+        if (!parsed.length) {
+          const jsonVid = await fetchJsonWithTimeout(`${base}/search?q=${encoded}&filter=videos`, timeoutMs, fetchFn);
+          parsed = parsePipedAudioSearchResponse(jsonVid, maxResults);
+        }
+        if (parsed.length > 0) {
+          const result = {
+            ok: true,
+            items: parsed.slice(0, maxResults),
+            source: 'yt_audio',
+            instance: base,
+            usedFallback: false
+          };
+          if (useCache) audioSearchCache.set(cacheKey, { ts: Date.now(), result });
+          return result;
+        }
+      } catch {
+        // Try next Piped instance
+      }
+    }
+
+    // 1b) Invidious full-length audio search failover
+    for (let i = 0; i < invidiousList.length; i++) {
+      const base = cleanStr(invidiousList[i]).replace(/\/+$/, '');
+      if (!base) continue;
+      try {
+        const jsonInv = await fetchJsonWithTimeout(`${base}/api/v1/search?q=${encoded}&type=video`, timeoutMs, fetchFn);
+        const parsedInv = parseInvidiousAudioSearchResponse(jsonInv, maxResults);
+        if (parsedInv.length > 0) {
+          const result = {
+            ok: true,
+            items: parsedInv.slice(0, maxResults),
+            source: 'yt_audio',
+            instance: base,
+            usedFallback: false
+          };
+          if (useCache) audioSearchCache.set(cacheKey, { ts: Date.now(), result });
+          return result;
+        }
+      } catch {
+        // Try next Invidious instance
+      }
+    }
+
+    // 2) Secondary: iTunes Metadata Discovery -> upgraded to FULL-LENGTH YouTube Audio Search (never 30s preview!)
+    let itunesItems = [];
+    try {
+      const urlIn = `${ITUNES_SEARCH_BASE}?term=${encoded}&media=music&entity=song&country=${encodeURIComponent(country)}&limit=${Math.min(25, maxResults + 4)}`;
+      const jsonIn = await fetchJsonWithTimeout(urlIn, timeoutMs, fetchFn);
+      itunesItems = parseItunesSearchResponse(jsonIn, maxResults);
+    } catch {
+      // Continue to US iTunes or Audius
+    }
+
+    if (itunesItems.length < 4 && country !== 'US') {
+      try {
+        const urlUs = `${ITUNES_SEARCH_BASE}?term=${encoded}&media=music&entity=song&country=US&limit=${Math.min(25, maxResults)}`;
+        const jsonUs = await fetchJsonWithTimeout(urlUs, timeoutMs, fetchFn);
+        const usItems = parseItunesSearchResponse(jsonUs, maxResults);
+        if (usItems.length) {
+          const seen = new Set(itunesItems.map((x) => `${x.title.toLowerCase()}::${x.artist.toLowerCase()}`));
+          usItems.forEach((item) => {
+            const k = `${item.title.toLowerCase()}::${item.artist.toLowerCase()}`;
+            if (!seen.has(k) && itunesItems.length < maxResults) {
+              seen.add(k);
+              itunesItems.push(item);
+            }
+          });
+        }
+      } catch {
+        // Keep IN metadata results
+      }
+    }
+
+    if (itunesItems.length > 0) {
+      const result = {
+        ok: true,
+        items: itunesItems.slice(0, maxResults),
+        source: 'itunes_full',
+        usedFallback: false
+      };
+      if (useCache) audioSearchCache.set(cacheKey, { ts: Date.now(), result });
+      return result;
+    }
+
+    // 3) Tertiary Open Full-Length Audio API: Audius Discovery Search
+    try {
+      const urlAud = `${AUDIUS_API_BASE}/v1/tracks/search?query=${encoded}&limit=${Math.min(20, maxResults)}`;
+      const jsonAud = await fetchJsonWithTimeout(urlAud, timeoutMs, fetchFn);
+      const audItems = parseAudiusSearchResponse(jsonAud, maxResults);
+      if (audItems.length > 0) {
+        const result = {
+          ok: true,
+          items: audItems,
+          source: 'audius',
+          usedFallback: false
+        };
+        if (useCache) audioSearchCache.set(cacheKey, { ts: Date.now(), result });
+        return result;
+      }
+    } catch {
+      // Fall through to local catalog fallback
+    }
+
+    // 4) Offline / fallback: Local verified starter catalog matches (all full-length songs)
+    const localMatches = findLocalAudioMatches(q, maxResults);
+    if (localMatches.length > 0) {
+      return {
+        ok: true,
+        items: localMatches,
+        source: 'catalog_fallback',
+        usedFallback: true
+      };
+    }
+
+    // 5) Direct full-song search fallback item so ANY query plays full-length via YouTube audio engine
+    return {
+      ok: true,
+      items: [{
+        id: 'ytas_' + hashString(q).toString(36),
+        songId: 'ytas_' + hashString(q).toString(36),
+        title: q,
+        artist: 'Full Song Audio',
+        singer: 'Full Song Audio',
+        channel: 'Full Song Audio',
+        language: 'Full Song',
+        tag: 'Full Song',
+        duration: '',
+        durationSec: 0,
+        thumbnail: '',
+        url: buildYtAudioSearchUrl(`${q} full song`),
+        kind: 'audio',
+        isFullSong: true,
+        isPreview: false,
+        isFallback: false,
+        source: 'yt_audio_search',
+        searchQuery: `${q} full song`
+      }],
+      source: 'yt_audio_search',
+      usedFallback: true
+    };
+  }
+
   /**
    * Parses any pasted YouTube link/ID or direct video/audio URL into a track ready for the room playlist.
    */
@@ -810,41 +1363,77 @@
   function resolveSongStream(song) {
     if (!song || typeof song !== 'object') {
       return {
-        url: FALLBACK_AUDIO_STREAMS[0],
-        isFallback: true,
-        streamMode: 'fallback',
-        searchQuery: '',
-        synthNotes: DEFAULT_SYNTH_NOTES
+        url: '',
+        youtubeId: '',
+        isFallback: false,
+        needsLiveResolve: true,
+        streamMode: 'live_lookup',
+        searchQuery: ''
       };
     }
-    const rawUrl = cleanStr(song.url || song.src);
+    const rawUrl = cleanStr(song.url || song.src || song.previewUrl);
     const title = cleanStr(song.title);
     const artist = cleanStr(song.artist || song.singer || song.channel);
     const lang = cleanStr(song.language || song.tag || song.category);
     const searchQuery = cleanStr(song.searchQuery) || cleanStr(`${title} ${artist} ${lang} song`);
-    const synthNotes = Array.isArray(song.synthNotes) && song.synthNotes.length
-      ? song.synthNotes
-      : DEFAULT_SYNTH_NOTES;
+    const ytId = extractYtAudioId(rawUrl) || extractYouTubeIdFromPath(song.youtubeId || song.videoId || rawUrl);
 
-    // Direct audio URL (not a youtube watch page URL)
+    // 1) Real full-length direct audio stream (Audius /stream, user direct .mp3/.ogg/.wav) — never SoundHelix or 30s iTunes previews
     const isYoutubeWatchUrl = /youtube\.com\/watch|youtu\.be\//i.test(rawUrl);
-    if (isValidHttpUrl(rawUrl) && !isYoutubeWatchUrl) {
+    if (isValidHttpUrl(rawUrl) && !isYoutubeWatchUrl && !isFakeDemoAudioUrl(rawUrl) && !isPreview30sAudioUrl(rawUrl)) {
       return {
         url: rawUrl,
+        youtubeId: ytId,
         isFallback: false,
+        needsLiveResolve: false,
         streamMode: 'direct',
-        searchQuery,
-        synthNotes
+        searchQuery
       };
     }
 
-    const fallbackUrl = pickFallbackStreamUrl(song.id || song.videoId || `${title}_${artist}`);
+    // 2) Real full-song YouTube Audio-Only stream (plays via hidden 1x1 audio-only engine inside compact mini-player)
+    if (isValidYouTubeId(ytId)) {
+      return {
+        url: `yt-audio://${ytId}`,
+        youtubeId: ytId,
+        isFallback: false,
+        needsLiveResolve: false,
+        streamMode: 'yt_audio',
+        searchQuery
+      };
+    }
+
+    // 3) Full-song YouTube Audio Search URL (plays full track without 30s cutoff even when Piped is offline)
+    if (isYtAudioSearchUrl(rawUrl)) {
+      return {
+        url: rawUrl,
+        youtubeId: '',
+        isFallback: false,
+        needsLiveResolve: true,
+        streamMode: 'yt_audio_search',
+        searchQuery: extractYtAudioSearchQuery(rawUrl) || searchQuery
+      };
+    }
+
+    // 4) Legacy 30s preview or unlinked catalog song -> upgrade to full-length yt-audio-search + live lookup!
+    if (searchQuery) {
+      return {
+        url: buildYtAudioSearchUrl(searchQuery),
+        youtubeId: '',
+        isFallback: false,
+        needsLiveResolve: true,
+        streamMode: 'yt_audio_search',
+        searchQuery
+      };
+    }
+
     return {
-      url: fallbackUrl,
-      isFallback: true,
-      streamMode: 'fallback',
-      searchQuery,
-      synthNotes
+      url: '',
+      youtubeId: '',
+      isFallback: false,
+      needsLiveResolve: true,
+      streamMode: 'live_lookup',
+      searchQuery
     };
   }
 
@@ -864,30 +1453,37 @@
 
   function normalizeQueueItem(raw, fallbackIdx) {
     if (!raw || typeof raw !== 'object') return null;
-    const rawVideoId = extractYouTubeIdFromPath(raw.videoId || raw.youtubeId || '');
+    const rawUrlInitial = cleanStr(raw.url || raw.src || raw.audioUrl || raw.previewUrl);
+    const strippedFakeOrPreview = (isFakeDemoAudioUrl(rawUrlInitial) || isPreview30sAudioUrl(rawUrlInitial)) ? '' : rawUrlInitial;
+    const rawUrl = strippedFakeOrPreview;
+    const rawVideoId = extractYtAudioId(rawUrl) || extractYouTubeIdFromPath(raw.videoId || raw.youtubeId || rawUrl);
     const rawSearchQuery = cleanStr(raw.searchQuery);
     const rawKind = cleanStr(raw.kind);
-    const rawUrl = cleanStr(raw.url || raw.src || raw.audioUrl);
     const title = cleanStr(raw.title) || deriveTitleFromUrl(rawUrl) || (rawSearchQuery ? `Search: ${rawSearchQuery}` : '');
     if (!rawUrl && !title && !rawVideoId && !rawSearchQuery) return null;
 
     let kind = rawKind;
     if (!kind) {
-      if (rawVideoId) kind = 'youtube';
+      if (isYtAudioUrl(rawUrl) || isYtAudioSearchUrl(rawUrl)) kind = 'audio';
+      else if (rawVideoId) kind = 'youtube';
       else if (/\.(mp4|webm|m4v)(\?.*)?$/i.test(rawUrl)) kind = 'direct_video';
       else if (rawUrl.includes('listType=search')) kind = 'yt_search';
       else kind = 'audio';
     }
 
-    const isDirectAudio = kind === 'audio' && (isValidHttpUrl(rawUrl) || isSynthUrl(rawUrl)) && !/youtube\.com|youtu\.be/i.test(rawUrl);
+    const isDirectAudio = kind === 'audio' && isValidHttpUrl(rawUrl) && !/youtube\.com|youtu\.be/i.test(rawUrl) && !isFakeDemoAudioUrl(rawUrl) && !isPreview30sAudioUrl(rawUrl);
     const isDirectVideo = kind === 'direct_video' && isValidHttpUrl(rawUrl);
     const resolvedAudio = isDirectAudio
-      ? { url: rawUrl, isFallback: Boolean(raw.isFallback) }
-      : (isDirectVideo ? { url: rawUrl, isFallback: false } : resolveSongStream(raw));
+      ? { url: rawUrl, isFallback: false }
+      : (isDirectVideo
+          ? { url: rawUrl, isFallback: false }
+          : resolveSongStream({ ...raw, url: rawUrl, videoId: rawVideoId, youtubeId: rawVideoId }));
 
     const artist = cleanStr(raw.artist || raw.singer || raw.channel) || 'Room Media';
     const language = cleanStr(raw.language || raw.tag || raw.category) || (kind === 'youtube' ? 'YouTube' : 'Track');
-    const thumb = cleanStr(raw.thumbnail) || (rawVideoId ? buildYouTubeThumb(rawVideoId) : '');
+    const thumb = cleanStr(raw.thumbnail || raw.artworkUrl) || (rawVideoId ? buildYouTubeThumb(rawVideoId) : '');
+    const durLabel = cleanStr(raw.duration) || '';
+    const durSec = Math.max(0, Number(raw.durationSec || 0)) || parseDurationLabelToSec(durLabel);
 
     return {
       id: cleanStr(raw.id) || ('q_' + (fallbackIdx != null ? fallbackIdx : Date.now().toString(36))),
@@ -896,18 +1492,24 @@
       artist,
       singer: artist,
       channel: artist,
+      album: cleanStr(raw.album) || '',
       language,
       tag: language,
-      duration: cleanStr(raw.duration) || '',
-      durationSec: Math.max(0, Number(raw.durationSec || 0)),
+      duration: durLabel || (durSec > 0 ? formatDurationSec(durSec) : ''),
+      durationSec: durSec,
       thumbnail: thumb,
+      artworkUrl: thumb,
+      externalUrl: cleanStr(raw.externalUrl) || '',
+      source: cleanStr(raw.source) || (isYtAudioUrl(resolvedAudio.url) ? 'yt_audio' : (isYtAudioSearchUrl(resolvedAudio.url) ? 'yt_audio_search' : '')),
       kind,
       videoId: rawVideoId,
       youtubeId: rawVideoId,
       videoUrl: isDirectVideo ? rawUrl : cleanStr(raw.videoUrl),
       url: resolvedAudio.url,
-      isFallback: Boolean(resolvedAudio.isFallback),
-      searchQuery: rawSearchQuery || cleanStr(`${title} ${artist} ${language}`),
+      isFullSong: true,
+      isPreview: false,
+      isFallback: false,
+      searchQuery: rawSearchQuery || cleanStr(`${title} ${artist} full song`),
       addedBy: cleanStr(raw.addedBy) || '',
       addedAt: Number(raw.addedAt || 0) || Date.now()
     };
@@ -942,6 +1544,17 @@
     const track = queue[idx] || null;
     if (!track) return clearMusicQueue().patch;
     const mode = playMode === 'video' ? 'video' : 'audio';
+    const rawUrl = cleanStr(track.url);
+    const hasYtId = isValidYouTubeId(track.videoId);
+    const isYtWatchUrl = /youtube\.com|youtu\.be/i.test(rawUrl);
+    const isBlockedOrPreview = isFakeDemoAudioUrl(rawUrl) || isPreview30sAudioUrl(rawUrl);
+    let effectiveMusicUrl = rawUrl;
+    if (mode === 'audio' && hasYtId && (!rawUrl || isYtWatchUrl || isBlockedOrPreview)) {
+      effectiveMusicUrl = `yt-audio://${track.videoId}`;
+    } else if (isBlockedOrPreview || !rawUrl) {
+      effectiveMusicUrl = buildYtAudioSearchUrl(track.searchQuery || `${track.title} ${track.artist || ''} full song`);
+    }
+    const durSec = Math.max(0, Number(track.durationSec || 0)) || parseDurationLabelToSec(track.duration);
     return {
       queue,
       queueIndex: idx,
@@ -949,11 +1562,15 @@
       musicQueueIndex: idx,
       mediaPlayMode: mode,
       musicTrackId: track.songId || track.id,
-      musicUrl: track.url,
+      musicUrl: effectiveMusicUrl,
       musicTitle: track.title,
       musicArtist: track.artist || track.channel,
       musicLanguage: track.language || '',
-      musicIsFallback: Boolean(track.isFallback),
+      musicDuration: track.duration || (durSec > 0 ? formatDurationSec(durSec) : ''),
+      musicDurationSec: durSec,
+      musicThumb: track.thumbnail || track.artworkUrl || '',
+      musicIsFallback: false,
+      musicError: '',
       musicPlaying: Boolean(playing),
       videoTitle: track.title,
       youtubeId: track.videoId || '',
@@ -1220,7 +1837,8 @@
       songId: cleanStr(song.id || song.songId || resolved.url),
       kind: isValidYouTubeId(song.youtubeId || song.videoId) && o.playMode === 'video' ? 'youtube' : 'audio',
       url: resolved.url,
-      isFallback: resolved.isFallback,
+      isFallback: false,
+      needsLiveResolve: Boolean(resolved.needsLiveResolve),
       searchQuery: resolved.searchQuery
     };
     const res = enqueueTrack(roomState, songItem, {
@@ -1232,7 +1850,8 @@
     if (!res.ok) return res;
     return {
       ...res,
-      usedFallback: resolved.isFallback,
+      usedFallback: false,
+      needsLiveResolve: Boolean(resolved.needsLiveResolve),
       searchQuery: resolved.searchQuery
     };
   }
@@ -1242,29 +1861,34 @@
     if (!isValidHttpUrl(cleanUrl)) {
       return { ok: false, error: 'Enter a valid https:// audio stream or .mp3 URL' };
     }
+    const o = opts || {};
+    const targetMode = o.playMode || (roomState && roomState.mediaPlayMode) || 'audio';
     const ytId = extractYouTubeIdFromPath(cleanUrl);
     if (ytId) {
+      const asAudio = targetMode !== 'video';
       return enqueueTrack(roomState, {
         id: 'yt_' + ytId,
         songId: 'yt_' + ytId,
         videoId: ytId,
         youtubeId: ytId,
-        title: cleanStr(customTitle) || 'YouTube Track',
-        artist: 'YouTube Link',
+        title: cleanStr(customTitle) || 'YouTube Song',
+        artist: 'YouTube Audio',
         language: 'YouTube',
-        kind: 'youtube',
-        url: `https://www.youtube.com/watch?v=${ytId}`
-      }, { ...(opts || {}), playNow: true });
+        thumbnail: buildYouTubeThumb(ytId),
+        kind: asAudio ? 'audio' : 'youtube',
+        source: asAudio ? 'yt_audio' : 'youtube',
+        url: asAudio ? `yt-audio://${ytId}` : `https://www.youtube.com/watch?v=${ytId}`
+      }, { ...o, playMode: targetMode, playNow: o.playNow !== false });
     }
     const title = cleanStr(customTitle) || deriveTitleFromUrl(cleanUrl);
     return orderSongIntoQueue(roomState, {
       id: 'custom_' + hashString(cleanUrl).toString(36),
       title,
-      artist: 'Custom Link',
-      language: 'Custom',
+      artist: 'Direct MP3',
+      language: 'MP3',
       duration: '',
       url: cleanUrl
-    }, opts);
+    }, { ...o, playMode: 'audio' });
   }
 
   function selectQueueIndex(roomState, targetIndex) {
@@ -1335,7 +1959,11 @@
         musicTitle: '',
         musicArtist: '',
         musicLanguage: '',
+        musicDuration: '',
+        musicDurationSec: 0,
+        musicThumb: '',
         musicIsFallback: false,
+        musicError: '',
         musicPlaying: false,
         youtubeId: '',
         videoTitle: ''
@@ -1387,9 +2015,18 @@
     PIPED_SEARCH_INSTANCES,
     INVIDIOUS_SEARCH_INSTANCES,
     YOUTUBE_BROWSE_TOPICS,
+    AUDIO_BROWSE_TOPICS,
     isValidHttpUrl,
     isValidYouTubeId,
+    isFakeDemoAudioUrl,
+    isPreview30sAudioUrl,
+    isYtAudioUrl,
+    extractYtAudioId,
+    isYtAudioSearchUrl,
+    buildYtAudioSearchUrl,
+    extractYtAudioSearchQuery,
     buildYouTubeThumb,
+    parseDurationLabelToSec,
     formatDurationSec,
     formatViewsCount,
     extractYouTubeIdFromPath,
@@ -1397,13 +2034,20 @@
     findSongById,
     findYouTubePresetById,
     resolveSongStream,
+    resolveFullLengthSongUrl,
     getLanguageCounts,
     parsePipedSearchResponse,
+    parsePipedAudioSearchResponse,
     parseInvidiousSearchResponse,
+    parseInvidiousAudioSearchResponse,
     buildYouTubeSearchFallbackItem,
     searchYouTubeLive,
     fetchYouTubeTrending,
     fetchYouTubeBrowseFeed,
+    parseItunesSearchResponse,
+    parseAudiusSearchResponse,
+    findLocalAudioMatches,
+    searchAudioSongsLive,
     parseDirectVideoOrYouTubeLink,
     isYouTubeEmbedErrorCode,
     getYouTubeErrorMessage,

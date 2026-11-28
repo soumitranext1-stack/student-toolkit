@@ -16,13 +16,24 @@ const PARTY_MODES_META = {
   games: { id: 'games', name: 'Games', badge: 'Games', desc: 'In-room party mini-games & Arena launches.' }
 };
 
-const PARTY_BG_META = {
-  club: { id: 'club', name: 'Club Stage', css: 'radial-gradient(circle at 50% 6%, rgba(56,189,248,.28), transparent 46%), linear-gradient(168deg,#071026 0%,#10193c 48%,#060a18 100%)', accent: '#38bdf8' },
-  grid: { id: 'grid', name: 'Cyber Grid', css: 'radial-gradient(circle at 50% 10%, rgba(34,211,238,.26), transparent 48%), linear-gradient(170deg,#050d20 0%,#0d1b3d 54%,#050914 100%)', accent: '#22d3ee' },
-  stage: { id: 'stage', name: 'Royal Stage', css: 'radial-gradient(circle at 50% 4%, rgba(251,191,36,.3), transparent 46%), linear-gradient(168deg,#1c0c24 0%,#241236 52%,#090a18 100%)', accent: '#fbbf24' },
-  neon: { id: 'neon', name: 'Neon Chill', css: 'radial-gradient(circle at 22% 14%, rgba(56,189,248,.3), transparent 46%), linear-gradient(160deg,#0c1633,#1b1140 52%,#090e20)', accent: '#a855f7' },
-  royal: { id: 'royal', name: 'Velvet Palace', css: 'radial-gradient(circle at 50% 14%, rgba(255,211,107,.32), transparent 46%), linear-gradient(165deg,#2e0826,#3e1244 50%,#140820)', accent: '#ffd36b' }
-};
+const PARTY_BG_META = (() => {
+  const list = (typeof window !== 'undefined' && window.PartyRoomRules && Array.isArray(window.PartyRoomRules.ROOM_BACKGROUNDS))
+    ? window.PartyRoomRules.ROOM_BACKGROUNDS
+    : [
+        { id: 'club', name: 'Club', minLevel: 1, ownedUnlock: true, category: 'Featured', accent: '#60a5fa', css: 'radial-gradient(ellipse 85% 42% at 50% 0%, rgba(56, 130, 246, .22), transparent 62%), linear-gradient(172deg, #070b14 0%, #0d1526 52%, #070a12 100%)' },
+        { id: 'diamonden_party', name: 'Diamonden Party', minLevel: 2, ownedUnlock: true, category: 'Featured', accent: '#e2c275', css: 'radial-gradient(ellipse 80% 42% at 50% 0%, rgba(226, 194, 117, .24), transparent 60%), linear-gradient(170deg, #0d0c16 0%, #171426 48%, #0a0b13 100%)' },
+        { id: 'stars_world', name: 'Stars of a different world', minLevel: 3, ownedUnlock: true, category: 'Featured', accent: '#a5b4fc', css: 'radial-gradient(ellipse 90% 46% at 50% 4%, rgba(99, 102, 241, .24), transparent 60%), linear-gradient(172deg, #050814 0%, #0d122b 50%, #060915 100%)' },
+        { id: 'future_city', name: 'Future City', minLevel: 4, ownedUnlock: true, category: 'Featured', accent: '#38bdf8', css: 'radial-gradient(ellipse 85% 40% at 50% 0%, rgba(14, 165, 233, .22), transparent 58%), linear-gradient(172deg, #060d18 0%, #0a1929 52%, #050a13 100%)' },
+        { id: 'custom', name: 'Custom background', minLevel: 5, ownedUnlock: true, category: 'Custom', accent: '#cbd5e1', css: 'radial-gradient(ellipse 80% 42% at 50% 0%, rgba(148, 163, 184, .18), transparent 60%), linear-gradient(172deg, #0a0f1a 0%, #11192a 54%, #070b13 100%)' },
+        { id: 'stage', name: 'Royal Stage', minLevel: 1, ownedUnlock: true, category: 'Classic', accent: '#d9b366', css: 'radial-gradient(ellipse 80% 40% at 50% 2%, rgba(217, 179, 102, .2), transparent 58%), linear-gradient(172deg, #100d18 0%, #191326 52%, #090a12 100%)' },
+        { id: 'grid', name: 'Cyber Grid', minLevel: 1, ownedUnlock: true, category: 'Classic', accent: '#38bdf8', css: 'radial-gradient(ellipse 80% 42% at 50% 4%, rgba(56, 189, 248, .18), transparent 58%), linear-gradient(172deg, #070e1b 0%, #0e1a30 54%, #060911 100%)' },
+        { id: 'neon', name: 'Midnight Violet', minLevel: 1, ownedUnlock: true, category: 'Classic', accent: '#a78bfa', css: 'radial-gradient(ellipse 80% 42% at 24% 8%, rgba(139, 92, 246, .2), transparent 58%), linear-gradient(170deg, #0b1022 0%, #15122e 52%, #080b16 100%)' },
+        { id: 'royal', name: 'Velvet Lounge', minLevel: 1, ownedUnlock: true, category: 'Classic', accent: '#eab308', css: 'radial-gradient(ellipse 80% 42% at 50% 8%, rgba(234, 179, 8, .18), transparent 58%), linear-gradient(170deg, #180c17 0%, #221124 52%, #0c0913 100%)' }
+      ];
+  const map = {};
+  list.forEach((b) => { map[b.id] = b; });
+  return map;
+})();
 
 const PARTY_COVERS = {
   cover_tensura: { name: 'Tensura Crest', bg: 'linear-gradient(135deg,#0ea5e9,#6366f1 55%,#a855f7)', glyph: '✦' },
@@ -41,11 +52,7 @@ const unlockedRoomPasswords = new Set();
 
 const PARTY_MUSIC_TRACKS = (window.PartyMediaCatalog && Array.isArray(window.PartyMediaCatalog.SONGS_CATALOG))
   ? window.PartyMediaCatalog.SONGS_CATALOG
-  : [
-      { id: 'hi_1', tag: 'Hindi', title: 'Hindi Chill Beats', singer: 'Room Audio Track', duration: '3:40', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-      { id: 'bn_1', tag: 'Bangla', title: 'Bangla Acoustic Breeze', singer: 'Room Audio Track', duration: '3:55', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3' },
-      { id: 'lofi_1', tag: 'Lo-Fi', title: 'Late Night Lo-Fi', singer: 'Room Audio Track', duration: '3:28', url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3' }
-    ];
+  : [];
 
 const PARTY_REACTIONS = ['🔥', '❤️', '😂', '👏', '🎉', '💎', '👑', '😮'];
 
@@ -80,10 +87,22 @@ function isMicSeatIndex(idx) {
 }
 
 function getEffectiveOwnerUid(rm) {
+  const rules = PRR();
+  if (rules && typeof rules.getEffectiveOwnerUid === 'function') return rules.getEffectiveOwnerUid(rm);
+  if (rm && (rm.isOwnedRoom || rm.isAdvanced)) {
+    return String(rm.ownerUid || rm.creatorUid || rm.hostUid || '').trim();
+  }
   return String((rm && (rm.activeHostUid || rm.hostUid)) || '').trim();
 }
 
 function getEffectiveOwnerName(rm) {
+  const rules = PRR();
+  if (rules && typeof rules.getRoomOwnerDisplayInfo === 'function') {
+    return rules.getRoomOwnerDisplayInfo(rm, Date.now(), rules.DEFAULT_STALE_MS).name;
+  }
+  if (rm && (rm.isOwnedRoom || rm.isAdvanced)) {
+    return String(rm.ownerName || rm.hostName || 'Owner').trim() || 'Owner';
+  }
   return String((rm && (rm.activeHostName || rm.hostName)) || 'Owner').trim() || 'Owner';
 }
 
@@ -120,8 +139,14 @@ function assertRoomPerm(rm, action, opts) {
   return true;
 }
 
-function normalizePartySeats(seats) {
+function normalizePartySeats(seats, rmOrOwnerUid) {
   const rules = PRR();
+  const ownerUid = typeof rmOrOwnerUid === 'string'
+    ? rmOrOwnerUid.trim()
+    : (rmOrOwnerUid && typeof rmOrOwnerUid === 'object' ? getEffectiveOwnerUid(rmOrOwnerUid) : '');
+  if (rules && typeof rules.sanitizeRoomSeats === 'function' && ownerUid) {
+    return rules.sanitizeRoomSeats(seats, ownerUid);
+  }
   if (rules && typeof rules.deduplicateSeats === 'function') {
     return rules.deduplicateSeats(seats);
   }
@@ -167,17 +192,41 @@ function normalizePartyRoom(rm) {
   const mode = PARTY_MODES_META[rm.mode] ? rm.mode : (rm.youtubeId ? 'video' : 'normal');
   const background = PARTY_BG_META[rm.background] ? rm.background : 'club';
   const cover = PARTY_COVERS[rm.cover] ? rm.cover : 'cover_tensura';
-  const seats = normalizePartySeats(rm.seats);
   const rules = PRR();
+  const isOwnedRoom = Boolean(rm.isOwnedRoom || rm.isAdvanced);
+  const rawSeat0Uid = rm.seats && rm.seats['0'] && rm.seats['0'].uid ? String(rm.seats['0'].uid).trim() : '';
+  const creatorUid = String(rm.creatorUid || rm.ownerUid || rm.hostUid || rawSeat0Uid || uid);
+  const ownerUid = isOwnedRoom ? String(rm.ownerUid || rm.creatorUid || rm.hostUid || uid).trim() : String(rm.ownerUid || '').trim();
+  const effectiveHostUid = isOwnedRoom
+    ? ownerUid
+    : String(rm.activeHostUid || rm.hostUid || rawSeat0Uid || uid);
+  const seats = normalizePartySeats(rm.seats, effectiveHostUid);
   const members = rules && typeof rules.normalizeMembersMap === 'function'
     ? rules.normalizeMembersMap({ ...rm, seats }, now)
     : (rm.members && typeof rm.members === 'object' ? { ...rm.members } : {});
-  const creatorUid = String(rm.creatorUid || rm.hostUid || (seats['0'] && seats['0'].uid) || uid);
-  const effectiveHostUid = String(rm.activeHostUid || rm.hostUid || (seats['0'] && seats['0'].uid) || uid);
-  const effectiveHostName = rm.activeHostName || rm.hostName || (seats['0'] && seats['0'].name) || (members[effectiveHostUid] && members[effectiveHostUid].name) || 'Owner';
-  const admins = Array.isArray(rm.admins)
-    ? [...new Set(rm.admins.filter(x => x && x !== effectiveHostUid))]
-    : [];
+  const ownerSeatMatch = ownerUid && seats['0'] && seats['0'].uid === ownerUid ? seats['0'] : null;
+  const ownerMemberMatch = ownerUid && members[ownerUid] ? members[ownerUid] : null;
+  const ownerName = isOwnedRoom
+    ? (String(rm.ownerName || (ownerSeatMatch && ownerSeatMatch.name) || (ownerMemberMatch && ownerMemberMatch.name) || rm.hostName || 'Owner').trim() || 'Owner')
+    : String(rm.ownerName || '');
+  const effectiveHostName = isOwnedRoom
+    ? ownerName
+    : (rm.activeHostName || rm.hostName || (seats['0'] && seats['0'].name) || (members[effectiveHostUid] && members[effectiveHostUid].name) || 'Owner');
+  const ownerAvatar = String(
+    (ownerSeatMatch && ownerSeatMatch.avatar) ||
+    (ownerMemberMatch && ownerMemberMatch.avatar) ||
+    rm.ownerAvatar ||
+    (effectiveHostUid === uid && typeof me !== 'undefined' && me && me.avatar) ||
+    (seats['0'] && seats['0'].avatar) ||
+    'av_b1'
+  );
+  const ownerFrame = String(
+    (ownerSeatMatch && ownerSeatMatch.frame) ||
+    (ownerMemberMatch && ownerMemberMatch.frame) ||
+    rm.ownerFrame ||
+    (effectiveHostUid === uid && typeof me !== 'undefined' && me && me.frame) ||
+    'none'
+  );
   const rawVs = rm.videoSync && typeof rm.videoSync === 'object' ? rm.videoSync : null;
   const baseVideoSync = (window.ShowGamesRules && typeof window.ShowGamesRules.normalizeVideoSyncState === 'function')
     ? window.ShowGamesRules.normalizeVideoSyncState(rm.videoSync, rm.youtubeId || '')
@@ -228,9 +277,6 @@ function normalizePartyRoom(rm) {
     ? 'video'
     : (rm.mediaPlayMode === 'audio' ? 'audio' : (mode === 'video' ? 'video' : 'audio'));
 
-  const isOwnedRoom = Boolean(rm.isOwnedRoom || rm.isAdvanced);
-  const ownerUid = isOwnedRoom ? String(rm.ownerUid || rm.creatorUid || rm.hostUid || uid) : String(rm.ownerUid || '');
-  const ownerName = isOwnedRoom ? String(rm.ownerName || effectiveHostName || 'Owner') : String(rm.ownerName || '');
   const fixedId = isOwnedRoom ? String(rm.fixedId || rm.shortId || makeRoomShortId(rm.id)) : String(rm.fixedId || '');
   const safeAdmins = Array.isArray(rm.admins)
     ? [...new Set(rm.admins.filter(x => x && x !== effectiveHostUid && x !== ownerUid))].slice(0, 3)
@@ -261,11 +307,14 @@ function normalizePartyRoom(rm) {
     isAdvanced: isOwnedRoom,
     ownerUid,
     ownerName,
+    ownerAvatar,
+    ownerFrame,
     status: safeStatus,
     title: rm.title || 'Voice Lounge',
     tag: rm.tag || (mode === 'video' ? 'Video' : (mode === 'games' ? 'Game' : 'Friends')),
     cover,
     mode,
+    modeUpdatedAt: Number(rm.modeUpdatedAt || 0),
     background,
     password: String(rm.password || '').trim().slice(0, 20),
     creatorUid,
@@ -289,6 +338,8 @@ function normalizePartyRoom(rm) {
     rallyReceiveOn: extrasCfg.rallyReceiveOn,
     region: extrasCfg.region,
     volume: extrasCfg.volume,
+    roomRules: extrasCfg.roomRules || (rules && typeof rules.normalizeRoomRulesText === 'function' ? rules.normalizeRoomRulesText(rm.roomRules) : 'Be respectful on mic · Keep chat friendly & spam-free · Follow Room Owner & Admin guidelines.'),
+    customBackgroundUrl: extrasCfg.customBackgroundUrl || (rules && typeof rules.sanitizeCustomBackgroundUrl === 'function' ? rules.sanitizeCustomBackgroundUrl(rm.customBackgroundUrl) : ''),
     blocklist: extrasCfg.blocklist,
     operationLog: extrasCfg.operationLog,
     pkSession: rm.pkSession && typeof rm.pkSession === 'object' ? rm.pkSession : null,
@@ -307,7 +358,9 @@ function normalizePartyRoom(rm) {
     musicTitle: String(rm.musicTitle || ''),
     musicArtist: String(rm.musicArtist || ''),
     musicLanguage: String(rm.musicLanguage || ''),
+    musicThumb: String(rm.musicThumb || ''),
     musicIsFallback: Boolean(rm.musicIsFallback),
+    musicError: String(rm.musicError || ''),
     musicPlaying: Boolean(rm.musicPlaying),
     videoTitle: String(rm.videoTitle || ''),
     youtubeId: videoSync.videoId,
@@ -524,7 +577,7 @@ function handleIncomingPartyRoomBroadcast(payload) {
         ? rules.mergeRoomChatMessages([rm.chat, [payload.message]], Array.from(partyDeletedMsgIds), 45)
         : [...(rm.chat || []).filter(m => m && m.id !== payload.message.id), payload.message].slice(-45);
       savePartyRoomsLocal();
-      if (activePartyRoomId === rid) renderFullScreenPartyRoom();
+      if (activePartyRoomId === rid) renderPartyChatFeedOnly(rm);
     }
     return;
   }
@@ -540,7 +593,7 @@ function handleIncomingPartyRoomBroadcast(payload) {
       rm.reactions = rules
         ? rules.mergeRoomReactions([rm.reactions, [rx]], 24)
         : [...(rm.reactions || []).filter(r => r && r.id !== rx.id), rx].slice(-24);
-      savePartyRoomsLocal();
+      // Isolated reaction overlay only: never serialize room or re-render stage/mode!
       if (activePartyRoomId === rid) {
         triggerPartyReactionFx(rm, rx);
       }
@@ -559,6 +612,12 @@ function handleIncomingPartyRoomBroadcast(payload) {
     if (rm && rules) {
       incoming.chat = rules.mergeRoomChatMessages([rm.chat, incoming.chat], Array.from(partyDeletedMsgIds), 45);
       incoming.reactions = rules.mergeRoomReactions([rm.reactions, incoming.reactions], 24);
+      if (typeof rules.resolveSafeRoomMode === 'function') {
+        const safeM = rules.resolveSafeRoomMode(rm, incoming, Date.now());
+        incoming.mode = safeM.mode;
+        incoming.mediaPlayMode = safeM.mediaPlayMode;
+        incoming.modeUpdatedAt = safeM.modeUpdatedAt;
+      }
     }
     const idx = partyRooms.findIndex(r => r && r.id === rid);
     if (idx >= 0) partyRooms[idx] = incoming;
@@ -576,82 +635,124 @@ function handleIncomingPartyRoomBroadcast(payload) {
   }
 }
 
-/* ===== Real HTML5 Audio Player + Queue Auto-Advance (Persists Across Views/Tabs) ===== */
+/* ===== Real Full-Song Dual-Engine Audio Player (HTML5 <audio> + Hidden 1x1 Full-Length YouTube Audio Engine) ===== */
 const PartyAudioPlayer = (() => {
   let el = null;
+  let activeEngine = ''; // 'html5' | 'yt_audio' | ''
   let currentUrl = '';
   let currentTrackId = '';
+  let expectedDurationSec = 0;
   let wantPlaying = false;
+  let wantLoop = true;
+  let volume01 = 0.65;
   let onEndedCb = null;
-  let synthCtx = null;
-  let synthTimer = 0;
-  let synthStep = 0;
+  let onErrorCb = null;
+  let lastError = null;
+  let isAudioScrubbing = false;
+  let progressIv = 0;
 
-  function stopFallbackSynth() {
-    if (synthTimer) {
-      clearInterval(synthTimer);
-      synthTimer = 0;
-    }
+  // Hidden offscreen 1x1 audio-only YouTube player state (zero big video box, plays FULL 3-6 min songs)
+  let ytApiPromise = null;
+  let ytHostEl = null;
+  let ytPlayer = null;
+  let ytReady = false;
+  let ytCurrentVideoId = '';
+  let ytCurrentSearchQuery = '';
+  let ytPendingTarget = null; // { type: 'video', videoId } | { type: 'search', query }
+  let ytSearchPlaylistMode = false;
+
+  function isFakeAudioUrl(u) {
+    const s = String(u || '').trim();
+    if (!s) return true;
+    return s.startsWith('synth://') || /soundhelix\.com/i.test(s);
   }
 
-  function startFallbackSynth(trackId) {
-    stopFallbackSynth();
-    if (!wantPlaying || !partySpeakerOn) return;
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    try {
-      if (!synthCtx) synthCtx = new AudioCtx();
-      if (synthCtx.state === 'suspended' && typeof synthCtx.resume === 'function') {
-        synthCtx.resume().catch(() => {});
-      }
-      const cat = typeof PMC === 'function' ? PMC() : null;
-      const found = cat && trackId ? cat.findSongById(trackId) : null;
-      const notes = (found && Array.isArray(found.synthNotes) && found.synthNotes.length)
-        ? found.synthNotes
-        : [261.63, 329.63, 392.0, 329.63];
-      synthStep = 0;
-      const playTone = () => {
-        if (!wantPlaying || !partySpeakerOn || !synthCtx) {
-          stopFallbackSynth();
-          return;
-        }
-        try {
-          const osc = synthCtx.createOscillator();
-          const gain = synthCtx.createGain();
-          const now = synthCtx.currentTime;
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(notes[synthStep % notes.length], now);
-          gain.gain.setValueAtTime(0.0001, now);
-          gain.gain.exponentialRampToValueAtTime(0.035, now + 0.08);
-          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.72);
-          osc.connect(gain);
-          gain.connect(synthCtx.destination);
-          osc.start(now);
-          osc.stop(now + 0.75);
-          synthStep++;
-        } catch {}
+  function isPreview30sUrl(u) {
+    const s = String(u || '').trim();
+    if (!s) return false;
+    const cat = typeof PMC === 'function' ? PMC() : null;
+    if (cat && typeof cat.isPreview30sAudioUrl === 'function') return cat.isPreview30sAudioUrl(s);
+    return /(?:audio-ssl\.itunes\.apple\.com|audio\.itunes\.apple\.com|mzstatic\.com\/.*\/(?:music|audio|mzaf)[^/]*\.m4a)/i.test(s);
+  }
+
+  function extractYtAudioId(u) {
+    const s = String(u || '').trim();
+    const m = /^yt-audio:\/\/([A-Za-z0-9_-]{11})$/i.exec(s);
+    return m ? m[1] : '';
+  }
+
+  function extractYtAudioSearchQuery(u) {
+    const s = String(u || '').trim();
+    const m = /^yt-audio-search:\/\/(.+)$/i.exec(s);
+    if (!m) return '';
+    try { return decodeURIComponent(m[1]).trim(); } catch { return m[1].trim(); }
+  }
+
+  function fmtAudioClock(sec) {
+    const t = Math.max(0, Math.floor(Number(sec) || 0));
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  }
+
+  function loadAudioYtApi() {
+    if (window.YT && typeof window.YT.Player === 'function') return Promise.resolve(window.YT);
+    if (ytApiPromise) return ytApiPromise;
+    ytApiPromise = new Promise(resolve => {
+      let done = false;
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        resolve(val || null);
       };
-      playTone();
-      synthTimer = setInterval(playTone, 820);
-    } catch {}
+      const prevReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        try { if (typeof prevReady === 'function') prevReady(); } catch {}
+        finish(window.YT || null);
+      };
+      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        tag.async = true;
+        tag.onerror = () => finish(null);
+        document.head.appendChild(tag);
+      }
+      setTimeout(() => finish(window.YT && typeof window.YT.Player === 'function' ? window.YT : null), 4500);
+    });
+    return ytApiPromise;
   }
 
-  function ensure() {
+  function ensureHtml5() {
     if (!el) {
       el = document.createElement('audio');
       el.id = 'sgPartyAudioEl';
-      el.preload = 'none';
+      el.preload = 'metadata';
       el.loop = true;
-      el.volume = 0.65;
+      el.volume = volume01;
       el.addEventListener('playing', () => {
-        stopFallbackSynth();
+        if (activeEngine !== 'html5') return;
+        lastError = null;
+        startProgressTick();
+        updateProgressDom();
+      });
+      el.addEventListener('loadedmetadata', () => {
+        if (activeEngine !== 'html5') return;
+        updateProgressDom();
       });
       el.addEventListener('error', () => {
-        if (wantPlaying && partySpeakerOn && currentUrl) {
-          startFallbackSynth(currentTrackId);
-        }
+        if (activeEngine !== 'html5' || !wantPlaying || !currentUrl) return;
+        const code = (el && el.error && el.error.code) ? Number(el.error.code) : 0;
+        lastError = {
+          url: currentUrl,
+          trackId: currentTrackId,
+          code,
+          isYtAudio: false,
+          message: code === 4
+            ? 'Audio source unsupported or blocked'
+            : 'Audio stream failed to load (network/CORS)'
+        };
+        if (typeof onErrorCb === 'function') onErrorCb(lastError);
       });
       el.addEventListener('ended', () => {
+        if (activeEngine !== 'html5') return;
         if (typeof onEndedCb === 'function') onEndedCb();
       });
       document.body.appendChild(el);
@@ -659,26 +760,354 @@ const PartyAudioPlayer = (() => {
     return el;
   }
 
+  function stopHtml5Only() {
+    if (!el) return;
+    try { el.pause(); el.removeAttribute('src'); el.load(); } catch {}
+  }
+
+  function ensureHiddenYtHost() {
+    if (ytHostEl && ytHostEl.isConnected) return ytHostEl;
+    ytHostEl = document.getElementById('sgPartyHiddenYtHost');
+    if (!ytHostEl) {
+      ytHostEl = document.createElement('div');
+      ytHostEl.id = 'sgPartyHiddenYtHost';
+      ytHostEl.setAttribute('aria-hidden', 'true');
+      ytHostEl.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0.01;pointer-events:none;overflow:hidden;z-index:-1;';
+      document.body.appendChild(ytHostEl);
+    }
+    return ytHostEl;
+  }
+
+  function stopHiddenYtOnly() {
+    ytPendingTarget = null;
+    ytCurrentVideoId = '';
+    ytCurrentSearchQuery = '';
+    ytSearchPlaylistMode = false;
+    if (ytPlayer) {
+      try {
+        if (typeof ytPlayer.stopVideo === 'function') ytPlayer.stopVideo();
+        else if (typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo();
+      } catch {}
+    }
+  }
+
+  function applyYtAudioVolumeAndMute() {
+    if (!ytPlayer || !ytReady) return;
+    try {
+      if (typeof ytPlayer.setVolume === 'function') ytPlayer.setVolume(Math.round(volume01 * 100));
+      if (partySpeakerOn && typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+      else if (!partySpeakerOn && typeof ytPlayer.mute === 'function') ytPlayer.mute();
+    } catch {}
+  }
+
+  function applyTargetToReadyYtPlayer(target, forceReload) {
+    if (!ytPlayer || !ytReady || !target) return;
+    applyYtAudioVolumeAndMute();
+    if (target.type === 'search') {
+      const sameSearch = ytSearchPlaylistMode && ytCurrentSearchQuery === target.query;
+      if (!sameSearch || forceReload) {
+        ytSearchPlaylistMode = true;
+        ytCurrentSearchQuery = target.query;
+        ytCurrentVideoId = '';
+        try {
+          if (wantPlaying && partySpeakerOn && typeof ytPlayer.loadPlaylist === 'function') {
+            ytPlayer.loadPlaylist({ listType: 'search', list: target.query, index: 0, startSeconds: 0 });
+          } else if (typeof ytPlayer.cuePlaylist === 'function') {
+            ytPlayer.cuePlaylist({ listType: 'search', list: target.query, index: 0, startSeconds: 0 });
+          }
+        } catch {}
+      } else {
+        try {
+          if (wantPlaying && partySpeakerOn && typeof ytPlayer.playVideo === 'function') ytPlayer.playVideo();
+          else if (typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo();
+        } catch {}
+      }
+    } else {
+      const sameVid = !ytSearchPlaylistMode && ytCurrentVideoId === target.videoId;
+      if (!sameVid || forceReload) {
+        ytSearchPlaylistMode = false;
+        ytCurrentSearchQuery = '';
+        ytCurrentVideoId = target.videoId;
+        try {
+          if (wantPlaying && partySpeakerOn && typeof ytPlayer.loadVideoById === 'function') {
+            ytPlayer.loadVideoById({ videoId: target.videoId, startSeconds: 0 });
+          } else if (typeof ytPlayer.cueVideoById === 'function') {
+            ytPlayer.cueVideoById({ videoId: target.videoId, startSeconds: 0 });
+          }
+        } catch {}
+      } else {
+        try {
+          if (wantPlaying && partySpeakerOn && typeof ytPlayer.playVideo === 'function') ytPlayer.playVideo();
+          else if (typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo();
+        } catch {}
+      }
+    }
+    startProgressTick();
+    updateProgressDom();
+  }
+
+  function playHiddenYtTarget(target, forceReload) {
+    if (!target) return;
+    ytPendingTarget = target;
+    if (ytPlayer && ytReady) {
+      applyTargetToReadyYtPlayer(target, forceReload);
+      return;
+    }
+
+    const host = ensureHiddenYtHost();
+    loadAudioYtApi().then((YT) => {
+      if (!YT || typeof YT.Player !== 'function') return;
+      if (activeEngine !== 'yt_audio' || !ytPendingTarget) return;
+      if (ytPlayer && ytReady) {
+        applyTargetToReadyYtPlayer(ytPendingTarget, true);
+        return;
+      }
+      const initialTarget = ytPendingTarget;
+      host.innerHTML = '';
+      const slot = document.createElement('div');
+      slot.id = 'sgPartyHiddenYtFrame';
+      host.appendChild(slot);
+
+      const playerVars = {
+        autoplay: wantPlaying && partySpeakerOn ? 1 : 0,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
+        origin: window.location.origin
+      };
+      const config = {
+        width: '1',
+        height: '1',
+        playerVars,
+        events: {
+          onReady: (ev) => {
+            ytReady = true;
+            ytPlayer = ev.target || ytPlayer;
+            try {
+              const iframe = typeof ytPlayer.getIframe === 'function' ? ytPlayer.getIframe() : null;
+              if (iframe) iframe.setAttribute('allow', 'autoplay; encrypted-media');
+            } catch {}
+            applyYtAudioVolumeAndMute();
+            if (activeEngine !== 'yt_audio') {
+              stopHiddenYtOnly();
+              return;
+            }
+            const pendingChanged = ytPendingTarget && (
+              (ytPendingTarget.type === 'video' && (ytSearchPlaylistMode || ytPendingTarget.videoId !== ytCurrentVideoId)) ||
+              (ytPendingTarget.type === 'search' && (!ytSearchPlaylistMode || ytPendingTarget.query !== ytCurrentSearchQuery))
+            );
+            if (pendingChanged) {
+              applyTargetToReadyYtPlayer(ytPendingTarget, true);
+              return;
+            }
+            try {
+              if (wantPlaying && partySpeakerOn) ytPlayer.playVideo();
+              else ytPlayer.pauseVideo();
+            } catch {}
+            startProgressTick();
+            updateProgressDom();
+          },
+          onStateChange: (ev) => {
+            if (activeEngine !== 'yt_audio') return;
+            const st = Number(ev && ev.data);
+            if (st === 1) {
+              lastError = null;
+              // If YouTube search playlist auto-jumped to search result #2 after song 0 finished, keep our Room Playlist in charge!
+              if (ytSearchPlaylistMode && typeof ytPlayer.getPlaylistIndex === 'function') {
+                const plIdx = Number(ytPlayer.getPlaylistIndex());
+                if (Number.isFinite(plIdx) && plIdx > 0) {
+                  if (wantLoop && typeof ytPlayer.playVideoAt === 'function') {
+                    try { ytPlayer.playVideoAt(0); } catch {}
+                  } else if (typeof onEndedCb === 'function') {
+                    onEndedCb();
+                  }
+                  return;
+                }
+              }
+              startProgressTick();
+              updateProgressDom();
+            } else if (st === 0) {
+              if (wantLoop) {
+                try {
+                  if (typeof ytPlayer.seekTo === 'function') ytPlayer.seekTo(0, true);
+                  if (wantPlaying && partySpeakerOn && typeof ytPlayer.playVideo === 'function') ytPlayer.playVideo();
+                } catch {}
+              } else if (typeof onEndedCb === 'function') {
+                onEndedCb();
+              }
+            }
+          },
+          onError: (ev) => {
+            if (activeEngine !== 'yt_audio' || !wantPlaying) return;
+            const code = Number((ev && ev.data) || 150);
+            lastError = {
+              url: currentUrl,
+              trackId: currentTrackId,
+              videoId: ytCurrentVideoId,
+              code,
+              isYtAudio: true,
+              message: 'YouTube audio stream unavailable or restricted'
+            };
+            if (typeof onErrorCb === 'function') onErrorCb(lastError);
+          }
+        }
+      };
+
+      if (initialTarget.type === 'search') {
+        ytSearchPlaylistMode = true;
+        ytCurrentSearchQuery = initialTarget.query;
+        ytCurrentVideoId = '';
+        playerVars.listType = 'search';
+        playerVars.list = initialTarget.query;
+      } else {
+        ytSearchPlaylistMode = false;
+        ytCurrentSearchQuery = '';
+        ytCurrentVideoId = initialTarget.videoId;
+        config.videoId = initialTarget.videoId;
+      }
+
+      try {
+        ytPlayer = new YT.Player(slot, config);
+      } catch {}
+    });
+  }
+
+  function getProgress() {
+    let cur = 0;
+    let dur = 0;
+    try {
+      if (activeEngine === 'html5' && el) {
+        cur = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+        dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 0;
+      } else if (activeEngine === 'yt_audio' && ytPlayer && ytReady) {
+        if (typeof ytPlayer.getCurrentTime === 'function') {
+          const c = Number(ytPlayer.getCurrentTime());
+          if (Number.isFinite(c) && c >= 0) cur = c;
+        }
+        if (typeof ytPlayer.getDuration === 'function') {
+          const d = Number(ytPlayer.getDuration());
+          if (Number.isFinite(d) && d > 0) dur = d;
+        }
+      }
+    } catch {}
+    // While full-song metadata is initializing, fall back to the track's true full duration (never 0:30 preview!)
+    if (dur <= 0 && expectedDurationSec > 0) {
+      dur = expectedDurationSec;
+    }
+    const pct = dur > 0 ? Math.max(0, Math.min(100, (cur / dur) * 100)) : 0;
+    return { currentSec: cur, durationSec: dur, pct, engine: activeEngine };
+  }
+
+  function updateProgressDom() {
+    if (isAudioScrubbing) return;
+    const root = document.getElementById('partyFsRoot');
+    if (!root || root.hidden) return;
+    const scrub = root.querySelector('[data-audio-scrub]');
+    const timeEl = root.querySelector('[data-audio-time]');
+    if (!scrub && !timeEl) return;
+    const p = getProgress();
+    if (scrub && p.durationSec > 0) {
+      const maxVal = Math.max(1, Math.round(p.durationSec));
+      const curVal = Math.min(maxVal, Math.max(0, Math.round(p.currentSec)));
+      scrub.max = String(maxVal);
+      scrub.value = String(curVal);
+    }
+    if (timeEl) {
+      if (p.durationSec > 0) {
+        timeEl.textContent = `${fmtAudioClock(p.currentSec)} / ${fmtAudioClock(p.durationSec)}`;
+      } else if (p.currentSec > 0) {
+        const parts = String(timeEl.textContent || '').split('/');
+        const rhs = (parts[1] || '0:00').trim();
+        timeEl.textContent = `${fmtAudioClock(p.currentSec)} / ${rhs}`;
+      }
+    }
+  }
+
+  function startProgressTick() {
+    if (progressIv) return;
+    progressIv = setInterval(() => {
+      if (!activeEngine || (!wantPlaying && !isAudioScrubbing)) {
+        stopProgressTick();
+        return;
+      }
+      updateProgressDom();
+    }, 500);
+  }
+
+  function stopProgressTick() {
+    if (progressIv) {
+      clearInterval(progressIv);
+      progressIv = 0;
+    }
+  }
+
+  function setScrubbing(flag) {
+    isAudioScrubbing = Boolean(flag);
+  }
+
+  function seekTo(sec) {
+    const target = Math.max(0, Number(sec) || 0);
+    try {
+      if (activeEngine === 'html5' && el && Number.isFinite(el.duration) && el.duration > 0) {
+        el.currentTime = Math.min(el.duration, target);
+      } else if (activeEngine === 'yt_audio' && ytPlayer && ytReady && typeof ytPlayer.seekTo === 'function') {
+        ytPlayer.seekTo(target, true);
+      }
+    } catch {}
+    updateProgressDom();
+  }
+
   function setOnEnded(fn) {
     onEndedCb = typeof fn === 'function' ? fn : null;
+  }
+
+  function setOnError(fn) {
+    onErrorCb = typeof fn === 'function' ? fn : null;
+  }
+
+  function clearError() {
+    lastError = null;
   }
 
   function playUrl(url, title, opts) {
     const clean = String(url || '').trim();
     const o = opts || {};
     currentTrackId = String(o.trackId || currentTrackId || '');
-    if (!clean || clean.startsWith('synth://')) {
-      currentUrl = clean || ('synth://' + (currentTrackId || 'preview'));
-      wantPlaying = true;
-      if (partySpeakerOn) startFallbackSynth(currentTrackId);
-      return Boolean(title || currentUrl);
+    expectedDurationSec = Math.max(0, Number(o.durationSec || 0));
+    wantLoop = o.loop != null ? Boolean(o.loop) : true;
+    lastError = null;
+
+    if (!clean || isFakeAudioUrl(clean) || isPreview30sUrl(clean)) {
+      stop();
+      return false;
     }
-    stopFallbackSynth();
-    const audio = ensure();
-    const sameSrc = currentUrl === clean && audio.getAttribute('src') === clean;
+
+    const ytAudioId = extractYtAudioId(clean);
+    const ytSearchQ = !ytAudioId ? extractYtAudioSearchQuery(clean) : '';
+    if (ytAudioId || ytSearchQ) {
+      stopHtml5Only();
+      const changed = activeEngine !== 'yt_audio' || currentUrl !== clean || Boolean(o.forceReload);
+      activeEngine = 'yt_audio';
+      currentUrl = clean;
+      wantPlaying = true;
+      const target = ytAudioId
+        ? { type: 'video', videoId: ytAudioId }
+        : { type: 'search', query: ytSearchQ };
+      playHiddenYtTarget(target, changed);
+      return Boolean(title || clean);
+    }
+
+    stopHiddenYtOnly();
+    const audio = ensureHtml5();
+    const sameSrc = activeEngine === 'html5' && currentUrl === clean && audio.getAttribute('src') === clean;
+    activeEngine = 'html5';
     currentUrl = clean;
     wantPlaying = true;
-    audio.loop = o.loop != null ? Boolean(o.loop) : true;
+    audio.loop = wantLoop;
+    audio.volume = volume01;
     audio.muted = !partySpeakerOn;
     if (!sameSrc || o.forceReload) {
       audio.src = clean;
@@ -688,59 +1117,112 @@ const PartyAudioPlayer = (() => {
       const p = audio.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
     }
+    startProgressTick();
     return Boolean(title || clean);
   }
 
   function setPlaying(play) {
     wantPlaying = Boolean(play);
-    if (!wantPlaying) stopFallbackSynth();
-    const audio = ensure();
-    if (currentUrl.startsWith('synth://')) {
-      if (wantPlaying && partySpeakerOn) startFallbackSynth(currentTrackId);
+    if (activeEngine === 'yt_audio') {
+      if (ytPlayer && ytReady) {
+        applyYtAudioVolumeAndMute();
+        try {
+          if (wantPlaying && partySpeakerOn && typeof ytPlayer.playVideo === 'function') ytPlayer.playVideo();
+          else if (typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo();
+        } catch {}
+      } else if (wantPlaying && ytPendingTarget) {
+        playHiddenYtTarget(ytPendingTarget, false);
+      }
+      if (wantPlaying) startProgressTick();
+      else stopProgressTick();
       return;
     }
+    const audio = ensureHtml5();
     if (!audio.getAttribute('src')) return;
     audio.muted = !partySpeakerOn;
     if (wantPlaying && partySpeakerOn) {
       const p = audio.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
+      startProgressTick();
     } else {
       audio.pause();
+      stopProgressTick();
     }
   }
 
   function syncFromRoom(rm) {
-    if (!rm || !rm.musicUrl || (rm.mode === 'video' && rm.mediaPlayMode === 'video')) {
+    if (!rm || !rm.musicUrl || isFakeAudioUrl(rm.musicUrl) || (rm.mode === 'video' && rm.mediaPlayMode === 'video')) {
       stop();
       return;
     }
+    const cat = typeof PMC === 'function' ? PMC() : null;
+    // Automatically upgrade any legacy 30-second iTunes preview URL saved in localStorage to a FULL-LENGTH song!
+    if (isPreview30sUrl(rm.musicUrl) && cat) {
+      const qTitle = `${rm.musicTitle || ''} ${rm.musicArtist || ''} full song`.trim();
+      if (qTitle) {
+        rm.musicUrl = typeof cat.buildYtAudioSearchUrl === 'function'
+          ? cat.buildYtAudioSearchUrl(qTitle)
+          : `yt-audio-search://${encodeURIComponent(qTitle)}`;
+        if (typeof upgradeRoomTrackToFullVideoId === 'function') {
+          upgradeRoomTrackToFullVideoId(rm, rm.musicTrackId, { title: rm.musicTitle, artist: rm.musicArtist, searchQuery: qTitle });
+        }
+      }
+    }
     const qList = Array.isArray(rm.queue) && rm.queue.length ? rm.queue : (Array.isArray(rm.musicQueue) ? rm.musicQueue : []);
-    const qLen = qList.length;
-    const shouldLoop = qLen <= 1;
-    const audio = ensure();
-    audio.loop = shouldLoop;
+    const activeIdx = Number.isFinite(Number(rm.queueIndex)) ? Number(rm.queueIndex) : Number(rm.musicQueueIndex ?? 0);
+    const activeTrack = qList[activeIdx] || null;
+    const durSec = Number(rm.musicDurationSec || (activeTrack && activeTrack.durationSec) || 0)
+      || (cat && typeof cat.parseDurationLabelToSec === 'function'
+        ? cat.parseDurationLabelToSec(rm.musicDuration || (activeTrack && activeTrack.duration) || '')
+        : 0);
+    const shouldLoop = qList.length <= 1;
+    wantLoop = shouldLoop;
+    expectedDurationSec = Math.max(0, durSec);
     if (rm.musicPlaying) {
       const changed = currentUrl !== rm.musicUrl || currentTrackId !== String(rm.musicTrackId || '');
       playUrl(rm.musicUrl, rm.musicTitle, {
         trackId: rm.musicTrackId || '',
+        durationSec: durSec,
         loop: shouldLoop,
         forceReload: changed
       });
     } else {
-      stopFallbackSynth();
-      if (currentUrl !== rm.musicUrl) {
+      const ytId = extractYtAudioId(rm.musicUrl);
+      const ytSearchQ = !ytId ? extractYtAudioSearchQuery(rm.musicUrl) : '';
+      if (ytId || ytSearchQ) {
+        stopHtml5Only();
+        activeEngine = 'yt_audio';
         currentUrl = rm.musicUrl;
         currentTrackId = String(rm.musicTrackId || '');
-        if (!rm.musicUrl.startsWith('synth://')) audio.src = rm.musicUrl;
+        wantPlaying = false;
+        if (ytPlayer && ytReady) {
+          try { ytPlayer.pauseVideo(); } catch {}
+        }
+        stopProgressTick();
+      } else {
+        stopHiddenYtOnly();
+        const audio = ensureHtml5();
+        audio.loop = shouldLoop;
+        if (currentUrl !== rm.musicUrl) {
+          activeEngine = 'html5';
+          currentUrl = rm.musicUrl;
+          currentTrackId = String(rm.musicTrackId || '');
+          audio.src = rm.musicUrl;
+        }
+        setPlaying(false);
       }
-      setPlaying(false);
     }
   }
 
   function syncSpeaker(on) {
-    if (!on) stopFallbackSynth();
-    if (currentUrl.startsWith('synth://')) {
-      if (on && wantPlaying) startFallbackSynth(currentTrackId);
+    if (activeEngine === 'yt_audio') {
+      if (ytPlayer && ytReady) {
+        try {
+          if (on && typeof ytPlayer.unMute === 'function') ytPlayer.unMute();
+          else if (!on && typeof ytPlayer.mute === 'function') ytPlayer.mute();
+          if (on && wantPlaying && typeof ytPlayer.playVideo === 'function') ytPlayer.playVideo();
+        } catch {}
+      }
       return;
     }
     if (!el) return;
@@ -753,31 +1235,55 @@ const PartyAudioPlayer = (() => {
 
   function stop() {
     wantPlaying = false;
+    activeEngine = '';
     currentUrl = '';
     currentTrackId = '';
-    stopFallbackSynth();
-    if (!el) return;
-    try { el.pause(); el.removeAttribute('src'); el.load(); } catch {}
+    expectedDurationSec = 0;
+    stopProgressTick();
+    stopHtml5Only();
+    stopHiddenYtOnly();
   }
 
   function setVolume(vol01) {
     const v = Math.max(0, Math.min(1, Number(vol01)));
-    const audio = ensure();
+    volume01 = v;
+    const audio = ensureHtml5();
     audio.volume = v;
+    if (ytPlayer && ytReady && typeof ytPlayer.setVolume === 'function') {
+      try { ytPlayer.setVolume(Math.round(v * 100)); } catch {}
+    }
   }
 
   function getState() {
     return {
       url: currentUrl,
       trackId: currentTrackId,
+      engine: activeEngine,
       playing: wantPlaying,
-      volume: el ? el.volume : 0.65,
-      synthActive: Boolean(synthTimer),
+      volume: volume01,
+      expectedDurationSec,
+      synthActive: false,
+      lastError,
+      progress: getProgress(),
       srcAttr: el ? (el.getAttribute('src') || '') : ''
     };
   }
 
-  return { playUrl, setPlaying, setVolume, syncFromRoom, syncSpeaker, setOnEnded, stop, getState };
+  return {
+    playUrl,
+    setPlaying,
+    setVolume,
+    seekTo,
+    setScrubbing,
+    getProgress,
+    syncFromRoom,
+    syncSpeaker,
+    setOnEnded,
+    setOnError,
+    clearError,
+    stop,
+    getState
+  };
 })();
 
 /* ===== Live Watch-Together Video Sync Controller (YouTube IFrame API + Ad Delay Sync + HTML5 <video>) ===== */
@@ -1067,12 +1573,17 @@ const PartyVideoSync = (() => {
     }
     const toggleBtn = slot.querySelector('[data-vid-act="toggle"]');
     if (toggleBtn) {
-      toggleBtn.textContent = vs.playing ? '⏸ Pause All' : '▶ Play All';
+      toggleBtn.textContent = vs.playing ? '⏸' : '▶';
+      toggleBtn.title = vs.playing ? 'Pause All' : 'Play All';
+      toggleBtn.setAttribute('aria-label', vs.playing ? 'Pause video for room' : 'Play video for room');
     }
     const card = slot.querySelector('.pfs-video-card');
     if (card) card.classList.toggle('theater', theaterMode);
     const thBtn = slot.querySelector('[data-vid-act="theater"]');
-    if (thBtn) thBtn.textContent = theaterMode ? '🗗 Fit' : '⛶ Theater';
+    if (thBtn) {
+      thBtn.textContent = theaterMode ? '🗗' : '⛶';
+      thBtn.title = theaterMode ? 'Fit screen' : 'Theater view';
+    }
 
     // Keep stage header title and Playlist count synced live without remounting iframe
     if (rm) {
@@ -1325,12 +1836,11 @@ const PartyVideoSync = (() => {
             <div class="pfs-vid-empty-screen" aria-hidden="true">
               <span class="pfs-vid-yt-badge">▶</span>
             </div>
-            <b class="pfs-vid-empty-title">Watch YouTube Together</b>
-            <small class="pfs-vid-empty-sub">Browse or search any video on YouTube and add it to the room playlist — everyone watches in sync.</small>
+            <b class="pfs-vid-empty-title">Watch Together Stage</b>
+            <small class="pfs-vid-empty-sub">Search YouTube or add an audio track — everyone stays synced automatically.</small>
             <div class="pfs-vid-empty-acts">
-              <button type="button" class="btn gold pfs-add-vid-cta" data-pfs-act="open-add-video" data-testid="vr-add-video-btn">+ Add video</button>
+              <button type="button" class="btn gold sm pfs-add-vid-cta" data-pfs-act="open-add-video" data-testid="vr-add-video-btn">+ Add Video</button>
               <button type="button" class="btn ok sm" data-pfs-act="open-music" data-testid="vr-empty-add-song-btn">♪ Add Song</button>
-              <button type="button" class="btn ghost sm" data-pfs-act="open-add-video-paste" data-testid="vr-empty-paste-btn">Paste link</button>
               ${qList.length ? `<button type="button" class="btn ghost sm" data-pfs-act="open-playlist" data-testid="vr-empty-playlist-btn">Playlist (${qList.length})</button>` : ''}
             </div>
           </div>
@@ -1351,15 +1861,15 @@ const PartyVideoSync = (() => {
       <div class="pfs-video-card ${theaterMode ? 'theater' : ''}" data-testid="pfs-video-card">
         <div class="pfs-vid-top-bar" data-testid="vr-stage-top-bar">
           <div class="pfs-vid-top-left">
-            <span class="pfs-vid-live-pill" aria-hidden="true">▶</span>
+            <i class="pfs-vid-status-dot ${vs.playing ? 'live' : ''}" data-vid-status-dot></i>
             <b class="pfs-vid-top-title" data-vid-title data-testid="vr-stage-video-title">${esc(activeVidTitle)}</b>
+            <span class="pfs-vid-live-note" data-vid-status-txt>${vs.playing ? 'Synced' : 'Paused'}</span>
           </div>
           <div class="pfs-vid-top-acts">
             <button type="button" class="pfs-vid-top-btn playlist" data-pfs-act="open-playlist" data-testid="vr-stage-playlist-btn" aria-label="Open Room Playlist">
-              <span aria-hidden="true">☰</span>
               <span data-vid-pl-count>${qList.length ? `Playlist (${qList.length})` : 'Playlist'}</span>
             </button>
-            <button type="button" class="pfs-vid-top-btn add" data-pfs-act="open-add-video" data-testid="vr-stage-add-video-btn" aria-label="Add video from YouTube">+ Add video</button>
+            <button type="button" class="pfs-vid-top-btn add" data-pfs-act="open-add-video" data-testid="vr-stage-add-video-btn" aria-label="Add video from YouTube">+ Video</button>
           </div>
         </div>
         <div class="pfs-video-stage-wrap">
@@ -1373,30 +1883,23 @@ const PartyVideoSync = (() => {
           </div>
         </div>
         <div class="pfs-vid-ad-strip" data-vid-ad-strip data-testid="vr-video-ad-strip" hidden></div>
-        <div class="pfs-vid-controls">
+        <div class="pfs-vid-controls pfs-vid-controls-compact">
           <div class="pfs-vid-scrub-row">
             <input type="range" class="pfs-vid-scrubber" data-vid-scrub min="0" max="${initDur}" value="${Math.min(initDur, Math.round(targetSec))}" step="1" aria-label="Video timestamp scrubber">
-            <span class="pfs-vid-time" data-vid-time>${fmtClock(targetSec)}</span>
+            <span class="pfs-vid-time tabular-nums" data-vid-time>${fmtClock(targetSec)}</span>
           </div>
-          <div class="pfs-vid-bar">
-            <div class="pfs-vid-meta-row">
-              <span class="pfs-vid-status">
-                <i class="pfs-vid-status-dot ${vs.playing ? 'live' : ''}" data-vid-status-dot></i>
-                <span data-vid-status-txt>${vs.playing ? 'Live Sync · Playing' : 'Live Sync · Paused'}</span>
-              </span>
-              <div class="pfs-vid-meta-acts">
-                <button type="button" class="btn sm ok pfs-vid-mode-btn" data-pfs-act="open-music" data-testid="vr-stage-add-song-btn" title="Search & add Hindi/Bangla/Trending songs">♪ Add Song</button>
-                <button type="button" class="btn sm ghost pfs-vid-mode-btn" data-vid-act="to-audio" data-testid="vr-switch-audio-mode" title="Switch playlist to Audio Mini-Player">🎧 Audio</button>
-                <button type="button" class="btn sm ghost pfs-vid-mode-btn" data-pfs-act="open-add-video-paste" data-testid="vr-stage-paste-btn" title="Paste direct YouTube or video URL">🔗 Paste</button>
-              </div>
+          <div class="pfs-vid-single-bar" data-testid="vr-video-single-controls">
+            <div class="pfs-vid-transport">
+              <button type="button" class="pfs-vc-btn primary" data-vid-act="toggle" data-vid-sync="toggle" title="${vs.playing ? 'Pause All' : 'Play All'}" aria-label="${vs.playing ? 'Pause video for room' : 'Play video for room'}">${vs.playing ? '⏸' : '▶'}</button>
+              <button type="button" class="pfs-vc-btn" data-vid-act="back10" title="Back 10 seconds" aria-label="Back 10 seconds">-10s</button>
+              <button type="button" class="pfs-vc-btn" data-vid-act="fwd10" title="Forward 10 seconds" aria-label="Forward 10 seconds">+10s</button>
+              ${qList.length > 1 ? `<button type="button" class="pfs-vc-btn" data-vid-act="next-queue" data-testid="vr-video-next-btn" title="Next track" aria-label="Next track">⏭</button>` : ''}
             </div>
-            <div class="pfs-vid-btns">
-              <button type="button" class="btn sm ghost" data-vid-act="back10" title="Back 10 seconds">⏪ -10s</button>
-              <button type="button" class="btn sm ok" data-vid-act="toggle" data-vid-sync="toggle">${vs.playing ? '⏸ Pause All' : '▶ Play All'}</button>
-              <button type="button" class="btn sm ghost" data-vid-act="fwd10" title="Forward 10 seconds">+10s ⏩</button>
-              ${qList.length > 1 ? `<button type="button" class="btn sm ghost" data-vid-act="next-queue" data-testid="vr-video-next-btn" title="Play next track in room playlist">⏭ Next</button>` : ''}
-              <button type="button" class="btn sm ghost" data-vid-act="resync" data-testid="vr-video-sync-now" title="Snap to live room timestamp">⟳ Sync</button>
-              <button type="button" class="btn sm ghost" data-vid-act="theater">${theaterMode ? '🗗 Fit' : '⛶ Theater'}</button>
+            <div class="pfs-vid-utils">
+              <button type="button" class="pfs-vc-btn" data-vid-act="resync" data-testid="vr-video-sync-now" title="Sync to room timestamp" aria-label="Sync video">⟳</button>
+              <button type="button" class="pfs-vc-btn" data-vid-act="to-audio" data-testid="vr-switch-audio-mode" title="Switch to Audio Mini-Player" aria-label="Audio mode">🎧 Audio</button>
+              <button type="button" class="pfs-vc-btn accent" data-pfs-act="open-music" data-testid="vr-stage-add-song-btn" title="Search &amp; add song to playlist">♪ Song</button>
+              <button type="button" class="pfs-vc-btn" data-vid-act="theater" title="${theaterMode ? 'Fit screen' : 'Theater view'}" aria-label="Toggle Theater view">${theaterMode ? '🗗' : '⛶'}</button>
             </div>
           </div>
         </div>
@@ -2071,6 +2574,12 @@ function subscribeActiveRoomDoc(roomId) {
         if (rules) {
           data.chat = rules.mergeRoomChatMessages([prev.chat, data.chat], Array.from(partyDeletedMsgIds), 45);
           data.reactions = rules.mergeRoomReactions([prev.reactions, data.reactions], 24);
+          if (typeof rules.resolveSafeRoomMode === 'function') {
+            const safeM = rules.resolveSafeRoomMode(prev, data, snapNow);
+            data.mode = safeM.mode;
+            data.mediaPlayMode = safeM.mediaPlayMode;
+            data.modeUpdatedAt = safeM.modeUpdatedAt;
+          }
         }
         // Preserve recent local viewer ad/buffering states across concurrent snapshots
         const mergedViewerStates = { ...(data.videoViewerStates || {}) };
@@ -2135,13 +2644,29 @@ function writePartyRoomToFirestore(room, fullReplace) {
 function persistPartyRoom(room, opts) {
   if (!room || !room.id) return;
   const o = opts || {};
-  room.seats = normalizePartySeats(room.seats);
+  room.seats = normalizePartySeats(room.seats, room);
   const rules = PRR();
   if (rules && typeof rules.normalizeMembersMap === 'function') {
     room.members = rules.normalizeMembersMap(room, Date.now());
   }
-  room.activeHostUid = room.activeHostUid || room.hostUid;
-  room.activeHostName = room.activeHostName || room.hostName;
+  if (room.isOwnedRoom || room.isAdvanced) {
+    const permOwnerUid = String(room.ownerUid || room.creatorUid || room.hostUid || '').trim();
+    const permOwnerName = String(room.ownerName || room.hostName || 'Owner').trim() || 'Owner';
+    if (permOwnerUid) {
+      room.ownerUid = permOwnerUid;
+      room.ownerName = permOwnerName;
+      room.hostUid = permOwnerUid;
+      room.activeHostUid = permOwnerUid;
+      room.hostName = permOwnerName;
+      room.activeHostName = permOwnerName;
+      if (Array.isArray(room.admins)) {
+        room.admins = [...new Set(room.admins.filter(a => a && a !== permOwnerUid))].slice(0, 3);
+      }
+    }
+  } else {
+    room.activeHostUid = room.activeHostUid || room.hostUid;
+    room.activeHostName = room.activeHostName || room.hostName;
+  }
   room.updatedAt = Date.now();
   const idx = partyRooms.findIndex(r => r.id === room.id);
   if (idx >= 0) partyRooms[idx] = room;
@@ -2186,6 +2711,12 @@ function ingestPartyRooms(list) {
         if (rules) {
           rm.chat = rules.mergeRoomChatMessages([prev.chat, rm.chat], Array.from(partyDeletedMsgIds), 45);
           rm.reactions = rules.mergeRoomReactions([prev.reactions, rm.reactions], 24);
+          if (typeof rules.resolveSafeRoomMode === 'function') {
+            const safeM = rules.resolveSafeRoomMode(prev, rm, now);
+            rm.mode = safeM.mode;
+            rm.mediaPlayMode = safeM.mediaPlayMode;
+            rm.modeUpdatedAt = safeM.modeUpdatedAt;
+          }
         }
         const mergedViewerStates = { ...(rm.videoViewerStates || {}) };
         Object.entries(prev.videoViewerStates || {}).forEach(([k, v]) => {
@@ -2269,6 +2800,7 @@ function subscribeRoomMessages(roomId) {
     const q = (typeof F.query === 'function' && typeof F.orderBy === 'function' && typeof F.limit === 'function')
       ? F.query(col, F.orderBy('ts', 'asc'), F.limit(80))
       : col;
+    let prevMsgSig = '';
     partyMsgUnsub = F.onSnapshot(q, snap => {
       const nextMsgs = [];
       const nextRx = [];
@@ -2283,10 +2815,14 @@ function subscribeRoomMessages(roomId) {
       });
       partySubcolMsgs = nextMsgs;
       partySubcolReactions = nextRx;
+      const msgSig = nextMsgs.map(m => `${m.id}:${m.ts || 0}`).join('|');
+      const chatChanged = msgSig !== prevMsgSig;
+      prevMsgSig = msgSig;
       const rm = partyRooms.find(r => r && r.id === roomId);
       if (rm && activePartyRoomId === roomId) {
-        syncReactionsFromList(rm, nextRx);
-        renderFullScreenPartyRoom();
+        if (nextRx.length) syncReactionsFromList(rm, nextRx);
+        // Only update chat feed if chat messages actually changed; reactions NEVER re-render the room!
+        if (chatChanged) renderPartyChatFeedOnly(rm);
       }
     }, () => {});
   } catch {}
@@ -2383,6 +2919,63 @@ function deletePartyChatMessage(rm, msgId) {
   toast('Message deleted');
 }
 
+const activeSeatRxTimers = new Map();
+
+function renderPartyChatFeedOnly(rm) {
+  const root = document.getElementById('partyFsRoot');
+  if (!root || !rm || activePartyRoomId !== rm.id) return;
+  const feed = $('#pfsChatFeed', root);
+  if (!feed) return;
+  const msgsHtml = getMergedPartyMessages(rm).slice(-28).map(c => {
+    if (c.type === 'sys') return `<div class="pfs-msg sys">${esc(c.text)}</div>`;
+    const canDel = canDeletePartyMessage(c);
+    return `<div class="pfs-msg pfs-msg-row" data-pmsg-id="${esc(c.id)}">
+      <div class="pfs-msg-body"><b>${esc(c.name)}:</b> <span>${esc(c.text)}</span></div>
+      ${canDel ? `<button type="button" class="pfs-msg-del" data-del-pmsg="${esc(c.id)}" title="Delete message" aria-label="Delete message">🗑️</button>` : ''}
+    </div>`;
+  }).join('');
+  if (feed.dataset.lastHtml !== msgsHtml) {
+    feed.dataset.lastHtml = msgsHtml;
+    feed.innerHTML = msgsHtml;
+    feed.scrollTop = feed.scrollHeight;
+  }
+}
+
+function showIsolatedSeatReactionBadge(root, targetUid, emoji) {
+  if (!root || !targetUid || !emoji) return;
+  const safeUid = String(targetUid).replace(/["\\]/g, '');
+  if (!safeUid) return;
+  const seatEl = root.querySelector(`[data-seat-uid="${safeUid}"]`) || root.querySelector(`[data-owner-uid="${safeUid}"]`);
+  const ringEl = seatEl ? seatEl.querySelector('.pfs-seat-ring') : null;
+  if (!ringEl) return;
+
+  let badge = ringEl.querySelector('.pfs-seat-rx');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'pfs-seat-rx';
+    badge.dataset.testid = 'vr-seat-reaction';
+    ringEl.appendChild(badge);
+  }
+  badge.textContent = emoji;
+
+  const prevTimer = activeSeatRxTimers.get(safeUid);
+  if (prevTimer) clearTimeout(prevTimer);
+  activeSeatRxTimers.set(safeUid, setTimeout(() => {
+    activeSeatRxTimers.delete(safeUid);
+    const cur = activeSeatReactions.get(targetUid);
+    if (cur && cur.expiresAt <= Date.now()) {
+      activeSeatReactions.delete(targetUid);
+    }
+    const liveRoot = document.getElementById('partyFsRoot');
+    if (!liveRoot) return;
+    const curSeat = liveRoot.querySelector(`[data-seat-uid="${safeUid}"]`) || liveRoot.querySelector(`[data-owner-uid="${safeUid}"]`);
+    const curBadge = curSeat ? curSeat.querySelector('.pfs-seat-rx') : null;
+    if (curBadge && (!activeSeatReactions.has(targetUid) || activeSeatReactions.get(targetUid).expiresAt <= Date.now())) {
+      try { curBadge.remove(); } catch {}
+    }
+  }, 3250));
+}
+
 function triggerPartyReactionFx(rm, rx) {
   if (!rm || !rx || !rx.id || !rx.emoji) return;
   if (seenPartyReactionIds.has(rx.id)) return;
@@ -2398,20 +2991,17 @@ function triggerPartyReactionFx(rm, rx) {
 
   if (rx.uid) {
     activeSeatReactions.set(rx.uid, { emoji: rx.emoji, expiresAt: now + 3200 });
-    setTimeout(() => {
-      const cur = activeSeatReactions.get(rx.uid);
-      if (cur && cur.expiresAt <= Date.now()) {
-        activeSeatReactions.delete(rx.uid);
-        if (activePartyRoomId === rm.id) renderFullScreenPartyRoom();
-      }
-    }, 3300);
   }
 
   const root = document.getElementById('partyFsRoot');
   if (!root || activePartyRoomId !== rm.id) return;
 
+  // Lightweight isolated floating overlay — NEVER re-renders room, VR screen, or mode stage!
   const fxLayer = root.querySelector('#pfsFxLayer');
   if (fxLayer) {
+    while (fxLayer.childElementCount >= 12) {
+      try { fxLayer.firstElementChild.remove(); } catch { break; }
+    }
     const el = document.createElement('div');
     el.className = 'pfs-rx-float';
     el.dataset.testid = 'vr-floating-emoji';
@@ -2419,7 +3009,7 @@ function triggerPartyReactionFx(rm, rx) {
     el.style.left = `${leftPct}%`;
     el.innerHTML = `<span class="pfs-rx-em">${esc(rx.emoji)}</span><span class="pfs-rx-who">${esc(rx.name || 'Player')}</span>`;
     fxLayer.appendChild(el);
-    setTimeout(() => { try { el.remove(); } catch {} }, 2300);
+    setTimeout(() => { try { el.remove(); } catch {} }, 2200);
   }
 
   const ticker = root.querySelector('#pfsRxTicker');
@@ -2429,18 +3019,12 @@ function triggerPartyReactionFx(rm, rx) {
     clearTimeout(ticker._hideTimer);
     ticker._hideTimer = setTimeout(() => {
       if (ticker) ticker.hidden = true;
-    }, 3400);
+    }, 3000);
   }
 
-  // Refresh seat stage so sender's seat avatar shows live reaction bubble
-  const stage = root.querySelector('#pfsStageSlot');
-  if (stage) {
-    stage.innerHTML = `
-      <div class="pfs-owner-solo">${renderSeatTile(rm, 0)}</div>
-      <div class="pfs-seats-4col">
-        ${[1, 2, 3, 4, 5, 6, 7, 8].map(i => renderSeatTile(rm, i)).join('')}
-      </div>
-    `;
+  // Surgically update ONLY the sender's seat badge in-place (zero stage DOM rebuild!)
+  if (rx.uid) {
+    showIsolatedSeatReactionBadge(root, rx.uid, rx.emoji);
   }
 }
 
@@ -2476,10 +3060,10 @@ function sendPartyReaction(rm, emoji) {
   triggerPartyReactionFx(rm, rx);
   postPartyRoomBroadcast({ kind: 'reaction', roomId: rm.id, reaction: rx });
 
+  // Persist ONLY the lightweight reaction doc in messages subcollection (never full room doc / full re-render!)
   if (!String(rm.id).startsWith('pr_seed_') && online && db && F && typeof F.setDoc === 'function') {
     dbOp(() => F.setDoc(F.doc(db, 'party_rooms', rm.id, 'messages', rx.id), rx));
   }
-  persistPartyRoom(rm);
 }
 
 /* ===== Floating VR Icon Mode + Game Launch Guard ===== */
@@ -2588,7 +3172,7 @@ function guardVrBeforeGameLaunch(gameLabel, proceedFn, opts) {
   const rm = partyRooms.find(r => r && r.id === vrRoomId);
   const roomTitle = (rm && rm.title) || 'Voice Room';
   const targetLabel = String(gameLabel || 'Game');
-  const amHost = Boolean(rm && rm.hostUid === uid);
+  const amHost = Boolean(rm && isSingleOwner(rm, uid));
 
   const m = modal('VR Session Active', `
     <div class="vr-guard-card" data-testid="vr-game-guard-modal">
@@ -2640,11 +3224,15 @@ function syncOwnedRoomProfileSnapshot(rm) {
     fixedId: rm.fixedId || rm.shortId || me.ownedRoom.fixedId,
     ownerUid: uid,
     ownerName: me.name || rm.ownerName || 'Owner',
+    ownerAvatar: me.avatar || rm.ownerAvatar || me.ownedRoom.ownerAvatar || 'av_b1',
+    ownerFrame: me.frame || rm.ownerFrame || me.ownedRoom.ownerFrame || 'none',
     title: rm.title || me.ownedRoom.title,
     tag: rm.tag || me.ownedRoom.tag || 'Friends',
     mode: rm.mode || me.ownedRoom.mode || 'normal',
     cover: rm.cover || me.ownedRoom.cover || 'cover_crown',
-    background: rm.background || me.ownedRoom.background || 'stage',
+    background: rm.background || me.ownedRoom.background || 'club',
+    customBackgroundUrl: String(rm.customBackgroundUrl || me.ownedRoom.customBackgroundUrl || ''),
+    roomRules: String(rm.roomRules || me.ownedRoom.roomRules || ''),
     password: String(rm.password || ''),
     admins: Array.isArray(rm.admins) ? rm.admins.slice(0, 3) : [],
     followers: Array.isArray(rm.followers) ? rm.followers.slice(-200) : [],
@@ -2672,6 +3260,14 @@ function getOrHydrateOwnedRoomRecord(ownedCfg) {
   if (existing) {
     existing.isOwnedRoom = true;
     existing.isAdvanced = true;
+    existing.ownerUid = cfg.ownerUid || existing.ownerUid || uid;
+    existing.ownerName = cfg.ownerName || existing.ownerName || (me && me.name) || 'Owner';
+    existing.ownerAvatar = cfg.ownerAvatar || existing.ownerAvatar || (existing.ownerUid === uid && me && me.avatar) || 'av_b1';
+    existing.ownerFrame = cfg.ownerFrame || existing.ownerFrame || (existing.ownerUid === uid && me && me.frame) || 'none';
+    existing.hostUid = existing.ownerUid;
+    existing.activeHostUid = existing.ownerUid;
+    existing.hostName = existing.ownerName;
+    existing.activeHostName = existing.ownerName;
     existing.fixedId = cfg.fixedId || existing.fixedId || existing.shortId;
     existing.shortId = existing.fixedId;
     return existing;
@@ -2685,6 +3281,8 @@ function getOrHydrateOwnedRoomRecord(ownedCfg) {
     isAdvanced: true,
     ownerUid: cfg.ownerUid || uid,
     ownerName: cfg.ownerName || (me && me.name) || 'Owner',
+    ownerAvatar: cfg.ownerAvatar || ((cfg.ownerUid || uid) === uid && me && me.avatar) || 'av_b1',
+    ownerFrame: cfg.ownerFrame || ((cfg.ownerUid || uid) === uid && me && me.frame) || 'none',
     hostUid: cfg.ownerUid || uid,
     hostName: cfg.ownerName || (me && me.name) || 'Owner',
     status: 'idle',
@@ -2726,6 +3324,8 @@ function openMyOwnedPartyRoom() {
   rm.status = 'active';
   rm.ownerUid = uid;
   rm.ownerName = me.name || rm.ownerName || 'Owner';
+  rm.ownerAvatar = me.avatar || rm.ownerAvatar || 'av_b1';
+  rm.ownerFrame = me.frame || rm.ownerFrame || 'none';
   rm.hostUid = uid;
   rm.hostName = me.name || 'Owner';
   rm.activeHostUid = uid;
@@ -2736,7 +3336,7 @@ function openMyOwnedPartyRoom() {
       uid,
       name: me.name || 'Owner',
       avatar: me.avatar || 'av_b1',
-      frame: me.frame || 'fx_gold',
+      frame: me.frame || 'none',
       muted: false,
       speaking: true,
       joinedAt: now,
@@ -3280,6 +3880,14 @@ function openPartyRoom(roomId, opts) {
       handleRoomTrackEnded(curRm, 'audio');
     }
   });
+  PartyAudioPlayer.setOnError((errInfo) => {
+    const curId = getCurrentVrRoomId();
+    if (!curId) return;
+    const curRm = partyRooms.find(r => r && r.id === curId);
+    if (curRm && typeof handleAudioPlaybackFailure === 'function') {
+      handleAudioPlaybackFailure(curRm, errInfo);
+    }
+  });
   PartyAudioPlayer.syncFromRoom(room);
   if (typeof setMyLiveActivity === 'function') {
     setMyLiveActivity({ type: 'party', roomId: room.id, roomCode: room.fixedId || room.shortId || room.id, gameName: room.title || 'Voice Room' });
@@ -3309,46 +3917,216 @@ function renderSeatTile(rm, idx) {
   const isPartnerSlot = Number(idx) === 1 && Boolean(rm.partnerSeat);
   const roleTag = isPartnerSlot ? '💞 Partner' : (micEligible ? `Mic #${idx + 1}` : 'Listener');
   const isLocked = Array.isArray(rm.lockedSeats) && rm.lockedSeats.includes(Number(idx));
+  const rules = PRR();
 
-  if (!s) {
+  // Seat 0: ALWAYS show the Owner's logo/avatar (whether Online or Offline) with ZERO glowing effects!
+  if (Number(idx) === 0) {
+    const ownerInfo = rules && typeof rules.getRoomOwnerDisplayInfo === 'function'
+      ? rules.getRoomOwnerDisplayInfo(rm, Date.now(), rules.DEFAULT_STALE_MS)
+      : {
+          uid: getEffectiveOwnerUid(rm),
+          name: getEffectiveOwnerName(rm),
+          avatar: (s && s.avatar) || rm.ownerAvatar || 'av_b1',
+          frame: 'none',
+          online: Boolean(s),
+          seated: Boolean(s)
+        };
+    const ownerAvatarUser = { avatar: ownerInfo.avatar || 'av_b1', frame: 'none' };
+    const isOccupiedByOwner = Boolean(s && (!ownerInfo.uid || s.uid === ownerInfo.uid));
+    const isMeOwner = Boolean(ownerInfo.uid && ownerInfo.uid === uid);
+    const ownerSeatRx = ownerInfo.uid ? activeSeatReactions.get(ownerInfo.uid) : null;
+    const ownerRxHtml = ownerSeatRx && ownerSeatRx.expiresAt > Date.now()
+      ? `<span class="pfs-seat-rx" data-testid="vr-seat-reaction">${esc(ownerSeatRx.emoji)}</span>`
+      : '';
+    const statusText = ownerInfo.online ? 'Online' : 'Offline';
+    const statusCls = ownerInfo.online ? 'online' : 'offline';
+    const dataAttrs = isOccupiedByOwner
+      ? `data-seat-idx="0" data-seat-uid="${esc(s.uid)}" data-owner-uid="${esc(ownerInfo.uid)}"`
+      : `data-sit="0" data-owner-uid="${esc(ownerInfo.uid)}"`;
+    const dotHtml = isOccupiedByOwner
+      ? `<span class="pfs-mic-dot ${s.muted ? 'muted' : 'live'}">${s.muted ? '🔇' : '🎙️'}</span>`
+      : `<span class="pfs-owner-presence-dot ${statusCls}" title="${statusText}" aria-hidden="true"></span>`;
+
+    const ownerRoleFrameCls = ownerInfo.online ? 'pfs-frame-owner online' : 'pfs-frame-owner offline';
+
+    return `<div class="pfs-seat-wrap compact is-owner-wrap">
+      <button type="button" class="pfs-seat ${isOccupiedByOwner ? 'occupied' : 'owner-away'} compact is-owner-slot ${ownerInfo.online ? 'is-owner-online' : 'is-owner-offline'} ${isMeOwner ? 'is-me' : ''}" ${dataAttrs} data-testid="vr-seat-0" aria-label="Room Owner ${esc(ownerInfo.name)} (${statusText})">
+        <div class="pfs-seat-ring owner-clean-ring ${ownerRoleFrameCls}">
+          <span class="pfs-frame-crest owner" aria-hidden="true">👑</span>
+          ${av(ownerAvatarUser, 44)}
+          ${ownerRxHtml}
+          ${dotHtml}
+        </div>
+        <div class="pfs-seat-name">${esc(ownerInfo.name)}</div>
+        <div class="pfs-seat-meta owner-meta-row">
+          <span class="pfs-owner-tag" data-testid="vr-owner-badge">OWNER</span>
+          <span class="pfs-owner-status ${statusCls}" data-testid="vr-owner-status">${statusText}</span>
+        </div>
+      </button>
+    </div>`;
+  }
+
+  // Defensive invariant: Guest seats (1..8) NEVER render the Room Owner (prevents duplicate OWNER clone)
+  const occ = s && !isSingleOwner(rm, s.uid) ? s : null;
+  if (!occ) {
     return `<button type="button" class="pfs-seat empty compact ${isLocked ? 'is-locked' : ''} ${isPartnerSlot ? 'is-partner' : ''}" data-sit="${idx}" data-testid="vr-seat-${idx}" aria-label="Seat ${idx} (${isLocked ? 'Locked' : roleTag})">
-      <div class="pfs-seat-ring open-ring"><span>${isLocked ? '🔒' : (isPartnerSlot ? '💞' : '+')}</span></div>
-      <div class="pfs-seat-name">${idx === 0 ? 'Owner' : (isLocked ? 'Closed' : (isPartnerSlot ? 'Partner' : `Seat ${idx}`))}</div>
+      <div class="pfs-seat-ring open-ring ${isPartnerSlot ? 'pfs-frame-partner-open' : ''}"><span>${isLocked ? '🔒' : (isPartnerSlot ? '💞' : '+')}</span></div>
+      <div class="pfs-seat-name">${isLocked ? 'Closed' : (isPartnerSlot ? 'Partner' : `Seat ${idx}`)}</div>
       <small class="pfs-seat-role">${isLocked ? 'Locked' : roleTag}</small>
     </button>`;
   }
 
-  const isOwnerSeat = isSingleOwner(rm, s.uid);
-  const isAdm = !isOwnerSeat && isRoomAdmin(rm, s.uid);
-  const isGuard = Array.isArray(rm.guards) && rm.guards.some(g => g && g.uid === s.uid);
-  const speaking = micEligible && !s.muted;
-  const seatRx = activeSeatReactions.get(s.uid);
+  const isAdm = isRoomAdmin(rm, occ.uid);
+  const isGuard = Array.isArray(rm.guards) && rm.guards.some(g => g && g.uid === occ.uid);
+  const speaking = micEligible && !occ.muted;
+  const seatRx = activeSeatReactions.get(occ.uid);
   const rxHtml = seatRx && seatRx.expiresAt > Date.now()
     ? `<span class="pfs-seat-rx" data-testid="vr-seat-reaction">${esc(seatRx.emoji)}</span>`
     : '';
-  const pkScore = rm.pkSession && rm.pkSession.status === 'active' && rm.pkSession.seatScores && rm.pkSession.seatScores[s.uid]
-    ? Number(rm.pkSession.seatScores[s.uid].score || 0)
+  const pkScore = rm.pkSession && rm.pkSession.status === 'active' && rm.pkSession.seatScores && rm.pkSession.seatScores[occ.uid]
+    ? Number(rm.pkSession.seatScores[occ.uid].score || 0)
     : 0;
   const pkTier = pkScore > 0 && window.PartyRoomExtrasRules
     ? window.PartyRoomExtrasRules.getMicOutfitTier(pkScore)
     : null;
 
+  const roleFrameCls = isAdm
+    ? 'pfs-frame-admin'
+    : (isPartnerSlot
+      ? 'pfs-frame-partner'
+      : (micEligible ? 'pfs-frame-mic' : 'pfs-frame-listener'));
+  const roleCrestHtml = isAdm
+    ? '<span class="pfs-frame-crest admin" aria-hidden="true">🛡️</span>'
+    : (isPartnerSlot ? '<span class="pfs-frame-crest partner" aria-hidden="true">💞</span>' : '');
+
   return `<div class="pfs-seat-wrap compact">
-    <button type="button" class="pfs-seat occupied compact ${speaking ? 'is-speaking' : ''} ${s.uid === uid ? 'is-me' : ''} ${isPartnerSlot ? 'is-partner' : ''}" data-seat-idx="${idx}" data-seat-uid="${esc(s.uid)}" data-testid="vr-seat-${idx}">
-      <div class="pfs-seat-ring" ${pkTier && pkTier.minScore > 0 ? `style="box-shadow:0 0 0 2px ${pkTier.color}"` : ''}>
+    <button type="button" class="pfs-seat occupied compact ${speaking ? 'is-speaking' : ''} ${occ.uid === uid ? 'is-me' : ''} ${isPartnerSlot ? 'is-partner' : ''}" data-seat-idx="${idx}" data-seat-uid="${esc(occ.uid)}" data-testid="vr-seat-${idx}" title="${occ.uid === uid ? 'Tap seat to mute or leave seat' : esc(occ.name || 'Player')}">
+      <div class="pfs-seat-ring ${roleFrameCls}" ${pkTier && pkTier.minScore > 0 ? `style="border-color:${pkTier.color}"` : ''}>
+        ${roleCrestHtml}
         ${speaking ? '<span class="pfs-wave w1"></span>' : ''}
-        ${av(s, 44)}
+        ${av(occ, 44)}
         ${rxHtml}
-        <span class="pfs-mic-dot ${!micEligible ? 'muted' : (s.muted ? 'muted' : 'live')}">${!micEligible ? '👂' : (s.muted ? '🔇' : '🎙️')}</span>
+        <span class="pfs-mic-dot ${!micEligible ? 'muted' : (occ.muted ? 'muted' : 'live')}">${!micEligible ? '👂' : (occ.muted ? '🔇' : '🎙️')}</span>
       </div>
-      <div class="pfs-seat-name">${esc(s.name || 'Player')}</div>
+      <div class="pfs-seat-name">${esc(occ.name || 'Player')}</div>
       <div class="pfs-seat-meta">
-        ${isOwnerSeat ? '<span class="pfs-owner-tag" data-testid="vr-owner-badge">OWNER</span>' : (isAdm ? '<span class="pfs-role-chip admin" data-testid="vr-admin-badge">ADMIN</span>' : (pkTier && pkTier.badge ? `<span class="pfs-role-chip pk">${esc(pkTier.badge)}</span>` : (isGuard ? '<span class="pfs-role-chip guard">⚔️ GUARD</span>' : `<span class="pfs-seat-role">${roleTag}</span>`)))}
+        ${isAdm
+          ? '<span class="pfs-role-chip admin" data-testid="vr-admin-badge">ADMIN</span>'
+          : (pkTier && pkTier.badge
+            ? `<span class="pfs-role-chip pk">${esc(pkTier.badge)}</span>`
+            : (isGuard
+              ? '<span class="pfs-role-chip guard">⚔️ GUARD</span>'
+              : `<span class="pfs-role-chip ${micEligible ? 'mic' : 'listener'}" data-testid="vr-seat-role-${idx}">${roleTag}</span>`))}
       </div>
     </button>
-    ${s.uid === uid ? `<button type="button" class="pfs-quick-leave" data-pfs-act="leave-seat">Leave</button>` : ''}
   </div>`;
 }
+
+const ROOM_THEME_PREF_KEY = 'sg_room_theme_pref_v50';
+
+function getEffectiveRoomTheme(rm) {
+  const rules = PRR();
+  const norm = (v) => (rules && typeof rules.normalizeRoomTheme === 'function' ? rules.normalizeRoomTheme(v) : (v || 'default'));
+  let personal = '';
+  try { personal = localStorage.getItem(ROOM_THEME_PREF_KEY) || ''; } catch {}
+  if (personal) return norm(personal);
+  if (rm && rm.roomTheme) return norm(rm.roomTheme);
+  return 'default';
+}
+window.getEffectiveRoomTheme = getEffectiveRoomTheme;
+
+function resolvePartyRoomBackdrop(rm, themeOverride) {
+  const rules = PRR();
+  const themeId = themeOverride || getEffectiveRoomTheme(rm);
+  const baseCss = rules && typeof rules.resolveRoomBackdropCss === 'function'
+    ? rules.resolveRoomBackdropCss(rm, themeId)
+    : ((PARTY_BG_META[rm && rm.background] || PARTY_BG_META.club).css);
+  const modeStages = window.PartyModeStages || null;
+  if (rm && rm.background === 'custom' && rm.customBackgroundUrl) {
+    return baseCss;
+  }
+  return modeStages && typeof modeStages.getModeBackdropOverride === 'function'
+    ? modeStages.getModeBackdropOverride(rm, baseCss, themeId)
+    : baseCss;
+}
+
+/**
+ * Lag-free in-place room theme switcher (Default / Dark / Light / Gradient):
+ * Updates #partyFsRoot data-room-theme & backdrop CSS immediately with zero full-room re-render.
+ */
+function applyRoomThemeInPlace(rm, themeId, opts) {
+  const rules = PRR();
+  const nextTheme = rules && typeof rules.normalizeRoomTheme === 'function'
+    ? rules.normalizeRoomTheme(themeId)
+    : (['default', 'dark', 'light', 'gradient'].includes(String(themeId || '').toLowerCase()) ? String(themeId).toLowerCase() : 'default');
+  try { localStorage.setItem(ROOM_THEME_PREF_KEY, nextTheme); } catch {}
+
+  const live = rm ? (partyRooms.find(r => r && r.id === rm.id) || rm) : null;
+  const o = opts || {};
+  const canPersistRoom = Boolean(live && typeof canModerateRoom === 'function' && canModerateRoom(live));
+  if (live && canPersistRoom && o.persistRoom !== false) {
+    live.roomTheme = nextTheme;
+    live.updatedAt = Date.now();
+    if (live.isOwnedRoom && typeof syncOwnedRoomProfileSnapshot === 'function') {
+      syncOwnedRoomProfileSnapshot(live);
+    }
+    persistPartyRoom(live, { silentRender: true });
+  }
+
+  const root = document.getElementById('partyFsRoot');
+  if (root && (!live || activePartyRoomId === live.id)) {
+    root.dataset.roomTheme = nextTheme;
+    const nextBgCss = resolvePartyRoomBackdrop(live || { background: 'club', roomTheme: nextTheme }, nextTheme);
+    root.style.background = nextBgCss;
+    root.dataset.lastBackdrop = nextBgCss;
+  }
+  return { ok: true, theme: nextTheme, savedToRoom: canPersistRoom };
+}
+window.applyRoomThemeInPlace = applyRoomThemeInPlace;
+
+/**
+ * Lag-free in-place room background switcher:
+ * Directly updates #partyFsRoot background CSS without re-rendering seats, video, audio, or chat!
+ */
+function applyRoomBackgroundInPlace(rm, bgId, customUrl) {
+  if (!rm) return { ok: false, error: 'Room not active' };
+  if (!assertRoomPerm(rm, 'edit_settings')) return { ok: false, error: 'Permission denied' };
+  const rules = PRR();
+  const live = partyRooms.find(r => r && r.id === rm.id) || rm;
+  const targetId = PARTY_BG_META[bgId] ? bgId : 'club';
+  if (rules && typeof rules.canSelectRoomBackground === 'function') {
+    const gate = rules.canSelectRoomBackground(live, targetId);
+    if (!gate.allowed) {
+      if (typeof toast === 'function') toast(`🔒 ${gate.reason}`);
+      return { ok: false, error: gate.reason };
+    }
+  }
+  if (targetId === 'custom') {
+    const cleanUrl = rules && typeof rules.sanitizeCustomBackgroundUrl === 'function'
+      ? rules.sanitizeCustomBackgroundUrl(customUrl != null ? customUrl : live.customBackgroundUrl)
+      : '';
+    if (customUrl != null && String(customUrl).trim() && !cleanUrl) {
+      if (typeof toast === 'function') toast('Use a valid https:// image URL or upload an image file');
+      return { ok: false, error: 'Invalid custom background URL' };
+    }
+    if (cleanUrl) live.customBackgroundUrl = cleanUrl;
+  }
+  live.background = targetId;
+  live.updatedAt = Date.now();
+  const root = document.getElementById('partyFsRoot');
+  if (root && activePartyRoomId === live.id) {
+    const nextBgCss = resolvePartyRoomBackdrop(live, getEffectiveRoomTheme(live));
+    root.style.background = nextBgCss;
+    root.dataset.lastBackdrop = nextBgCss;
+    root.dataset.bgId = targetId;
+  }
+  if (live.isOwnedRoom && typeof syncOwnedRoomProfileSnapshot === 'function') {
+    syncOwnedRoomProfileSnapshot(live);
+  }
+  persistPartyRoom(live, { silentRender: true });
+  return { ok: true, background: targetId, name: (PARTY_BG_META[targetId] && PARTY_BG_META[targetId].name) || targetId };
+}
+window.applyRoomBackgroundInPlace = applyRoomBackgroundInPlace;
 
 function renderFullScreenPartyRoom() {
   const root = document.getElementById('partyFsRoot');
@@ -3356,7 +4134,6 @@ function renderFullScreenPartyRoom() {
   const rm = partyRooms.find(r => r && r.id === activePartyRoomId && r.status !== 'closed');
   if (!rm) { closePartyRoom({ skipLeavePersist: true }); return; }
 
-  const bgMeta = PARTY_BG_META[rm.background] || PARTY_BG_META.club;
   const modeMeta = PARTY_MODES_META[rm.mode] || PARTY_MODES_META.normal;
   const mySeatKey = findUserSeatKeyInRoom(rm, uid);
   const mySeat = mySeatKey != null ? rm.seats[mySeatKey] : null;
@@ -3368,9 +4145,16 @@ function renderFullScreenPartyRoom() {
     : Object.keys(rm.seats || {}).length;
 
   const modeStages = window.PartyModeStages || null;
-  root.style.background = modeStages && typeof modeStages.getModeBackdropOverride === 'function'
-    ? modeStages.getModeBackdropOverride(rm, bgMeta.css)
-    : bgMeta.css;
+  const activeRoomTheme = getEffectiveRoomTheme(rm);
+  if (root.dataset.roomTheme !== activeRoomTheme) {
+    root.dataset.roomTheme = activeRoomTheme;
+  }
+  const nextBackdrop = resolvePartyRoomBackdrop(rm, activeRoomTheme);
+  if (root.dataset.lastBackdrop !== nextBackdrop) {
+    root.dataset.lastBackdrop = nextBackdrop;
+    root.dataset.bgId = rm.background || 'club';
+    root.style.background = nextBackdrop;
+  }
 
   // Mount shell once per room so chat/seat/mic updates NEVER destroy or reload the live video player!
   if (root.dataset.mountedRoomId !== rm.id || !root.querySelector('#pfsVideoSlot')) {
@@ -3378,6 +4162,7 @@ function renderFullScreenPartyRoom() {
     root.innerHTML = `
       <div class="pfs-shell pfs-v14" id="pfsShellRoot">
         <div class="pfs-fx-layer" id="pfsFxLayer" data-testid="vr-fx-layer" aria-live="polite"></div>
+        <div class="pfs-rx-ticker pfs-rx-ticker-overlay" id="pfsRxTicker" data-testid="vr-reaction-ticker" hidden></div>
         <header class="pfs-top-v14" id="pfsHdrSlot"></header>
         <div class="pfs-subbar" id="pfsSubbarSlot"></div>
         <div class="pfs-main-scroll">
@@ -3385,7 +4170,7 @@ function renderFullScreenPartyRoom() {
           <div class="pfs-audio-slot" id="pfsAudioSlot"></div>
           <div class="pfs-pk-slot" id="pfsPkSlot"></div>
           <div class="pfs-stage" id="pfsStageSlot"></div>
-          <div class="pfs-rx-ticker" id="pfsRxTicker" data-testid="vr-reaction-ticker" hidden></div>
+          <div class="pfs-rules-slot" id="pfsRulesSlot"></div>
           <div class="pfs-react-dock" id="pfsReactDock" data-testid="vr-react-dock">
             ${PARTY_REACTIONS.map(em => `<button type="button" class="pfs-react-btn" data-react="${em}" aria-label="React ${em}">${em}</button>`).join('')}
           </div>
@@ -3394,7 +4179,7 @@ function renderFullScreenPartyRoom() {
         <div class="pfs-dock pfs-dock-v14" id="pfsDockSlot" data-testid="vr-bottom-dock">
           <button type="button" class="pfs-dock-ico ${partySpeakerOn ? 'on' : 'off'}" id="pfsSpkBtn" data-pfs-act="toggle-speaker" aria-label="Toggle Speaker">${partySpeakerOn ? '🔊' : '🔈'}</button>
           <button type="button" class="pfs-dock-ico ${canSpeak ? (mySeat.muted ? 'muted' : 'live') : 'muted'}" id="pfsMicBtn" data-pfs-act="toggle-mic" aria-label="Toggle Microphone">${!canSpeak ? '👂' : (mySeat.muted ? '🔇' : '🎙️')}</button>
-          <input id="pfsChatIn" maxlength="160" placeholder="Type message..." aria-label="Room chat message" autocomplete="off">
+          <input id="pfsChatIn" maxlength="160" placeholder="Message..." aria-label="Room chat message" autocomplete="off">
           <button type="button" class="pfs-dock-send" data-pfs-act="send-chat" data-testid="vr-chat-send" aria-label="Send message">➤</button>
           <button type="button" class="pfs-dock-ico emoji" data-pfs-act="toggle-emoji-dock" data-testid="vr-dock-emoji-btn" title="Emoji Reactions" aria-label="Toggle Emoji Reactions">😊</button>
           <button type="button" class="pfs-dock-ico gift" data-pfs-act="open-gift" data-testid="vr-dock-gift-btn" title="Send Gift" aria-label="Send Gift">🎁</button>
@@ -3410,52 +4195,59 @@ function renderFullScreenPartyRoom() {
     const lvInfo = rules && typeof rules.computeRoomLevel === 'function' ? rules.computeRoomLevel(rm.roomXp) : { level: 1 };
     const isBoosted = Number(rm.boostedUntil || 0) > Date.now();
     const cov = PARTY_COVERS[rm.cover] || PARTY_COVERS.cover_tensura;
-    hdr.innerHTML = `
+    const ownerDisplayName = getEffectiveOwnerName(rm);
+    const nextHdrHtml = `
       <div class="pfs-hdr-left">
         <button type="button" class="pfs-hdr-btn" data-pfs-act="minimize" data-testid="vr-back-btn" title="Minimize to Floating VR" aria-label="Back to Floating VR">←</button>
-        <button type="button" class="pfs-hdr-info-trigger" data-pfs-act="open-room-info" data-testid="vr-hdr-info-btn" aria-label="Open Room Info and Members">
+        <button type="button" class="pfs-hdr-info-trigger" data-pfs-act="open-room-info" data-testid="vr-hdr-info-btn" aria-label="Open Room Info, Level and Perks">
           <span class="pfs-hdr-cov" style="background:${cov.bg}" aria-hidden="true">${cov.glyph}</span>
           <span class="pfs-hdr-meta">
             <span class="pfs-hdr-title-row">
-              <b class="pfs-title">${rm.isOwnedRoom ? '👑 ' : ''}${esc(rm.title)}</b>
-              ${rm.isOwnedRoom ? `<span class="pfs-lv-pill">Lv.${lvInfo.level}</span>` : ''}
+              <b class="pfs-title">${esc(rm.title)}</b>
+              <span class="pfs-lv-pill tabular-nums" data-testid="vr-hdr-level-pill">Lv.${lvInfo.level}</span>
               ${rm.hqAudio ? '<span class="pfs-hd-pill">HD</span>' : ''}
-              ${isBoosted ? '<span class="pfs-boost-pill">🚀</span>' : ''}
+              ${isBoosted ? '<span class="pfs-boost-pill" title="Boosted">BOOST</span>' : ''}
             </span>
             <span class="pfs-hdr-id-row">
-              <span class="pfs-id-btn" data-testid="vr-owner-header">ID ${esc(rm.fixedId || rm.shortId)} · ${Math.max(1, activeCount)} live · ${esc(rm.hostName)}</span>
+              <span class="pfs-id-btn tabular-nums" data-testid="vr-owner-header">ID ${esc(rm.fixedId || rm.shortId)} · ${Math.max(1, activeCount)} online · ${esc(ownerDisplayName)}</span>
             </span>
           </span>
         </button>
       </div>
       <div class="pfs-hdr-right">
-        <button type="button" class="pfs-hdr-btn" data-pfs-act="open-create-pk" data-testid="vr-hdr-pk-btn" title="Create PvP / PK" aria-label="Create PvP or PK">⚔️</button>
-        <button type="button" class="pfs-hdr-btn" data-pfs-act="open-invite" data-testid="vr-hdr-invite-btn" title="Invite Friends" aria-label="Invite to Room">👥</button>
+        <button type="button" class="pfs-hdr-btn" data-pfs-act="open-create-pk" data-testid="vr-hdr-pk-btn" title="Create PvP / PK" aria-label="Create PvP or PK">PK</button>
+        <button type="button" class="pfs-hdr-btn" data-pfs-act="open-invite" data-testid="vr-hdr-invite-btn" title="Invite Friends" aria-label="Invite to Room">+</button>
         <button type="button" class="pfs-hdr-btn ${rm.isOwnedRoom ? 'gold-ring' : ''}" data-pfs-act="open-room-menu" data-testid="vr-hdr-menu-btn" title="Room Mode &amp; Functions" aria-label="Room Menu">⋯</button>
         <button type="button" class="pfs-hdr-btn exit" data-pfs-act="exit-room" data-testid="vr-exit-btn" title="Leave VR Room" aria-label="Leave VR Room">✕</button>
       </div>
     `;
+    if (hdr.dataset.lastHtml !== nextHdrHtml) {
+      hdr.dataset.lastHtml = nextHdrHtml;
+      hdr.innerHTML = nextHdrHtml;
+    }
   }
 
   const subbar = $('#pfsSubbarSlot', root);
   if (subbar) {
-    const qList = Array.isArray(rm.queue) && rm.queue.length ? rm.queue : (Array.isArray(rm.musicQueue) ? rm.musicQueue : []);
-    const qCount = qList.length;
-    const isVidMode = rm.mode === 'video' && rm.mediaPlayMode === 'video';
-    const hasActiveVideo = isVidMode && Boolean(rm.youtubeId || rm.videoSync?.videoId || rm.videoSync?.videoUrl || rm.videoSync?.searchQuery);
-    subbar.innerHTML = `
+    const isVidMode = rm.mode === 'video';
+    const nextSubbarHtml = `
       <div class="pfs-subbar-left">
         <button type="button" class="pfs-mode-chip" data-pfs-act="open-room-menu" data-testid="vr-subbar-mode-btn">${esc(modeMeta.name)} · ${esc(rm.tag || 'Friends')} ▾</button>
-        ${hasActiveVideo
-          ? `<button type="button" class="pfs-vid-sub-btn playlist" data-pfs-act="open-playlist" data-testid="vr-subbar-playlist-btn" aria-label="Open Room Playlist">☰ Playlist${qCount ? ` (${qCount})` : ''}</button>`
-          : `<button type="button" class="pfs-vid-sub-btn add" data-pfs-act="open-add-video" data-testid="vr-subbar-add-video" aria-label="Add YouTube video">🎬 Add video</button>`
+        ${!isVidMode
+          ? `<button type="button" class="pfs-vid-sub-btn add" data-pfs-act="open-add-video" data-testid="vr-subbar-add-video" aria-label="Add YouTube video">+ Video</button>`
+          : ''
         }
       </div>
       <div class="pfs-subbar-right">
-        <button type="button" class="pfs-vid-sub-btn wtw" data-pfs-act="open-whos-winner" data-testid="vr-subbar-wtw-btn" aria-label="Play Who's the Winner">🏆 Winner</button>
-        <button type="button" class="pfs-vid-sub-btn perks" data-pfs-act="open-full-settings" data-testid="vr-hdr-perks-btn" aria-label="Room Settings">⚙️</button>
+        <button type="button" class="pfs-vid-sub-btn" data-pfs-act="open-room-bg" data-testid="vr-subbar-bg-btn" aria-label="Room Backgrounds">Theme</button>
+        <button type="button" class="pfs-vid-sub-btn wtw" data-pfs-act="open-whos-winner" data-testid="vr-subbar-wtw-btn" aria-label="Play Who's the Winner">Winner</button>
+        <button type="button" class="pfs-vid-sub-btn perks" data-pfs-act="open-full-settings" data-testid="vr-hdr-perks-btn" aria-label="Room Settings">Settings</button>
       </div>
     `;
+    if (subbar.dataset.lastHtml !== nextSubbarHtml) {
+      subbar.dataset.lastHtml = nextSubbarHtml;
+      subbar.innerHTML = nextSubbarHtml;
+    }
   }
 
   const shellEl = $('#pfsShellRoot', root);
@@ -3489,7 +4281,11 @@ function renderFullScreenPartyRoom() {
 
   const pkSlot = $('#pfsPkSlot', root);
   if (pkSlot && extras && typeof extras.renderRoomPkStageBanner === 'function') {
-    pkSlot.innerHTML = extras.renderRoomPkStageBanner(rm);
+    const nextPkHtml = extras.renderRoomPkStageBanner(rm);
+    if (pkSlot.dataset.lastHtml !== nextPkHtml) {
+      pkSlot.dataset.lastHtml = nextPkHtml;
+      pkSlot.innerHTML = nextPkHtml;
+    }
   }
 
   const stage = $('#pfsStageSlot', root);
@@ -3506,22 +4302,28 @@ function renderFullScreenPartyRoom() {
     }
   }
 
-  const feed = $('#pfsChatFeed', root);
-  if (feed) {
-    const msgsHtml = getMergedPartyMessages(rm).slice(-28).map(c => {
-      if (c.type === 'sys') return `<div class="pfs-msg sys">${esc(c.text)}</div>`;
-      const canDel = canDeletePartyMessage(c);
-      return `<div class="pfs-msg pfs-msg-row" data-pmsg-id="${esc(c.id)}">
-        <div class="pfs-msg-body"><b>${esc(c.name)}:</b> <span>${esc(c.text)}</span></div>
-        ${canDel ? `<button type="button" class="pfs-msg-del" data-del-pmsg="${esc(c.id)}" title="Delete message" aria-label="Delete message">🗑️</button>` : ''}
-      </div>`;
-    }).join('');
-    if (feed.dataset.lastHtml !== msgsHtml) {
-      feed.dataset.lastHtml = msgsHtml;
-      feed.innerHTML = msgsHtml;
-      feed.scrollTop = feed.scrollHeight;
+  const rulesSlot = $('#pfsRulesSlot', root);
+  if (rulesSlot) {
+    const canEditRules = canModerateRoom(rm);
+    const rulesTxt = rules && typeof rules.normalizeRoomRulesText === 'function'
+      ? rules.normalizeRoomRulesText(rm.roomRules)
+      : (rm.roomRules || 'Be respectful on mic · Keep chat friendly & spam-free · Follow Room Owner & Admin guidelines.');
+    const nextRulesHtml = `
+      <div class="pfs-rules-card" data-testid="vr-rules-card">
+        <div class="pfs-rules-head">
+          <span class="pfs-rules-lbl">Room Rules</span>
+          ${canEditRules ? '<button type="button" class="pfs-rules-edit" data-pfs-act="edit-room-rules" data-testid="vr-rules-edit-btn">Edit</button>' : ''}
+        </div>
+        <p class="pfs-rules-body" data-testid="vr-rules-body">${esc(rulesTxt)}</p>
+      </div>
+    `;
+    if (rulesSlot.dataset.lastHtml !== nextRulesHtml) {
+      rulesSlot.dataset.lastHtml = nextRulesHtml;
+      rulesSlot.innerHTML = nextRulesHtml;
     }
   }
+
+  renderPartyChatFeedOnly(rm);
 
   const spkBtn = $('#pfsSpkBtn', root);
   if (spkBtn) {
@@ -3543,14 +4345,25 @@ function partyTakeSeat(rm, idx) {
   if (rm.kickedUids && rm.kickedUids.includes(uid) && !isSingleOwner(rm, uid)) {
     return toast('You cannot take a seat in this room');
   }
-  const key = String(idx);
   const seatNum = Number(idx);
-  const isLocked = Array.isArray(rm.lockedSeats) && rm.lockedSeats.includes(seatNum);
-  if (isLocked && !canModerateRoom(rm)) {
-    return toast('🔒 This seat is locked by Room Owner / Admin');
-  }
-  if (seatNum === 0 && !isSingleOwner(rm, uid)) {
-    return toast('Seat 0 is only for the Room Owner');
+  const key = String(seatNum);
+  const rules = PRR();
+  if (rules && typeof rules.canUserTakeSeat === 'function') {
+    const perm = rules.canUserTakeSeat(rm, uid, seatNum);
+    if (!perm.allowed) {
+      return toast(perm.reason || 'Cannot take this seat');
+    }
+  } else {
+    const isLocked = Array.isArray(rm.lockedSeats) && rm.lockedSeats.includes(seatNum);
+    if (isLocked && !canModerateRoom(rm)) {
+      return toast('🔒 This seat is locked by Room Owner / Admin');
+    }
+    if (seatNum === 0 && !isSingleOwner(rm, uid)) {
+      return toast('Seat 0 is only for the Room Owner');
+    }
+    if (seatNum > 0 && isSingleOwner(rm, uid)) {
+      return toast('👑 Room Owner stays in the dedicated Owner slot (Seat 0)');
+    }
   }
   if (rm.seats[key] && rm.seats[key].uid !== uid) {
     return toast('Seat already taken');
@@ -3572,7 +4385,7 @@ function partyTakeSeat(rm, idx) {
     lastSeen: now,
     connected: true
   };
-  rm.seats = normalizePartySeats(nextSeats);
+  rm.seats = normalizePartySeats(nextSeats, rm);
   if (Array.isArray(rm.micOrder) && rm.micOrder.some(x => x && x.uid === uid)) {
     rm.micOrder = rm.micOrder.filter(x => x && x.uid !== uid);
   }
@@ -3588,7 +4401,7 @@ function partyLeaveSeat(rm) {
   Object.keys(rm.seats || {}).forEach(k => {
     if (rm.seats[k] && rm.seats[k].uid !== uid) nextSeats[k] = rm.seats[k];
   });
-  rm.seats = normalizePartySeats(nextSeats);
+  rm.seats = normalizePartySeats(nextSeats, rm);
   touchMyMemberInRoom(rm, Date.now());
   PartyWebRtcMesh.setMicMuted(true);
   persistPartyRoom(rm, { fullReplace: true });
@@ -3686,6 +4499,7 @@ function syncActiveTrackToVideoStage(rm, track, chatNote) {
 
   rm.mode = 'video';
   rm.mediaPlayMode = 'video';
+  rm.modeUpdatedAt = Date.now();
   rm.videoTitle = track.title || 'Room Video';
   PartyAudioPlayer.stop();
 
@@ -3757,7 +4571,10 @@ function applyQueueTrackSelection(rm, patch, chatNote) {
   if (mode === 'video' && activeTrack) {
     syncActiveTrackToVideoStage(rm, activeTrack, chatNote);
   } else {
-    if (rm.mode === 'video') rm.mode = 'normal';
+    if (rm.mode === 'video') {
+      rm.mode = 'normal';
+      rm.modeUpdatedAt = Date.now();
+    }
     applyPartyMusicPatch(rm, {}, chatNote);
   }
 }
@@ -3787,6 +4604,9 @@ function addOrPlayRoomTrack(rm, trackInput, opts) {
       { ...res.patch, mediaPlayMode: playMode },
       `${playMode === 'video' ? '🎬' : '♪'} ${who} started "${res.track.title}"`
     );
+    if (playMode !== 'video' && cat.isYtAudioSearchUrl && cat.isYtAudioSearchUrl(rm.musicUrl)) {
+      upgradeRoomTrackToFullVideoId(rm, rm.musicTrackId, res.track);
+    }
     if (typeof playSfx === 'function') playSfx('tap');
     if (typeof toast === 'function') {
       toast(`${playMode === 'video' ? '🎬 Synced' : '♪ Playing'}: ${res.track.title}`);
@@ -3812,6 +4632,7 @@ function setRoomMediaPlayMode(rm, targetMode) {
 
   if (nextMode === 'video') {
     rm.mode = 'video';
+    rm.modeUpdatedAt = Date.now();
     PartyAudioPlayer.stop();
     if (activeTrack) {
       syncActiveTrackToVideoStage(rm, activeTrack, `🎬 ${(typeof me !== 'undefined' && me?.name) || 'Player'} switched playlist to Video Mode`);
@@ -3820,12 +4641,20 @@ function setRoomMediaPlayMode(rm, targetMode) {
     }
     if (typeof toast === 'function') toast('🎬 Switched to VR Video Mode');
   } else {
-    if (rm.mode === 'video') rm.mode = 'normal';
+    if (rm.mode === 'video') {
+      rm.mode = 'normal';
+      rm.modeUpdatedAt = Date.now();
+    }
     PartyVideoSync.destroy();
     if (activeTrack) {
-      rm.musicUrl = activeTrack.url || rm.musicUrl;
+      const rawUrl = String(activeTrack.url || '').trim();
+      const isYtLink = /youtube\.com|youtu\.be/i.test(rawUrl);
+      rm.musicUrl = (activeTrack.videoId && (!rawUrl || isYtLink))
+        ? `yt-audio://${activeTrack.videoId}`
+        : (rawUrl || rm.musicUrl);
       rm.musicTitle = activeTrack.title || rm.musicTitle;
       rm.musicArtist = activeTrack.artist || rm.musicArtist;
+      rm.musicThumb = activeTrack.thumbnail || rm.musicThumb || '';
       rm.musicTrackId = activeTrack.songId || activeTrack.id || rm.musicTrackId;
       rm.musicPlaying = true;
     }
@@ -3850,6 +4679,55 @@ function advanceRoomQueue(rm, opts) {
   return res;
 }
 
+const _failedAudioTrackKeys = new Set();
+const _ytAudioLiveFallbackTried = new Set();
+const _upgradingFullSongKeys = new Set();
+let _activeMusicModalRefreshFn = null;
+
+function upgradeRoomTrackToFullVideoId(rm, targetTrackId, trackMeta) {
+  const cat = PMC();
+  if (!rm || !cat || typeof cat.resolveFullLengthSongUrl !== 'function') return;
+  const key = `${rm.id}:${targetTrackId || (trackMeta && trackMeta.title) || ''}`;
+  if (!key || _upgradingFullSongKeys.has(key)) return;
+  _upgradingFullSongKeys.add(key);
+  cat.resolveFullLengthSongUrl(trackMeta || { title: rm.musicTitle, artist: rm.musicArtist }, { timeoutMs: 3800 }).then((resolved) => {
+    _upgradingFullSongKeys.delete(key);
+    if (!resolved || !resolved.ok || !resolved.videoId) return;
+    const curRm = partyRooms.find(r => r && r.id === rm.id) || rm;
+    if (!curRm) return;
+    if (Array.isArray(curRm.queue)) {
+      curRm.queue = curRm.queue.map(q =>
+        (q && (q.songId === targetTrackId || q.id === targetTrackId))
+          ? {
+              ...q,
+              videoId: resolved.videoId,
+              youtubeId: resolved.videoId,
+              url: resolved.url,
+              duration: resolved.duration || q.duration,
+              durationSec: resolved.durationSec || q.durationSec,
+              thumbnail: q.thumbnail || resolved.thumbnail || ''
+            }
+          : q
+      );
+      curRm.musicQueue = curRm.queue;
+    }
+    if (curRm.musicTrackId === targetTrackId && !(curRm.mode === 'video' && curRm.mediaPlayMode === 'video')) {
+      curRm.musicUrl = resolved.url;
+      curRm.youtubeId = resolved.videoId;
+      if (resolved.duration) curRm.musicDuration = resolved.duration;
+      if (resolved.durationSec) curRm.musicDurationSec = resolved.durationSec;
+      if (!curRm.musicThumb && resolved.thumbnail) curRm.musicThumb = resolved.thumbnail;
+      curRm.musicError = '';
+      PartyAudioPlayer.syncFromRoom(curRm);
+      if (canModerateRoom(curRm)) persistPartyRoom(curRm);
+      if (typeof _activeMusicModalRefreshFn === 'function') _activeMusicModalRefreshFn();
+      if (typeof renderFullScreenPartyRoom === 'function') renderFullScreenPartyRoom();
+    }
+  }).catch(() => {
+    _upgradingFullSongKeys.delete(key);
+  });
+}
+
 function handleRoomTrackEnded(rm, fromMode) {
   if (!rm) return;
   const q = getRoomPlaylist(rm);
@@ -3858,6 +4736,91 @@ function handleRoomTrackEnded(rm, fromMode) {
   if (fromMode && fromMode !== activeMode) return;
   if (!canModerateRoom(rm)) return;
   advanceRoomQueue(rm, { silentToast: true, autoAdvance: true });
+}
+
+function handleAudioPlaybackFailure(rm, errInfo) {
+  if (!rm) return;
+  if (rm.mode === 'video' && rm.mediaPlayMode === 'video') return;
+  const cat = PMC();
+  const failedTitle = rm.musicTitle || 'Current track';
+  const failedKey = String((errInfo && (errInfo.trackId || errInfo.url)) || rm.musicTrackId || rm.musicUrl || '').trim();
+
+  // If a YouTube audio track is embed-restricted (101/150), resolve an alternate FULL-LENGTH embeddable version (never 30s preview!)
+  if (errInfo && errInfo.isYtAudio && failedKey && !_ytAudioLiveFallbackTried.has(failedKey) && cat && typeof cat.resolveFullLengthSongUrl === 'function') {
+    _ytAudioLiveFallbackTried.add(failedKey);
+    const targetTrackId = rm.musicTrackId || '';
+    const excludeIds = errInfo.videoId ? [errInfo.videoId] : [];
+    cat.resolveFullLengthSongUrl(
+      { title: rm.musicTitle || '', artist: rm.musicArtist || '' },
+      { excludeVideoIds: excludeIds, preferVideosFilter: true, timeoutMs: 3800 }
+    ).then((altRes) => {
+      const curRm = partyRooms.find(r => r && r.id === rm.id) || rm;
+      if (!curRm || curRm.musicTrackId !== targetTrackId || (curRm.mode === 'video' && curRm.mediaPlayMode === 'video')) return;
+      if (altRes && altRes.ok && altRes.url && altRes.url !== curRm.musicUrl) {
+        curRm.musicUrl = altRes.url;
+        if (altRes.videoId) curRm.youtubeId = altRes.videoId;
+        if (altRes.duration) curRm.musicDuration = altRes.duration;
+        if (altRes.durationSec) curRm.musicDurationSec = altRes.durationSec;
+        if (!curRm.musicThumb && altRes.thumbnail) curRm.musicThumb = altRes.thumbnail;
+        curRm.musicError = '';
+        curRm.musicPlaying = true;
+        const qIdx = Number.isFinite(Number(curRm.queueIndex)) ? Number(curRm.queueIndex) : 0;
+        if (Array.isArray(curRm.queue) && curRm.queue[qIdx]) {
+          curRm.queue[qIdx] = {
+            ...curRm.queue[qIdx],
+            url: altRes.url,
+            videoId: altRes.videoId || curRm.queue[qIdx].videoId,
+            duration: altRes.duration || curRm.queue[qIdx].duration,
+            durationSec: altRes.durationSec || curRm.queue[qIdx].durationSec
+          };
+          curRm.musicQueue = curRm.queue;
+        }
+        PartyAudioPlayer.syncFromRoom(curRm);
+        if (canModerateRoom(curRm)) persistPartyRoom(curRm);
+        if (typeof _activeMusicModalRefreshFn === 'function') _activeMusicModalRefreshFn();
+        if (typeof renderFullScreenPartyRoom === 'function') renderFullScreenPartyRoom();
+        return;
+      }
+      handleAudioPlaybackFailure(curRm, { ...errInfo, isYtAudio: false });
+    }).catch(() => {
+      const curRm = partyRooms.find(r => r && r.id === rm.id) || rm;
+      handleAudioPlaybackFailure(curRm, { ...errInfo, isYtAudio: false });
+    });
+    return;
+  }
+
+  if (failedKey) _failedAudioTrackKeys.add(failedKey);
+
+  const q = getRoomPlaylist(rm);
+  const canSkip = q.length > 1 && cat && typeof cat.advanceAfterUnplayableTrack === 'function';
+  if (canSkip) {
+    const nextRes = cat.advanceAfterUnplayableTrack(rm, failedKey, _failedAudioTrackKeys);
+    if (nextRes && nextRes.ok && nextRes.track) {
+      rm.musicError = '';
+      if (canModerateRoom(rm)) {
+        applyQueueTrackSelection(rm, nextRes.patch);
+      } else {
+        Object.assign(rm, nextRes.patch);
+        PartyAudioPlayer.syncFromRoom(rm);
+      }
+      if (typeof toast === 'function') {
+        toast(`⚠️ "${failedTitle}" unavailable — skipped to "${nextRes.track.title}"`);
+      }
+      if (typeof _activeMusicModalRefreshFn === 'function') _activeMusicModalRefreshFn();
+      if (typeof renderFullScreenPartyRoom === 'function') renderFullScreenPartyRoom();
+      return;
+    }
+  }
+
+  rm.musicPlaying = false;
+  rm.musicError = `"${failedTitle}" couldn't play. Tap Next, search another song, or paste a direct MP3 link.`;
+  PartyAudioPlayer.setPlaying(false);
+  if (canModerateRoom(rm)) persistPartyRoom(rm);
+  if (typeof toast === 'function') {
+    toast(`⚠️ "${failedTitle}" unavailable — search another song or paste a direct MP3 link`);
+  }
+  if (typeof _activeMusicModalRefreshFn === 'function') _activeMusicModalRefreshFn();
+  if (typeof renderFullScreenPartyRoom === 'function') renderFullScreenPartyRoom();
 }
 
 function orderPartySongById(rm, songId, opts) {
@@ -3889,10 +4852,15 @@ function orderPartySongById(rm, songId, opts) {
       `♪ ${(typeof me !== 'undefined' && me?.name) || 'Player'} ordered "${res.track.title}"`
     );
     if (typeof playSfx === 'function') playSfx('tap');
+    if (res.needsLiveResolve && typeof cat.resolveFullLengthSongUrl === 'function') {
+      upgradeRoomTrackToFullVideoId(rm, res.track.songId || res.track.id, {
+        title: song.title,
+        artist: song.artist,
+        searchQuery: res.searchQuery || `${song.title} ${song.artist || ''} full song`.trim()
+      });
+    }
     if (typeof toast === 'function') {
-      toast(res.usedFallback
-        ? `♪ Playing preview: ${res.track.title} (or paste custom .mp3 below)`
-        : `♪ Playing: ${res.track.title}`);
+      toast(`♪ Playing: ${res.track.title}`);
     }
   } else {
     applyPartyMusicPatch(
@@ -3958,28 +4926,43 @@ function clearPartyMusicQueue(rm) {
 }
 
 function renderLiveSearchItemsHtml(items, liveRm, queue, attrPrefix) {
+  const isPlaying = liveRm.mediaPlayMode === 'video'
+    ? Boolean(liveRm.mode === 'video' && liveRm.videoSync?.playing)
+    : Boolean(liveRm.musicPlaying && liveRm.musicUrl);
   return items.map((item, idx) => {
-    const inQ = queue.some(q => (item.videoId && q.videoId === item.videoId) || (item.id && q.songId === item.id));
+    const inQ = queue.some(q =>
+      (item.videoId && q.videoId === item.videoId) ||
+      (item.id && (q.songId === item.id || q.id === item.id)) ||
+      (item.url && q.url === item.url)
+    );
     const isNow = Boolean(
       (item.videoId && (liveRm.youtubeId === item.videoId || liveRm.videoSync?.videoId === item.videoId)) ||
-      (liveRm.musicTrackId && liveRm.musicTrackId === item.id && liveRm.musicPlaying)
+      (liveRm.musicTrackId && liveRm.musicTrackId === item.id && isPlaying) ||
+      (item.url && liveRm.musicUrl === item.url && isPlaying)
     );
+    const isAudioCard = item.kind === 'audio' || item.source === 'itunes' || item.source === 'audius' || item.source === 'catalog';
     const thumbHtml = item.thumbnail
-      ? `<img class="pm-res-img" src="${esc(item.thumbnail)}" alt="" loading="lazy" decoding="async">`
-      : `<span class="pm-res-ico" aria-hidden="true">${item.kind === 'yt_search' ? '🔎' : '▶'}</span>`;
+      ? `<img class="pm-res-img" src="${esc(item.thumbnail)}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">`
+      : `<span class="pm-res-ico" aria-hidden="true">${item.kind === 'yt_search' ? '🔎' : (isAudioCard ? '♪' : '▶')}</span>`;
+    const subParts = [item.artist || item.channel || 'Artist'];
+    if (item.language && item.language !== 'Music' && item.language !== 'Track') subParts.push(item.language);
+    else if (item.album) subParts.push(item.album);
+    if (item.kind === 'yt_search') subParts.push('Instant Fallback');
+    else if (item.source === 'audius') subParts.push('Full Audio');
+
     return `
       <div class="pm-res-row ${isNow ? 'active' : ''}" data-testid="${attrPrefix}-search-row">
-        <div class="pm-res-thumb">
+        <div class="pm-res-thumb ${isAudioCard ? 'audio-art' : ''}">
           ${thumbHtml}
           ${item.duration ? `<span class="pm-res-dur">${esc(item.duration)}</span>` : ''}
         </div>
         <div class="pm-song-info">
           <b class="pm-song-title">${esc(item.title)}</b>
-          <small class="pm-song-sub">${esc(item.channel || item.artist || 'YouTube')}${item.kind === 'yt_search' ? ' · Instant Fallback' : ''}</small>
+          <small class="pm-song-sub">${esc(subParts.join(' · '))}</small>
         </div>
         <div class="pm-row-acts">
-          <button type="button" class="btn sm ghost pm-add-btn" data-${attrPrefix}-add="${idx}" data-testid="${attrPrefix}-result-add" aria-label="Add ${esc(item.title)} to room playlist">${inQ ? 'Added ✓' : '+ Add'}</button>
-          <button type="button" class="btn sm ${isNow ? 'gold' : 'ok'} pm-playnow-btn" data-${attrPrefix}-playnow="${idx}" data-testid="${attrPrefix}-result-play" aria-label="Play ${esc(item.title)} now">${isNow ? 'Live' : 'Play Now'}</button>
+          <button type="button" class="btn sm ghost pm-add-sm" data-${attrPrefix}-add="${idx}" data-testid="${attrPrefix}-result-add" aria-label="Add ${esc(item.title)} to room playlist" title="${inQ ? 'In playlist' : 'Add to playlist'}">${inQ ? '✓' : '+'}</button>
+          <button type="button" class="btn sm ${isNow ? 'gold' : 'ok'} pm-playnow-btn" data-${attrPrefix}-playnow="${idx}" data-testid="${attrPrefix}-result-play" aria-label="Play ${esc(item.title)} now">${isNow ? 'Playing' : 'Play'}</button>
         </div>
       </div>
     `;
@@ -3988,16 +4971,17 @@ function renderLiveSearchItemsHtml(items, liveRm, queue, attrPrefix) {
 
 function renderPlaylistRowsHtml(queue, liveRm, _searchQuery, attrPrefix) {
   if (!queue.length) {
-    return `<div class="pm-empty">Temporary room playlist is empty. Search any song or video above and tap <b>+ Add</b> or <b>Play Now</b>!</div>`;
+    return `<div class="pm-empty">Temporary room playlist is empty. Search any song or video above and tap <b>+</b> or <b>Play</b>!</div>`;
   }
   const activeIdx = Number.isFinite(Number(liveRm.queueIndex)) ? Number(liveRm.queueIndex) : Number(liveRm.musicQueueIndex ?? -1);
   const isPlaying = Boolean(liveRm.musicPlaying || (liveRm.mode === 'video' && liveRm.videoSync?.playing));
   return queue.map((item, realIdx) => {
     const isCurrent = realIdx === activeIdx && (Boolean(liveRm.musicUrl) || Boolean(liveRm.youtubeId) || Boolean(liveRm.videoSync?.searchQuery));
+    const isAudioItem = item.kind === 'audio' || item.source === 'itunes' || item.source === 'audius';
     return `
       <div class="pm-song-row ${isCurrent ? 'active' : ''}" data-testid="${attrPrefix}-ordered-row">
         <span class="pm-q-num">${realIdx + 1}</span>
-        ${item.thumbnail ? `<img class="pm-q-thumb" src="${esc(item.thumbnail)}" alt="" loading="lazy">` : ''}
+        ${item.thumbnail ? `<img class="pm-q-thumb ${isAudioItem ? 'sq' : ''}" src="${esc(item.thumbnail)}" alt="" loading="lazy">` : ''}
         <div class="pm-song-info">
           <b class="pm-song-title">${esc(item.title)}</b>
           <small class="pm-song-sub">${esc(item.artist || item.channel || 'Room Media')}${item.addedBy ? ` · Added by ${esc(item.addedBy)}` : ''}${item.duration ? ` · ${esc(item.duration)}` : ''}</small>
@@ -4011,26 +4995,43 @@ function renderPlaylistRowsHtml(queue, liveRm, _searchQuery, attrPrefix) {
   }).join('');
 }
 
-function openPartyMusicModal(rm) {
+function openPartyMusicModal(rm, opts) {
   const cat = PMC();
-  let activeTab = 'trending'; // 'trending' | 'favorites' | 'recent' | 'ordered'
+  const o = opts || {};
+  const allowedTabs = ['trending', 'favorites', 'recent', 'ordered'];
+  let activeTab = allowedTabs.includes(o.initialTab) ? o.initialTab : 'trending';
   let selectedLang = 'All';   // 'All' | 'Hindi' | 'Bangla'
   let searchQuery = '';
-  let liveState = { active: false, loading: false, query: '', source: '', usedFallback: false, items: [], error: '' };
+  let activeTopicId = '';
+  let liveState = { active: false, loading: false, query: '', mode: 'audio', source: '', usedFallback: false, items: [], error: '' };
   let searchSeq = 0;
+  let debounceTimer = 0;
+
+  const audioTopics = (cat && Array.isArray(cat.AUDIO_BROWSE_TOPICS))
+    ? cat.AUDIO_BROWSE_TOPICS
+    : [
+        { id: 'hindi_hits', label: 'Hindi Hits', query: 'Arijit Singh Bollywood Hits' },
+        { id: 'bangla_hits', label: 'Bangla', query: 'Bangla Song Anupam Roy Arijit' },
+        { id: 'punjabi', label: 'Punjabi', query: 'Diljit Dosanjh Karan Aujla' },
+        { id: 'english_pop', label: 'English Pop', query: 'The Weeknd Bruno Mars Pop' },
+        { id: 'lofi', label: 'Lo-Fi Chill', query: 'Lofi Hindi Chill Beats' }
+      ];
 
   const m = modal('Room Music & Live Search', `
     <div class="pm-shell" data-testid="vr-music-picker">
       <div class="pm-now-bar" id="pmNowBar" data-testid="pm-now-bar"></div>
+      <div class="pm-audio-err-strip" id="pmAudioErrStrip" data-testid="pm-audio-err-strip" hidden></div>
 
       <div class="pm-search-bar">
         <div class="pm-search-wrap">
           <svg class="pm-search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input id="pmSearchIn" type="search" placeholder="Search any Hindi, Bangla, English song or YouTube video..." aria-label="Search any Hindi, Bangla, English song or YouTube video" data-testid="pm-search-input" autocomplete="off">
+          <input id="pmSearchIn" type="search" placeholder="Search any Hindi, Bangla, English song or artist..." aria-label="Search any Hindi, Bangla, English song or artist" data-testid="pm-search-input" autocomplete="off">
           <button type="button" class="pm-search-clr" id="pmSearchClr" aria-label="Clear search" hidden>✕</button>
         </div>
         <button type="button" class="btn ok sm pm-search-go" id="pmLiveSearchBtn" data-testid="pm-live-search-btn">Search</button>
       </div>
+
+      <div class="pm-quick-chips" id="pmQuickChips" role="group" aria-label="Quick live song discovery" data-testid="pm-quick-chips"></div>
 
       <div class="pm-tabs" role="tablist" aria-label="Music lists" id="pmTabs"></div>
       <div class="pm-lang-row" id="pmLangRow" role="group" aria-label="Language filter" data-testid="pm-lang-row"></div>
@@ -4051,41 +5052,73 @@ function openPartyMusicModal(rm) {
     return partyRooms.find(r => r && r.id === rm.id) || rm;
   }
 
-  async function runLiveSearch(rawQ) {
+  const origClose = typeof m.close === 'function' ? m.close.bind(m) : null;
+  m.close = () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    if (_activeMusicModalRefreshFn === renderModalContent) _activeMusicModalRefreshFn = null;
+    if (origClose) origClose();
+  };
+  _activeMusicModalRefreshFn = renderModalContent;
+
+  async function runLiveSearch(rawQ, forceMode) {
     const q = String(rawQ || '').trim();
-    if (!q || !cat || typeof cat.searchYouTubeLive !== 'function') return;
+    if (!q || !cat) return;
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = 0;
+    }
+    const liveRm = getLiveRoom();
+    const searchMode = forceMode || (liveRm.mediaPlayMode === 'video' ? 'video' : 'audio');
     const seq = ++searchSeq;
-    liveState = { active: true, loading: true, query: q, source: '', usedFallback: false, items: [], error: '' };
+    liveState = { active: true, loading: true, query: q, mode: searchMode, source: '', usedFallback: false, items: [], error: '' };
     renderModalContent();
+
     try {
-      const res = await cat.searchYouTubeLive(q, { maxResults: 10, timeoutMs: 4000 });
-      if (seq !== searchSeq) return;
-      liveState = {
-        active: true,
-        loading: false,
-        query: q,
-        source: res.source || '',
-        usedFallback: Boolean(res.usedFallback),
-        items: Array.isArray(res.items) ? res.items : [],
-        error: res.ok ? '' : (res.error || 'No results found')
-      };
+      if (searchMode === 'video' && typeof cat.searchYouTubeLive === 'function') {
+        const res = await cat.searchYouTubeLive(q, { maxResults: 12, timeoutMs: 4200 });
+        if (seq !== searchSeq) return;
+        liveState = {
+          active: true,
+          loading: false,
+          query: q,
+          mode: 'video',
+          source: res.source || '',
+          usedFallback: Boolean(res.usedFallback),
+          items: Array.isArray(res.items) ? res.items : [],
+          error: res.ok ? '' : (res.error || 'No results found')
+        };
+      } else if (typeof cat.searchAudioSongsLive === 'function') {
+        const res = await cat.searchAudioSongsLive(q, { maxResults: 15, timeoutMs: 4800 });
+        if (seq !== searchSeq) return;
+        liveState = {
+          active: true,
+          loading: false,
+          query: q,
+          mode: 'audio',
+          source: res.source || 'itunes',
+          usedFallback: Boolean(res.usedFallback),
+          items: Array.isArray(res.items) ? res.items : [],
+          error: res.ok ? '' : (res.error || 'No songs found')
+        };
+      }
     } catch {
       if (seq !== searchSeq) return;
-      const fb = cat.buildYouTubeSearchFallbackItem(q);
-      liveState = {
-        active: true,
-        loading: false,
-        query: q,
-        source: 'yt_search_fallback',
-        usedFallback: true,
-        items: fb ? [fb] : [],
-        error: ''
-      };
+      if (searchMode === 'video' && typeof cat.buildYouTubeSearchFallbackItem === 'function') {
+        const fb = cat.buildYouTubeSearchFallbackItem(q);
+        liveState = { active: true, loading: false, query: q, mode: 'video', source: 'yt_search_fallback', usedFallback: true, items: fb ? [fb] : [], error: '' };
+      } else {
+        const localFb = typeof cat.findLocalAudioMatches === 'function' ? cat.findLocalAudioMatches(q, 10) : [];
+        liveState = { active: true, loading: false, query: q, mode: 'audio', source: 'catalog_fallback', usedFallback: true, items: localFb, error: '' };
+      }
     }
     renderModalContent();
   }
 
   function renderModalContent() {
+    if (!m || !m.isConnected) {
+      if (_activeMusicModalRefreshFn === renderModalContent) _activeMusicModalRefreshFn = null;
+      return;
+    }
     const liveRm = getLiveRoom();
     const queue = getRoomPlaylist(liveRm);
     const favIds = getMusicFavoriteIds();
@@ -4095,18 +5128,22 @@ function openPartyMusicModal(rm) {
       ? Boolean(liveRm.mode === 'video' && liveRm.videoSync?.playing)
       : Boolean(liveRm.musicPlaying && liveRm.musicUrl);
     const hasActiveMedia = Boolean(liveRm.musicUrl || liveRm.youtubeId || liveRm.videoSync?.searchQuery || queue.length);
+    const activeTrack = getRoomActiveTrack(liveRm);
+    const activeThumb = liveRm.musicThumb || (activeTrack && activeTrack.thumbnail) || '';
 
     const nowBar = $('#pmNowBar', m);
     if (nowBar) {
       const nowTitle = (curPlayMode === 'video' ? liveRm.videoTitle : liveRm.musicTitle) || liveRm.musicTitle || liveRm.videoTitle || (hasActiveMedia ? 'Room Media' : 'No track playing');
       const langPart = liveRm.musicLanguage ? ` · ${liveRm.musicLanguage}` : '';
       const nowSub = hasActiveMedia
-        ? `${liveRm.musicArtist || 'Room Playlist'}${langPart} · ${curPlayMode === 'video' ? 'VR Video' : 'Audio Mini'} · ${isPlaying ? 'Playing' : 'Paused'}${queue.length ? ` · ${queue.length} queued` : ''}`
-        : 'Search any song/video above or pick Hindi/Bangla tracks below';
+        ? `${liveRm.musicArtist || 'Room Playlist'}${langPart} · ${curPlayMode === 'video' ? 'VR Video' : 'Audio'} · ${isPlaying ? 'Playing' : 'Paused'}${queue.length ? ` · ${queue.length} queued` : ''}`
+        : 'Search any Hindi, Bangla or English song above to play or queue';
       nowBar.innerHTML = `
         <div class="pm-now-top">
           <div class="pm-now-left">
-            <div class="pm-disc ${isPlaying ? 'spin' : ''}" aria-hidden="true">${curPlayMode === 'video' ? '🎬' : '♪'}</div>
+            <div class="pm-disc ${isPlaying ? 'spin' : ''} ${activeThumb ? 'has-art' : ''}" aria-hidden="true">
+              ${activeThumb ? `<img src="${esc(activeThumb)}" alt="" loading="lazy">` : (curPlayMode === 'video' ? '🎬' : '♪')}
+            </div>
             <div class="pm-now-meta">
               <b class="pm-now-title" data-testid="pm-now-title">${esc(nowTitle)}</b>
               <small class="pm-now-sub">${esc(nowSub)}</small>
@@ -4123,6 +5160,34 @@ function openPartyMusicModal(rm) {
           <button type="button" class="btn sm red" id="pmClearTopBtn" data-testid="pm-clear-list" ${queue.length < 1 && !hasActiveMedia ? 'disabled' : ''}>Clear List</button>
         </div>
       `;
+    }
+
+    const errStrip = $('#pmAudioErrStrip', m);
+    if (errStrip) {
+      if (liveRm.musicError) {
+        errStrip.hidden = false;
+        errStrip.innerHTML = `
+          <span class="pm-err-txt">⚠️ ${esc(liveRm.musicError)}</span>
+          <div class="pm-err-acts">
+            ${queue.length > 1 ? `<button type="button" class="btn sm ghost" id="pmErrNextBtn" data-testid="pm-err-next">Next ⏭</button>` : ''}
+            <button type="button" class="btn sm ok" id="pmErrPasteBtn" data-testid="pm-err-paste">Paste Link</button>
+          </div>
+        `;
+      } else {
+        errStrip.hidden = true;
+        errStrip.innerHTML = '';
+      }
+    }
+
+    const chipsEl = $('#pmQuickChips', m);
+    if (chipsEl) {
+      chipsEl.hidden = curPlayMode === 'video';
+      if (!chipsEl.hidden) {
+        chipsEl.innerHTML = audioTopics.map(tp => {
+          const isOn = liveState.active && activeTopicId === tp.id;
+          return `<button type="button" class="pm-quick-chip ${isOn ? 'on' : ''}" data-pm-topic="${esc(tp.id)}" data-testid="pm-topic-${esc(tp.id)}">${esc(tp.label)}</button>`;
+        }).join('');
+      }
     }
 
     const tabsEl = $('#pmTabs', m);
@@ -4159,25 +5224,37 @@ function openPartyMusicModal(rm) {
     const listEl = $('#pmSongList', m);
     if (!listEl) return;
 
-    // Live Search Results View
+    // Live Search Results View (Full-Length Audio via YouTube Music / Audius OR YouTube in Video mode)
     if (liveState.active) {
+      const isVidSearch = liveState.mode === 'video';
+      const srcBadge = liveState.source === 'yt_audio'
+        ? 'Full Songs'
+        : (liveState.source === 'audius'
+            ? 'Full Audio'
+            : (liveState.source === 'itunes_full' || liveState.source === 'yt_audio_search'
+                ? 'Full Song Search'
+                : (liveState.usedFallback ? 'Catalog Match' : 'Live Results')));
       const srcLabel = liveState.loading
-        ? `Searching YouTube for "${liveState.query}"...`
-        : (liveState.usedFallback
-            ? `Instant YouTube Search for "${liveState.query}"`
-            : `Live Results for "${liveState.query}" (${liveState.items.length})`);
+        ? `Searching ${isVidSearch ? 'YouTube' : 'live songs'} for "${liveState.query}"...`
+        : `${srcBadge} · "${liveState.query}" (${liveState.items.length})`;
+      const switchBtnHtml = isVidSearch
+        ? `<button type="button" class="pm-live-back" id="pmSwitchAudioSearch" data-testid="pm-switch-audio-search">♪ Songs</button>`
+        : `<button type="button" class="pm-live-back" id="pmSwitchYtSearch" data-testid="pm-switch-yt-search">▶ YouTube</button>`;
       const headerHtml = `
         <div class="pm-live-head" data-testid="pm-live-head">
           <small>${esc(srcLabel)}</small>
-          <button type="button" class="pm-live-back" id="pmCloseLive" data-testid="pm-close-live">Back to Catalog</button>
+          <div class="pm-live-head-acts">
+            ${switchBtnHtml}
+            <button type="button" class="pm-live-back" id="pmCloseLive" data-testid="pm-close-live">Catalog</button>
+          </div>
         </div>
       `;
       if (liveState.loading) {
-        listEl.innerHTML = `${headerHtml}<div class="pm-empty">Fetching live YouTube results...</div>`;
+        listEl.innerHTML = `${headerHtml}<div class="pm-empty"><span class="pm-spin-dot" aria-hidden="true"></span> Searching live songs for "${esc(liveState.query)}"...</div>`;
         return;
       }
       if (!liveState.items.length) {
-        listEl.innerHTML = `${headerHtml}<div class="pm-empty">No live results found for "${esc(liveState.query)}". Try another keyword or paste a link below.</div>`;
+        listEl.innerHTML = `${headerHtml}<div class="pm-empty">No live results found for "${esc(liveState.query)}". Try another song name, tap <b>▶ YouTube</b>, or paste a direct MP3 link below.</div>`;
         return;
       }
       listEl.innerHTML = headerHtml + renderLiveSearchItemsHtml(liveState.items, liveRm, queue, 'pm');
@@ -4195,7 +5272,7 @@ function openPartyMusicModal(rm) {
 
     if (!songs.length) {
       let msg = searchQuery
-        ? `No local starter songs match "${esc(searchQuery)}". Tap <b>Search</b> above to search all of YouTube live!`
+        ? `No local starter songs match "${esc(searchQuery)}". Tap <b>Search</b> above for live global songs!`
         : 'No matching songs found.';
       if (!searchQuery && activeTab === 'favorites') {
         msg = selectedLang === 'All'
@@ -4216,16 +5293,19 @@ function openPartyMusicModal(rm) {
       const inQueue = queue.some(q => q.songId ? q.songId === s.id : Boolean(s.url && q.url === s.url));
       const btnText = isCurrent && isPlaying ? 'Playing' : 'Play';
       const langLabel = s.language || s.tag || '';
+      const hasArt = Boolean(s.thumbnail || s.artworkUrl);
       return `
         <div class="pm-song-row ${isCurrent ? 'active' : ''}" data-testid="pm-song-row" data-song-lang="${esc(langLabel)}">
-          <div class="pm-song-art" style="--pm-accent:${esc(s.accent || '#38bdf8')}" aria-hidden="true">${isCurrent && isPlaying ? '❚❚' : '♪'}</div>
+          <div class="pm-song-art ${hasArt ? 'has-img' : ''}" style="--pm-accent:${esc(s.accent || '#38bdf8')}" aria-hidden="true">
+            ${hasArt ? `<img src="${esc(s.thumbnail || s.artworkUrl)}" alt="" loading="lazy">` : (isCurrent && isPlaying ? '❚❚' : '♪')}
+          </div>
           <div class="pm-song-info">
             <b class="pm-song-title">${esc(s.title)}</b>
             <small class="pm-song-sub">${esc(s.artist || s.singer || 'Room Track')}${langLabel ? ` · ${esc(langLabel)}` : ''}${s.duration ? ` · ${esc(s.duration)}` : ''}</small>
           </div>
           <div class="pm-row-acts">
             <button type="button" class="pm-fav-btn ${isFav ? 'on' : ''}" data-pm-fav="${esc(s.id)}" aria-label="${isFav ? 'Remove' : 'Add'} ${esc(s.title)} favorite" aria-pressed="${isFav ? 'true' : 'false'}" title="${isFav ? 'Remove from Favorites' : 'Save to Favorites'}">${isFav ? '♥' : '♡'}</button>
-            <button type="button" class="btn sm ghost pm-add-sm" data-pm-add-song="${esc(s.id)}" aria-label="Add ${esc(s.title)} to playlist" title="Add to playlist">${inQueue ? '✓' : '+'}</button>
+            <button type="button" class="btn sm ghost pm-add-sm" data-pm-add-song="${esc(s.id)}" data-pm-url="${esc(s.url || '')}" aria-label="Add ${esc(s.title)} to playlist" title="Add to playlist">${inQueue ? '✓' : '+'}</button>
             <button type="button" class="btn sm ${isCurrent && isPlaying ? 'gold' : 'ok'} pm-order-btn" data-pm-order="${esc(s.id)}" data-pm-url="${esc(s.url || '')}" aria-label="Play ${esc(s.title)}">${btnText}</button>
           </div>
         </div>
@@ -4239,26 +5319,47 @@ function openPartyMusicModal(rm) {
   if (searchIn) {
     searchIn.oninput = () => {
       searchQuery = (searchIn.value || '').trim();
+      activeTopicId = '';
       if (searchClr) searchClr.hidden = !searchQuery;
-      if (!searchQuery && liveState.active) {
-        liveState = { active: false, loading: false, query: '', source: '', usedFallback: false, items: [], error: '' };
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = 0;
+      }
+      if (!searchQuery) {
+        liveState = { active: false, loading: false, query: '', mode: 'audio', source: '', usedFallback: false, items: [], error: '' };
+        renderModalContent();
+        return;
       }
       renderModalContent();
+      if (searchQuery.length >= 2) {
+        debounceTimer = setTimeout(() => {
+          debounceTimer = 0;
+          if ((searchIn.value || '').trim() === searchQuery) {
+            runLiveSearch(searchQuery);
+          }
+        }, 420);
+      }
     };
     searchIn.onkeydown = (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
+        activeTopicId = '';
         runLiveSearch(searchIn.value);
       }
     };
   }
   if (liveBtn) {
-    liveBtn.onclick = () => runLiveSearch(searchIn ? searchIn.value : searchQuery);
+    liveBtn.onclick = () => {
+      activeTopicId = '';
+      runLiveSearch(searchIn ? searchIn.value : searchQuery);
+    };
   }
   if (searchClr) {
     searchClr.onclick = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       searchQuery = '';
-      liveState = { active: false, loading: false, query: '', source: '', usedFallback: false, items: [], error: '' };
+      activeTopicId = '';
+      liveState = { active: false, loading: false, query: '', mode: 'audio', source: '', usedFallback: false, items: [], error: '' };
       if (searchIn) searchIn.value = '';
       searchClr.hidden = true;
       renderModalContent();
@@ -4269,20 +5370,65 @@ function openPartyMusicModal(rm) {
     const liveRm = getLiveRoom();
 
     if (e.target.closest('#pmCloseLive')) {
-      liveState = { active: false, loading: false, query: '', source: '', usedFallback: false, items: [], error: '' };
+      activeTopicId = '';
+      liveState = { active: false, loading: false, query: '', mode: 'audio', source: '', usedFallback: false, items: [], error: '' };
       renderModalContent();
+      return;
+    }
+
+    if (e.target.closest('#pmSwitchYtSearch')) {
+      runLiveSearch(liveState.query || searchQuery, 'video');
+      return;
+    }
+
+    if (e.target.closest('#pmSwitchAudioSearch')) {
+      runLiveSearch(liveState.query || searchQuery, 'audio');
+      return;
+    }
+
+    if (e.target.closest('#pmErrNextBtn')) {
+      liveRm.musicError = '';
+      advanceRoomQueue(liveRm);
+      renderModalContent();
+      return;
+    }
+
+    if (e.target.closest('#pmErrPasteBtn')) {
+      const urlIn = $('#pmAudioUrl', m);
+      if (urlIn) {
+        urlIn.focus();
+        urlIn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    const topicBtn = e.target.closest('[data-pm-topic]');
+    if (topicBtn && topicBtn.dataset.pmTopic) {
+      const tp = audioTopics.find(x => x.id === topicBtn.dataset.pmTopic);
+      if (tp) {
+        activeTopicId = tp.id;
+        searchQuery = tp.query;
+        if (searchIn) searchIn.value = tp.label;
+        if (searchClr) searchClr.hidden = false;
+        runLiveSearch(tp.query, 'audio');
+      }
       return;
     }
 
     const modeBtn = e.target.closest('[data-pm-mode]');
     if (modeBtn && modeBtn.dataset.pmMode) {
       setRoomMediaPlayMode(liveRm, modeBtn.dataset.pmMode);
-      renderModalContent();
+      if (liveState.active && liveState.query) {
+        runLiveSearch(liveState.query, modeBtn.dataset.pmMode);
+      } else {
+        renderModalContent();
+      }
       return;
     }
 
     const tabBtn = e.target.closest('[data-pm-tab]');
     if (tabBtn && tabBtn.dataset.pmTab) {
+      activeTopicId = '';
       liveState.active = false;
       activeTab = tabBtn.dataset.pmTab;
       renderModalContent();
@@ -4308,7 +5454,14 @@ function openPartyMusicModal(rm) {
     if (liveAddBtn) {
       const item = liveState.items[Number(liveAddBtn.dataset.pmAdd)];
       if (item) {
-        addOrPlayRoomTrack(liveRm, item, { playNow: false, playMode: liveRm.mediaPlayMode || 'audio' });
+        _failedAudioTrackKeys.delete(item.id);
+        _failedAudioTrackKeys.delete(item.url);
+        const stayAudio = liveRm.mediaPlayMode !== 'video';
+        const trackPayload = (stayAudio && item.videoId && item.kind !== 'audio')
+          ? { ...item, kind: 'audio', source: 'yt_audio', url: `yt-audio://${item.videoId}` }
+          : item;
+        const targetMode = (trackPayload.kind === 'audio' || stayAudio) ? 'audio' : 'video';
+        addOrPlayRoomTrack(liveRm, trackPayload, { playNow: false, playMode: targetMode });
         renderModalContent();
       }
       return;
@@ -4318,8 +5471,16 @@ function openPartyMusicModal(rm) {
     if (livePlayBtn) {
       const item = liveState.items[Number(livePlayBtn.dataset.pmPlaynow)];
       if (item) {
-        const targetMode = liveRm.mediaPlayMode === 'video' ? 'video' : (item.kind === 'yt_search' ? 'video' : 'audio');
-        addOrPlayRoomTrack(liveRm, item, { playNow: true, playMode: targetMode });
+        _failedAudioTrackKeys.clear();
+        liveRm.musicError = '';
+        const stayAudio = liveRm.mediaPlayMode !== 'video';
+        const trackPayload = (stayAudio && item.videoId && item.kind !== 'audio')
+          ? { ...item, kind: 'audio', source: 'yt_audio', url: `yt-audio://${item.videoId}` }
+          : item;
+        const targetMode = trackPayload.kind === 'audio'
+          ? 'audio'
+          : (liveRm.mediaPlayMode === 'video' ? 'video' : (item.kind === 'yt_search' ? 'video' : 'audio'));
+        addOrPlayRoomTrack(liveRm, trackPayload, { playNow: true, playMode: targetMode });
         renderModalContent();
       }
       return;
@@ -4327,20 +5488,33 @@ function openPartyMusicModal(rm) {
 
     const addSongBtn = e.target.closest('[data-pm-add-song]');
     if (addSongBtn && addSongBtn.dataset.pmAddSong) {
-      orderPartySongById(liveRm, addSongBtn.dataset.pmAddSong, { playNow: false });
+      const songId = addSongBtn.dataset.pmAddSong;
+      const found = cat && cat.findSongById(songId);
+      if (found) {
+        orderPartySongById(liveRm, songId, { playNow: false });
+      } else {
+        const recentMatch = getMusicRecentItems().find(x => x && (x.id === songId || x.songId === songId || (addSongBtn.dataset.pmUrl && x.url === addSongBtn.dataset.pmUrl)));
+        if (recentMatch) addOrPlayRoomTrack(liveRm, recentMatch, { playNow: false, playMode: 'audio' });
+      }
       renderModalContent();
       return;
     }
 
     const orderBtn = e.target.closest('[data-pm-order]');
     if (orderBtn && orderBtn.dataset.pmOrder) {
+      _failedAudioTrackKeys.clear();
+      liveRm.musicError = '';
       const songId = orderBtn.dataset.pmOrder;
       const found = cat && cat.findSongById(songId);
       if (found) {
         orderPartySongById(liveRm, songId, { playNow: true });
-      } else if (orderBtn.dataset.pmUrl) {
-        const recentMatch = getMusicRecentItems().find(x => x && (x.id === songId || x.songId === songId || x.url === orderBtn.dataset.pmUrl));
-        orderPartyCustomUrl(liveRm, orderBtn.dataset.pmUrl, recentMatch?.title || '');
+      } else {
+        const recentMatch = getMusicRecentItems().find(x => x && (x.id === songId || x.songId === songId || (orderBtn.dataset.pmUrl && x.url === orderBtn.dataset.pmUrl)));
+        if (recentMatch && recentMatch.url) {
+          addOrPlayRoomTrack(liveRm, recentMatch, { playNow: true, playMode: 'audio' });
+        } else if (orderBtn.dataset.pmUrl) {
+          orderPartyCustomUrl(liveRm, orderBtn.dataset.pmUrl, recentMatch?.title || '');
+        }
       }
       renderModalContent();
       return;
@@ -4349,6 +5523,8 @@ function openPartyMusicModal(rm) {
     const qPlayBtn = e.target.closest('[data-pm-qplay]');
     if (qPlayBtn && cat) {
       if (!assertRoomPerm(liveRm, 'control_playlist')) return;
+      _failedAudioTrackKeys.clear();
+      liveRm.musicError = '';
       const idx = Number(qPlayBtn.dataset.pmQplay);
       const res = cat.selectQueueIndex(liveRm, idx);
       if (res && res.ok) {
@@ -4379,6 +5555,7 @@ function openPartyMusicModal(rm) {
         PartyVideoSync.handleAction(liveRm, 'toggle');
       } else {
         if (!liveRm.musicUrl) return;
+        liveRm.musicError = '';
         liveRm.musicPlaying = !liveRm.musicPlaying;
         PartyAudioPlayer.syncFromRoom(liveRm);
         persistPartyRoom(liveRm);
@@ -4388,18 +5565,22 @@ function openPartyMusicModal(rm) {
     }
 
     if (e.target.closest('#pmSkipBtn')) {
+      liveRm.musicError = '';
       advanceRoomQueue(liveRm);
       renderModalContent();
       return;
     }
 
     if (e.target.closest('#pmClearTopBtn')) {
+      _failedAudioTrackKeys.clear();
       clearPartyMusicQueue(liveRm);
       renderModalContent();
       return;
     }
 
     if (e.target.closest('#pmPlayUrl')) {
+      _failedAudioTrackKeys.clear();
+      liveRm.musicError = '';
       const urlIn = $('#pmAudioUrl', m);
       const rawUrl = (urlIn?.value || '').trim();
       const res = orderPartyCustomUrl(liveRm, rawUrl, '');
@@ -5119,7 +6300,13 @@ function openPartyModesModal(rm) {
   $$('[data-setmode]', m).forEach(btn => {
     btn.onclick = () => {
       if (!assertRoomPerm(rm, 'change_mode')) return;
+      const prevM = rm.mode;
       rm.mode = btn.dataset.setmode;
+      rm.mediaPlayMode = rm.mode === 'video' ? 'video' : 'audio';
+      rm.modeUpdatedAt = Date.now();
+      if (window.PartyModeStages && typeof window.PartyModeStages.onModeWillChange === 'function') {
+        window.PartyModeStages.onModeWillChange(prevM, rm.mode);
+      }
       if (rm.isOwnedRoom) syncOwnedRoomProfileSnapshot(rm);
       persistPartyRoom(rm);
       toast(`Room mode switched to ${PARTY_MODES_META[rm.mode]?.name || rm.mode}`);
@@ -5222,6 +6409,15 @@ function openPartyAdvancedPanel(rm, initialTab) {
         </div>
       `;
     } else if (activeTab === 'admins') {
+      const ownerInfo = rules && typeof rules.getRoomOwnerDisplayInfo === 'function'
+        ? rules.getRoomOwnerDisplayInfo(live, Date.now(), rules.DEFAULT_STALE_MS)
+        : { uid: getEffectiveOwnerUid(live), name: getEffectiveOwnerName(live), avatar: live.ownerAvatar || 'av_b1', online: false };
+      const ownerInActive = activeMembers.some(mb => mb && mb.uid === ownerInfo.uid);
+      const memberRows = [];
+      if (ownerInfo.uid && !ownerInActive) {
+        memberRows.push({ uid: ownerInfo.uid, name: ownerInfo.name, avatar: ownerInfo.avatar, offlineOwner: true });
+      }
+      activeMembers.forEach(mb => memberRows.push(mb));
       body.innerHTML = `
         <div class="advp-sec" data-testid="advp-admins-view">
           <div class="advp-sec-hdr">
@@ -5229,19 +6425,19 @@ function openPartyAdvancedPanel(rm, initialTab) {
             <small>${amOwner ? 'You are the Room Owner · Tap to appoint/remove' : 'Only Room Owner can appoint/remove Admins'}</small>
           </div>
           <div class="advp-member-list">
-            ${activeMembers.map(mb => {
+            ${memberRows.map(mb => {
               const isOwn = isSingleOwner(live, mb.uid);
-              const isAdm = admins.includes(mb.uid);
+              const isAdm = !isOwn && admins.includes(mb.uid);
               return `<div class="advp-member-row">
                 <div class="advp-m-left">
                   <b>${esc(mb.name)}</b>
-                  <small>${isOwn ? '👑 OWNER' : (isAdm ? '🛡️ ADMIN' : 'Member')}</small>
+                  <small>${isOwn ? `👑 OWNER · ${mb.offlineOwner ? 'Offline' : 'Online'}` : (isAdm ? '🛡️ ADMIN' : 'Member')}</small>
                 </div>
                 ${isOwn
                   ? '<span class="pfs-owner-tag">OWNER</span>'
                   : (amOwner
                     ? `<button type="button" class="btn sm ${isAdm ? 'red' : 'gold'}" data-advp-adm="${esc(mb.uid)}" data-advp-adm-make="${isAdm ? '0' : '1'}">${isAdm ? 'Remove' : 'Make Admin'}</button>`
-                    : `<span class="advp-badge">${isAdm ? 'ADMIN' : 'Member'}</span>`)
+                    : (isAdm ? '<span class="pfs-role-chip admin">ADMIN</span>' : '<span class="advp-badge">Member</span>'))
                 }
               </div>`;
             }).join('') || '<div class="mp-empty">No active members in room yet.</div>'}
@@ -5495,8 +6691,11 @@ function openPartyAdvancedPanel(rm, initialTab) {
         : null;
       if (!res || !res.ok) return toast(res?.error || 'Owner or Admins only');
       live.micOrder = res.micOrder;
-      // Seat the granted member into the first open Mic seat (1..3) if available
-      const openMic = [1, 2, 3].find(k => !live.seats[String(k)] && !(live.lockedSeats || []).includes(k));
+      // Seat the granted member into the first open Mic seat (Owner stays strictly on Seat 0)
+      const isTargetOwner = isSingleOwner(live, targetUid);
+      const openMic = isTargetOwner
+        ? 0
+        : [1, 2, 3].find(k => !live.seats[String(k)] && !(live.lockedSeats || []).includes(k));
       const mInfo = live.members && live.members[targetUid];
       if (openMic != null && mInfo) {
         const nextSeats = { ...(live.seats || {}) };
@@ -5512,7 +6711,7 @@ function openPartyAdvancedPanel(rm, initialTab) {
           lastSeen: Date.now(),
           connected: true
         };
-        live.seats = normalizePartySeats(nextSeats);
+        live.seats = normalizePartySeats(nextSeats, live);
       }
       persistPartyRoom(live, { fullReplace: true });
       toast('🎙️ Granted mic turn!');
@@ -5554,9 +6753,17 @@ function openPartyAdvancedPanel(rm, initialTab) {
       const nextMode = $('#advpEditMode', m)?.value || live.mode;
       const nextCover = $('#advpEditCover', m)?.value || live.cover;
       const nextBg = $('#advpEditBg', m)?.value || live.background;
+      const prevMode = live.mode;
       if (nextTitle) live.title = nextTitle;
       live.tag = nextTag;
-      live.mode = nextMode;
+      if (nextMode !== prevMode) {
+        if (window.PartyModeStages && typeof window.PartyModeStages.onModeWillChange === 'function') {
+          window.PartyModeStages.onModeWillChange(prevMode, nextMode);
+        }
+        live.mode = nextMode;
+        live.mediaPlayMode = nextMode === 'video' ? 'video' : 'audio';
+        live.modeUpdatedAt = Date.now();
+      }
       live.cover = nextCover;
       live.background = nextBg;
       if (isSingleOwner(live, uid) && $('#advpEditPass', m)) {
@@ -5644,7 +6851,13 @@ function bindPartyRootDelegation(root) {
     } else if (act === 'minimize') {
       minimizePartyRoom();
     } else if (act === 'open-room-info') {
-      if (extras) extras.openPartyRoomInfoModal(rm);
+      if (extras) extras.openPartyRoomInfoModal(rm, 'overview');
+    } else if (act === 'open-room-level') {
+      if (extras) extras.openPartyRoomInfoModal(rm, 'perks');
+    } else if (act === 'open-room-bg') {
+      if (extras) extras.openPartyRoomInfoModal(rm, 'backgrounds');
+    } else if (act === 'edit-room-rules') {
+      if (extras && typeof extras.openRoomRulesEditModal === 'function') extras.openRoomRulesEditModal(rm);
     } else if (act === 'open-room-menu') {
       if (extras) extras.openPartyRoomMenuDrawer(rm);
     } else if (act === 'open-full-settings') {
@@ -5681,6 +6894,8 @@ function bindPartyRootDelegation(root) {
       openPartyInviteModal(rm);
     } else if (act === 'open-music') {
       openPartyMusicModal(rm);
+    } else if (act === 'open-audio-queue') {
+      openPartyMusicModal(rm, { initialTab: 'ordered' });
     } else if (act === 'open-modes') {
       openPartyModesModal(rm);
     } else if (act === 'open-add-video') {
@@ -5726,6 +6941,26 @@ function bindPartyRootDelegation(root) {
         openGiftSendModal(other ? other.uid : null, { allowPickPlayer: true, inPartyRoom: rm.id });
       }
     }
+  });
+
+  root.addEventListener('input', e => {
+    const scrub = e.target.closest('[data-audio-scrub]');
+    if (!scrub) return;
+    PartyAudioPlayer.setScrubbing(true);
+    const timeEl = root.querySelector('[data-audio-time]');
+    if (timeEl) {
+      const cur = Math.max(0, Math.floor(Number(scrub.value) || 0));
+      const parts = String(timeEl.textContent || '').split('/');
+      const rhs = (parts[1] || '0:00').trim();
+      timeEl.textContent = `${Math.floor(cur / 60)}:${String(cur % 60).padStart(2, '0')} / ${rhs}`;
+    }
+  });
+
+  root.addEventListener('change', e => {
+    const scrub = e.target.closest('[data-audio-scrub]');
+    if (!scrub) return;
+    PartyAudioPlayer.setScrubbing(false);
+    PartyAudioPlayer.seekTo(Number(scrub.value) || 0);
   });
 
   root.addEventListener('keydown', e => {

@@ -54,17 +54,50 @@
     }
   ];
 
+  const CHEST_GIFT_POOLS = {
+    charm_1: [
+      { id: 'g01_rose', name: 'Red Rose', icon: '🌹', charm: 1, coinsValue: 5 },
+      { id: 'g02_coffee', name: 'Study Coffee', icon: '☕', charm: 1, coinsValue: 6 },
+      { id: 'g03_plane', name: 'Paper Plane', icon: '✈️', charm: 1, coinsValue: 8 },
+      { id: 'g04_clover', name: 'Lucky Clover', icon: '🍀', charm: 1, coinsValue: 9 }
+    ],
+    charm_6: [
+      { id: 'g15_bear', name: 'Teddy Bear', icon: '🧸', charm: 6, coinsValue: 30 },
+      { id: 'g15b_macaron', name: 'Sweet Macaron', icon: '🍬', charm: 6, coinsValue: 30 },
+      { id: 'g16_cupcake', name: 'Berry Cupcake', icon: '🧁', charm: 6, coinsValue: 32 },
+      { id: 'g16b_boba_deluxe', name: 'Caramel Boba', icon: '🧋', charm: 6, coinsValue: 30 }
+    ],
+    vip_top: [
+      { id: 'g28_skate', name: 'Neon Board', icon: '🛹', charm: 20, coinsValue: 100 },
+      { id: 'g30_vinyl', name: 'Gold Vinyl', icon: '💿', charm: 24, coinsValue: 120 },
+      { id: 'g33_pearl', name: 'Ocean Pearl', icon: '🦪', charm: 30, coinsValue: 150 },
+      { id: 'g36_prism', name: 'Prism Cube', icon: '💎', charm: 36, coinsValue: 180 }
+    ],
+    vip_bottom: [
+      { id: 'g37_crown', name: 'Royal Crown', icon: '👑', charm: 44, coinsValue: 220 },
+      { id: 'g38_diamond', name: 'Diamond Ring', icon: '💍', charm: 50, coinsValue: 250 },
+      { id: 'g41_guitar', name: 'Flame Guitar', icon: '🎸', charm: 64, coinsValue: 320 },
+      { id: 'g43_trophy', name: 'Grand Trophy', icon: '🏆', charm: 76, coinsValue: 380 }
+    ]
+  };
+
+  /* WePlay-Style 2-Row Room Treasure Chests (5 Free + 2 VIP Only):
+     - Top Row: 3 Free Chests (5m, 30m, 30m -> 1 Charm random gifts) + 1 VIP Only Chest
+     - Bottom Row: 2 Free Chests (15m, 30m, accelerated by quick tasks -> 6 Charm random gifts) + 1 VIP Only Chest */
   const DAILY_BOX_DEFS = [
-    { id: 'box_1', label: 'Starter Box', icon: '🎁', unlockSec: 0, coins: 30, xp: 15, vipOnly: false },
-    { id: 'box_2', label: 'Stay 5 Min', icon: '🧰', unlockSec: 300, coins: 60, xp: 25, vipOnly: false },
-    { id: 'box_3', label: 'Stay 15 Min', icon: '💎', unlockSec: 900, coins: 120, xp: 45, vipOnly: false },
-    { id: 'box_vip', label: 'VIP Royal Box', icon: '👑', unlockSec: 0, coins: 250, xp: 80, vipOnly: true }
+    { id: 'box_top_1', row: 'top', label: '5m Chest', shortTag: '1 Charm', icon: '🎁', tier: 'bronze', stageDurationSec: 300, startAtSec: 0, unlockSec: 300, rewardPool: 'charm_1', xp: 15, vipOnly: false },
+    { id: 'box_top_2', row: 'top', label: '30m Chest', shortTag: '1 Charm', icon: '🧰', tier: 'silver', stageDurationSec: 1800, startAtSec: 300, unlockSec: 2100, rewardPool: 'charm_1', xp: 25, vipOnly: false },
+    { id: 'box_top_3', row: 'top', label: '30m Chest', shortTag: '1 Charm', icon: '🎁', tier: 'gold', stageDurationSec: 1800, startAtSec: 2100, unlockSec: 3900, rewardPool: 'charm_1', xp: 35, vipOnly: false },
+    { id: 'box_top_vip', row: 'top', label: 'VIP Chest', shortTag: 'VIP Gift', icon: '👑', tier: 'mythic', stageDurationSec: 0, startAtSec: 0, unlockSec: 0, rewardPool: 'vip_top', xp: 60, vipOnly: true },
+    { id: 'box_bot_1', row: 'bottom', label: '15m Bonus', shortTag: '6 Charm', icon: '🎀', tier: 'silver', stageDurationSec: 900, startAtSec: 0, unlockSec: 900, rewardPool: 'charm_6', xp: 35, vipOnly: false },
+    { id: 'box_bot_2', row: 'bottom', label: '30m Bonus', shortTag: '6 Charm', icon: '💎', tier: 'gold', stageDurationSec: 1800, startAtSec: 900, unlockSec: 2700, rewardPool: 'charm_6', xp: 50, vipOnly: false },
+    { id: 'box_bot_vip', row: 'bottom', label: 'Royal VIP', shortTag: 'Luxury Gift', icon: '👑', tier: 'mythic', stageDurationSec: 0, startAtSec: 0, unlockSec: 0, rewardPool: 'vip_bottom', xp: 90, vipOnly: true }
   ];
 
   const DAILY_QUICK_TASKS = [
-    { id: 'task_follow', label: 'Follow this room', icon: '❤️', coins: 25, xp: 15, target: 1 },
-    { id: 'task_msg', label: 'Send a chat message', icon: '💬', coins: 15, xp: 10, target: 1 },
-    { id: 'task_gift', label: 'Send any room gift', icon: '🎁', coins: 40, xp: 25, target: 1 }
+    { id: 'task_follow', label: 'Follow this room', icon: '❤️', speedUpSec: 300, coins: 15, xp: 15, target: 1 },
+    { id: 'task_msg', label: 'Send a chat message', icon: '💬', speedUpSec: 300, coins: 10, xp: 10, target: 1 },
+    { id: 'task_gift', label: 'Send any room gift', icon: '🎁', speedUpSec: 300, coins: 25, xp: 25, target: 1 }
   ];
 
   const WTW_ENTRANCE_OPTIONS = [
@@ -130,6 +163,16 @@
           .filter((op) => op && op.action)
           .slice(-40)
       : [];
+    const prr = getPRR();
+    const roomRules = prr && typeof prr.normalizeRoomRulesText === 'function'
+      ? prr.normalizeRoomRulesText(src.roomRules)
+      : (cleanStr(src.roomRules).slice(0, 280) || 'Be respectful on mic · Keep chat friendly & spam-free · Follow Room Owner & Admin guidelines.');
+    const customBackgroundUrl = prr && typeof prr.sanitizeCustomBackgroundUrl === 'function'
+      ? prr.sanitizeCustomBackgroundUrl(src.customBackgroundUrl)
+      : '';
+    const roomTheme = prr && typeof prr.normalizeRoomTheme === 'function'
+      ? prr.normalizeRoomTheme(src.roomTheme)
+      : 'default';
     return {
       partnerSeat: Boolean(src.partnerSeat),
       banTextChat: Boolean(src.banTextChat),
@@ -139,6 +182,9 @@
       rallyReceiveOn: src.rallyReceiveOn !== false,
       region: ROOM_REGIONS.includes(src.region) ? src.region : 'India',
       volume,
+      roomRules,
+      roomTheme,
+      customBackgroundUrl,
       blocklist,
       operationLog
     };
@@ -229,15 +275,25 @@
     const actions = [];
 
     if (!s) {
-      // Empty seat -> Sit, Close/Open Seat, Invite, Cancel
-      const canSitHere = (idx !== 0 || amOwner) && (!isLocked || amAdmin);
-      actions.push({
-        id: 'sit',
-        label: isLocked ? (amAdmin ? 'Sit (Unlock & Sit)' : 'Seat Locked') : 'Sit',
-        icon: '💺',
-        allowed: canSitHere,
-        reason: idx === 0 && !amOwner ? 'Seat 0 is reserved for the Room Owner' : (isLocked ? 'This seat is locked by Owner / Admin' : '')
-      });
+      // Seat 0: dedicated Owner slot; Guest seats 1..8: Owner manages seats but stays strictly in Seat 0
+      if (idx === 0) {
+        actions.push({
+          id: 'sit',
+          label: amOwner ? 'Take Owner Mic' : 'Owner Slot Only',
+          icon: amOwner ? '🎙️' : '👑',
+          allowed: amOwner,
+          reason: amOwner ? '' : 'Seat 0 is reserved strictly for the Room Owner'
+        });
+      } else if (!amOwner) {
+        const canSitHere = !isLocked || amAdmin;
+        actions.push({
+          id: 'sit',
+          label: isLocked ? (amAdmin ? 'Sit (Unlock & Sit)' : 'Seat Locked') : 'Sit',
+          icon: '💺',
+          allowed: canSitHere,
+          reason: isLocked ? 'This seat is locked by Owner / Admin' : ''
+        });
+      }
       if (idx > 0) {
         actions.push({
           id: 'toggle_lock',
@@ -263,7 +319,13 @@
     const targetIsAdmin = !targetIsOwner && (prr ? prr.isRoomAdminOnly(rm, s.uid) : false);
 
     if (isMe) {
-      actions.push({ id: 'leave_seat', label: 'Leave Seat', icon: '🚪', allowed: true, reason: '' });
+      actions.push({
+        id: 'leave_seat',
+        label: (idx === 0 && amOwner) ? 'Step Off Mic' : 'Leave Seat',
+        icon: '🚪',
+        allowed: true,
+        reason: ''
+      });
       actions.push({
         id: 'toggle_mute',
         label: s.muted ? 'Unmute' : 'Mute',
@@ -309,12 +371,14 @@
     return { seatIdx: idx, occupied: true, isLocked, occupant: s, actions };
   }
 
-  /* ===== 3. Daily Task Treasure Boxes ===== */
+  /* ===== 3. Daily Task Treasure Boxes (WePlay 2-Row Layout · 5 Free + 2 VIP) ===== */
   function createEmptyDailyState(nowMs) {
     return {
       dayKey: getDayKey(nowMs),
       staySec: 0,
+      speedBoostSec: 0,
       claimedBoxes: [],
+      wonGifts: {},
       completedTasks: [],
       claimedTasks: []
     };
@@ -325,13 +389,39 @@
     if (!stored || typeof stored !== 'object' || stored.dayKey !== today) {
       return createEmptyDailyState(nowMs);
     }
+    const wonGifts = {};
+    if (stored.wonGifts && typeof stored.wonGifts === 'object' && !Array.isArray(stored.wonGifts)) {
+      Object.keys(stored.wonGifts).forEach((k) => {
+        const g = stored.wonGifts[k];
+        if (g && g.id && g.name) {
+          wonGifts[String(k)] = {
+            id: cleanStr(g.id),
+            name: cleanStr(g.name),
+            icon: cleanStr(g.icon) || '🎁',
+            charm: Math.max(1, Math.floor(Number(g.charm || 1))),
+            coinsValue: Math.max(0, Math.floor(Number(g.coinsValue || 0)))
+          };
+        }
+      });
+    }
     return {
       dayKey: today,
       staySec: Math.max(0, Math.floor(Number(stored.staySec || 0))),
+      speedBoostSec: Math.max(0, Math.floor(Number(stored.speedBoostSec || 0))),
       claimedBoxes: Array.isArray(stored.claimedBoxes) ? [...new Set(stored.claimedBoxes.map(String))] : [],
+      wonGifts,
       completedTasks: Array.isArray(stored.completedTasks) ? [...new Set(stored.completedTasks.map(String))] : [],
       claimedTasks: Array.isArray(stored.claimedTasks) ? [...new Set(stored.claimedTasks.map(String))] : []
     };
+  }
+
+  function pickRandomChestGift(poolKey, rng) {
+    const pool = CHEST_GIFT_POOLS[poolKey] || CHEST_GIFT_POOLS.charm_1;
+    const r = typeof rng === 'function' ? Number(rng()) : Math.random();
+    const clamped = Number.isFinite(r) ? Math.max(0, Math.min(0.999999, r)) : 0;
+    const idx = Math.floor(clamped * pool.length);
+    const picked = pool[idx] || pool[0];
+    return { ...picked };
   }
 
   function evaluateDailyTasks(stored, opts) {
@@ -339,19 +429,36 @@
     const now = Number(o.nowMs || Date.now());
     const st = normalizeDailyState(stored, now);
     const staySec = Math.max(st.staySec, Math.floor(Number(o.roomStaySec || 0)));
-    const isVip = Boolean(o.isVip || st.completedTasks.length >= 2);
+    const speedBoostSec = st.speedBoostSec;
+    const effectiveSec = staySec + speedBoostSec;
+    const isVip = Boolean(o.isVip);
 
     const boxes = DAILY_BOX_DEFS.map((b) => {
       const claimed = st.claimedBoxes.includes(b.id);
+      const wonGift = st.wonGifts[b.id] || null;
       if (claimed) {
-        return { ...b, status: 'claimed', remainingSec: 0 };
+        return { ...b, status: 'claimed', remainingSec: 0, displaySec: 0, wonGift };
       }
       if (b.vipOnly) {
-        return { ...b, status: isVip ? 'claimable' : 'locked_vip', remainingSec: 0 };
+        return { ...b, status: isVip ? 'claimable' : 'locked_vip', remainingSec: 0, displaySec: 0, wonGift: null };
       }
-      const rem = Math.max(0, b.unlockSec - staySec);
-      return { ...b, status: rem === 0 ? 'claimable' : 'countdown', remainingSec: rem };
+      const rem = Math.max(0, b.unlockSec - effectiveSec);
+      if (rem === 0) {
+        return { ...b, status: 'claimable', remainingSec: 0, displaySec: 0, wonGift: null };
+      }
+      const isQueued = effectiveSec < b.startAtSec;
+      const displaySec = isQueued ? b.stageDurationSec : rem;
+      return {
+        ...b,
+        status: isQueued ? 'queued' : 'countdown',
+        remainingSec: rem,
+        displaySec,
+        wonGift: null
+      };
     });
+
+    const topRowBoxes = boxes.filter((b) => b.row === 'top');
+    const bottomRowBoxes = boxes.filter((b) => b.row === 'bottom');
 
     const tasks = DAILY_QUICK_TASKS.map((t) => {
       const claimed = st.claimedTasks.includes(t.id);
@@ -360,7 +467,16 @@
     });
 
     const claimableCount = boxes.filter((b) => b.status === 'claimable').length + tasks.filter((t) => t.status === 'claimable').length;
-    return { state: { ...st, staySec }, boxes, tasks, isVip, claimableCount };
+    return {
+      state: { ...st, staySec, speedBoostSec },
+      effectiveSec,
+      boxes,
+      topRowBoxes,
+      bottomRowBoxes,
+      tasks,
+      isVip,
+      claimableCount
+    };
   }
 
   function markDailyQuickTaskDone(stored, taskId, nowMs) {
@@ -373,18 +489,24 @@
   }
 
   function claimDailyTaskBox(stored, boxId, opts) {
-    const evalRes = evaluateDailyTasks(stored, opts);
+    const o = opts || {};
+    const evalRes = evaluateDailyTasks(stored, o);
     const box = evalRes.boxes.find((b) => b.id === boxId);
-    if (!box) return { ok: false, error: 'Treasure box not found', state: evalRes.state };
+    if (!box) return { ok: false, error: 'Treasure chest not found', state: evalRes.state };
     if (box.status === 'claimed') return { ok: false, error: 'Already claimed today', state: evalRes.state };
-    if (box.status === 'locked_vip') return { ok: false, error: 'Complete 2 quick tasks or own/guard a room to unlock VIP Box', state: evalRes.state };
-    if (box.status === 'countdown') return { ok: false, error: `Available in ${Math.ceil(box.remainingSec / 60)}m`, state: evalRes.state };
+    if (box.status === 'locked_vip') return { ok: false, error: 'VIP Only chest — activate VIP to unlock this luxury gift', state: evalRes.state };
+    if (box.status === 'countdown' || box.status === 'queued') {
+      const mins = Math.max(1, Math.ceil(box.remainingSec / 60));
+      return { ok: false, error: `Available in ${mins}m — complete quick tasks to speed up!`, state: evalRes.state };
+    }
 
+    const gift = pickRandomChestGift(box.rewardPool, o.rng);
     const nextState = {
       ...evalRes.state,
-      claimedBoxes: [...evalRes.state.claimedBoxes, box.id]
+      claimedBoxes: [...evalRes.state.claimedBoxes, box.id],
+      wonGifts: { ...evalRes.state.wonGifts, [box.id]: gift }
     };
-    return { ok: true, coins: box.coins, xp: box.xp, box, state: nextState };
+    return { ok: true, gift, xp: box.xp, box, state: nextState };
   }
 
   function claimDailyQuickTask(stored, taskId, opts) {
@@ -394,12 +516,14 @@
     if (task.status === 'claimed') return { ok: false, error: 'Already claimed today', state: evalRes.state };
     if (task.status !== 'claimable') return { ok: false, error: 'Complete the task in this room first', state: evalRes.state };
 
+    const speedUpSec = Math.max(0, Math.floor(Number(task.speedUpSec || 0)));
     const nextState = {
       ...evalRes.state,
+      speedBoostSec: Math.max(0, Number(evalRes.state.speedBoostSec || 0)) + speedUpSec,
       completedTasks: [...new Set([...evalRes.state.completedTasks, task.id])],
       claimedTasks: [...evalRes.state.claimedTasks, task.id]
     };
-    return { ok: true, coins: task.coins, xp: task.xp, task, state: nextState };
+    return { ok: true, speedUpSec, coins: task.coins, xp: task.xp, task, state: nextState };
   }
 
   /* ===== 4. Create PvP / PK Mode ===== */
@@ -666,6 +790,7 @@
     PK_DURATIONS,
     PK_MIC_OUTFIT_TIERS,
     PK_RULES_SECTIONS,
+    CHEST_GIFT_POOLS,
     DAILY_BOX_DEFS,
     DAILY_QUICK_TASKS,
     WTW_ENTRANCE_OPTIONS,
@@ -678,6 +803,7 @@
     getSeatTapActions,
     createEmptyDailyState,
     normalizeDailyState,
+    pickRandomChestGift,
     evaluateDailyTasks,
     markDailyQuickTaskDone,
     claimDailyTaskBox,

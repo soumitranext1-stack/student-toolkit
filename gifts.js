@@ -30,8 +30,10 @@ const GIFT_CATALOG = [
   /* Tier 2 — 2★ Sweet (12 gifts: 25–60 coins) */
   { id: 'g13_bouquet', name: 'Rose Bouquet', tier: 2, price: 25, charm: 32, icon: 'bouquet', c1: '#f472b6', c2: '#be123c' },
   { id: 'g14_choco', name: 'Choco Box', tier: 2, price: 28, charm: 36, icon: 'choco', c1: '#b45309', c2: '#78350f' },
-  { id: 'g15_bear', name: 'Teddy Bear', tier: 2, price: 30, charm: 40, icon: 'bear', c1: '#fbbf24', c2: '#b45309' },
-  { id: 'g16_cupcake', name: 'Berry Cupcake', tier: 2, price: 32, charm: 42, icon: 'cupcake', c1: '#f9a8d4', c2: '#ec4899' },
+  { id: 'g15_bear', name: 'Teddy Bear', tier: 2, price: 30, charm: 6, icon: 'bear', c1: '#fbbf24', c2: '#b45309' },
+  { id: 'g15b_macaron', name: 'Sweet Macaron', tier: 2, price: 30, charm: 6, icon: 'candy', c1: '#f9a8d4', c2: '#db2777' },
+  { id: 'g16_cupcake', name: 'Berry Cupcake', tier: 2, price: 32, charm: 6, icon: 'cupcake', c1: '#f9a8d4', c2: '#ec4899' },
+  { id: 'g16b_boba_deluxe', name: 'Caramel Boba', tier: 2, price: 30, charm: 6, icon: 'boba', c1: '#fde68a', c2: '#b45309' },
   { id: 'g17_ribbon', name: 'Silk Ribbon', tier: 2, price: 35, charm: 45, icon: 'ribbon', c1: '#c084fc', c2: '#7c3aed' },
   { id: 'g18_headphone', name: 'Lo-Fi Beats', tier: 2, price: 38, charm: 50, icon: 'headphone', c1: '#38bdf8', c2: '#4f46e5' },
   { id: 'g19_lantern', name: 'Sky Lantern', tier: 2, price: 40, charm: 52, icon: 'lantern', c1: '#fb923c', c2: '#dc2626' },

@@ -149,8 +149,6 @@ function renderHomeHub(){
         <b>Events</b>
       </button>
     </div>
-
-    ${typeof renderActivityChestsStrip==='function'?renderActivityChestsStrip():''}
   `;
 
   if($('#heroProfileBtn',host))$('#heroProfileBtn',host).onclick=()=>showTab('profile');
@@ -164,7 +162,6 @@ function renderHomeHub(){
   if($('#qaEventsBtn',host))$('#qaEventsBtn',host).onclick=()=>{
     if(typeof openLuckySpinModal==='function')openLuckySpinModal();
   };
-  if(typeof bindActivityChests==='function')bindActivityChests(host);
 
   if(typeof renderPartyHub==='function')renderPartyHub();
   if(typeof renderHomeFeaturedLauncher==='function')renderHomeFeaturedLauncher($('#homeArenaPosters'));

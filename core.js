@@ -110,13 +110,14 @@ function renderTags(tags, userObj){
 
 function toast(t){$$('.toast').forEach(x=>x.remove());const e=document.createElement('div');e.className='toast';e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2400)}
 
-let themeMode=localStorage.getItem('sg_theme')||'dark';
+let themeMode=localStorage.getItem('sg_theme_v50')||'dark';
 function applyTheme(){
   document.body.classList.toggle('light',themeMode==='light');
   const tb=$('#themeBtn');
   if(tb)tb.innerHTML=themeMode==='light'?UI_SVG.sun:UI_SVG.moon;
   const tm=document.querySelector('meta[name="theme-color"]');
-  if(tm)tm.setAttribute('content',themeMode==='light'?'#eef3f9':'#131b2e');
+  if(tm)tm.setAttribute('content',themeMode==='light'?'#dbe8fb':'#141d32');
+  localStorage.setItem('sg_theme_v50',themeMode);
   localStorage.setItem('sg_theme',themeMode);
 }
 $('#themeBtn').onclick=()=>{themeMode=(themeMode==='light'?'dark':'light');applyTheme()};

@@ -660,7 +660,7 @@ function openLuckySpinModal() {
           <text x="120" y="124" fill="#ffd36b" font-size="11" font-weight="900" text-anchor="middle">SPIN</text>
         </svg>
       </div>
-      <div class="wheel-status" id="wheelStatus">1 Free Daily Spin · Tickets: <b id="wtCnt">${fmtNum(me.spinTickets || 0)}</b></div>
+      <div class="wheel-status" id="wheelStatus"><span id="wheelStatusMsg">1 Free Daily Spin</span> · Tickets: <b id="wtCnt">${fmtNum(me.spinTickets || 0)}</b></div>
       <div class="row wrap" style="gap:8px;width:100%;margin-top:8px">
         <button type="button" class="btn gold" id="spinFreeBtn" style="flex:1">Free / Ticket Spin</button>
         <button type="button" class="btn" id="spinCoinBtn" style="flex:1">Spin · 150 🪙</button>
@@ -670,14 +670,20 @@ function openLuckySpinModal() {
   `, 'wheel-sheet');
 
   const syncSpinUI = () => {
+    if (!m || !m.isConnected) return;
     const freeLeft = me.spinFreeDay !== today();
     const tix = Number(me.spinTickets || 0);
-    $('#wtCnt', m).textContent = fmtNum(tix);
+    const wtEl = $('#wtCnt', m);
+    if (wtEl) wtEl.textContent = fmtNum(tix);
     const fb = $('#spinFreeBtn', m);
-    fb.textContent = freeLeft ? 'FREE Daily Spin!' : (tix > 0 ? `Use Ticket (${tix})` : 'No Free Spin');
-    fb.disabled = spinning || (!freeLeft && tix <= 0);
-    $('#spinCoinBtn', m).disabled = spinning || me.coins < 150;
-    $('#spinAdBtn', m).disabled = spinning;
+    if (fb) {
+      fb.textContent = freeLeft ? 'FREE Daily Spin!' : (tix > 0 ? `Use Ticket (${tix})` : 'No Free Spin');
+      fb.disabled = spinning || (!freeLeft && tix <= 0);
+    }
+    const coinBtn = $('#spinCoinBtn', m);
+    if (coinBtn) coinBtn.disabled = spinning || me.coins < 150;
+    const adBtn = $('#spinAdBtn', m);
+    if (adBtn) adBtn.disabled = spinning;
   };
   syncSpinUI();
 
@@ -699,11 +705,16 @@ function openLuckySpinModal() {
     const sliceCenter = winIdx * 45 + 22.5;
     const targetDeg = 360 - sliceCenter;
     curRot = curRot + 1440 + ((targetDeg - (curRot % 360) + 360) % 360);
-    $('#wheelDisc', m).style.transform = `rotate(${curRot}deg)`;
+    const discEl = $('#wheelDisc', m);
+    if (discEl) discEl.style.transform = `rotate(${curRot}deg)`;
 
     let ticks = 0;
     const tickIv = setInterval(() => {
       ticks++;
+      if (!m || !m.isConnected) {
+        clearInterval(tickIv);
+        return;
+      }
       if (typeof playSfx === 'function') playSfx('wheelTick');
       if (ticks >= 14) clearInterval(tickIv);
     }, 180);
@@ -737,7 +748,10 @@ function openLuckySpinModal() {
         openMysteryBoxReward(mode === 'coin');
       }
       if (typeof playSfx === 'function') playSfx('wheelWin');
-      $('#wheelStatus', m).innerHTML = `<b style="color:var(--gold)">🎉 You Won: ${esc(prize.label)}!</b>`;
+      const statusMsgEl = $('#wheelStatusMsg', m);
+      if (statusMsgEl) {
+        statusMsgEl.innerHTML = `<b style="color:var(--gold)">🎉 You Won: ${esc(prize.label)}!</b>`;
+      }
       toast('Lucky Wheel Won: ' + prize.label);
       spinning = false;
       syncSpinUI();
